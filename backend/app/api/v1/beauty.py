@@ -80,7 +80,7 @@ def _require_consent(
 def _validate_uploaded_image(path: Path) -> None:
     try:
         raw = np.fromfile(path, dtype=np.uint8)
-        image = cv2.imdecode(raw, cv2.IMREAD_UNCHANGED)
+        image = cv2.imdecode(raw, cv2.IMREAD_COLOR)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -96,6 +96,11 @@ def _validate_uploaded_image(path: Path) -> None:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="Image dimensions are too large",
+        )
+    if not cv2.imwrite(str(path), image):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not normalize uploaded image",
         )
 
 
