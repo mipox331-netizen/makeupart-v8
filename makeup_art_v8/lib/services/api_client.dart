@@ -47,7 +47,7 @@ class ApiClient {
             return;
           }
 
-          final refreshToken = await storage.read(key: _refreshKey);
+          final refreshToken = await this.storage.read(key: _refreshKey);
           if (refreshToken == null || refreshToken.isEmpty) {
             handler.next(error);
             return;
