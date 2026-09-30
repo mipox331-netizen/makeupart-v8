@@ -49,6 +49,9 @@ jobs:
       - name: Run migrations
         run: docker compose run --rm backend alembic upgrade head
 
+      - name: Run backend tests
+        run: docker compose run --rm backend pytest -q
+
       - name: Start backend
         run: |
           docker compose up -d backend
