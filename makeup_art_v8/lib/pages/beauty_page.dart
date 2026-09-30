@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_client.dart';
@@ -59,7 +61,7 @@ class _BeautyPageState extends State<BeautyPage> {
                 if (selected != null)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.network(selected!.path, height: 300, fit: BoxFit.cover,
+                    child: Image.file(File(selected!.path), height: 300, fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox(
                         height: 120, child: Center(child: Icon(Icons.image_outlined, size: 56)))),
                   )
