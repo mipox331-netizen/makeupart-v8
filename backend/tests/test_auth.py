@@ -72,7 +72,7 @@ def test_refresh_returns_new_tokens(client):
     response = client.post(f"{API}/auth/refresh", json={"refresh_token": refresh})
     assert response.status_code == 200
     new_tokens = response.json()
-    me = client.get(f"{API}/auth/me", headers={"Authorization": f"Bearer {new_tokens["access_token"]}"})
+    me = client.get(f"{API}/auth/me", headers={"Authorization": f"Bearer {new_tokens['access_token']}"})
     assert me.status_code == 200
     assert client.post(f"{API}/auth/refresh", json={"refresh_token": refresh}).status_code == 401
 
