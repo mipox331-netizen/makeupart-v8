@@ -146,6 +146,8 @@ def process_beauty_upload(
             shade=response.foundation_match,
             before_image_url=f"/api/v1/beauty/jobs/{{job_id}}/image?kind=before",
             after_image_url=f"/api/v1/beauty/jobs/{{job_id}}/image?kind=after",
+            input_file_path=str(input_path),
+            output_file_path=str(output_path),
         )
         db.add(job)
         db.flush()
@@ -167,9 +169,6 @@ def process_beauty_upload(
         db.add(result)
         db.commit()
 
-        # Keep the original extension for the input file and persist the output path
-        # in a sidecar file so the authenticated image endpoint never trusts a URL.
-        (input_path.with_suffix(input_path.suffix + ".output")).write_text(str(output_path))
         return BeautyUploadResponse(
             **response.model_dump(),
             job_id=job.id,
@@ -216,35 +215,11 @@ def get_job_image(
     if job is None or job.salon_id != current_user.salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Beauty job not found")
 
-    if kind == "before":
-        path = settings.media_root_path / "inputs" / f"{Path(job.before_image_url or '').name}"
-        # The input filename is not exposed by the URL, so recover it from the job URL
-        # sidecar index below.
-        sidecar_candidates = list((settings.media_root_path / "inputs").glob("*.output"))
-        path = None
-        for sidecar in sidecar_candidates:
-            try:
-                if Path(sidecar.read_text()).name == Path(job.after_image_url or "").name:
-                    path = sidecar.with_suffix("")
-                    break
-            except OSError:
-                continue
-        if path is None:
-            raise HTTPException(status_code=404, detail="Image not found")
-    else:
-        sidecar_candidates = list((settings.media_root_path / "inputs").glob("*.output"))
-        path = None
-        for sidecar in sidecar_candidates:
-            try:
-                if Path(sidecar.read_text()).name == Path(job.after_image_url or "").name:
-                    path = Path(sidecar.read_text()).resolve()
-                    break
-            except OSError:
-                continue
-        if path is None:
-            raise HTTPException(status_code=404, detail="Image not found")
+    stored_path = job.input_file_path if kind == "before" else job.output_file_path
+    if not stored_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
 
-    path = _safe_output_path(str(path))
+    path = _safe_output_path(stored_path)
     if not path.is_file():
-        raise HTTPException(status_code=404, detail="Image not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
     return FileResponse(path)
