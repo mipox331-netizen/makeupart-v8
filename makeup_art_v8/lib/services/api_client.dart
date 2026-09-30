@@ -210,7 +210,6 @@ class ApiClient {
       '/beauty/process-upload',
       queryParameters: {
         'intensity': intensity,
-        'melanin_index': 2.0,
         'consent_confirmed': consentConfirmed,
         if (customerId != null) 'customer_id': customerId,
       },

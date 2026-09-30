@@ -24,7 +24,7 @@ from app.schemas.beauty import (
     BeautyProcessResponse,
     BeautyUploadResponse,
 )
-from app.services.beauty import BeautyProvider, IdentityGuard, SkinToneMatcher
+from app.services.beauty import BeautyProvider, IdentityGuard
 from app.services.subscription import release_beauty_job_quota, reserve_beauty_job_quota
 
 router = APIRouter(prefix="/beauty", tags=["beauty"])
@@ -110,7 +110,6 @@ def _process_payload(
     provider: BeautyProvider,
     output_dir: Path,
 ) -> tuple[BeautyProcessResponse, str]:
-    skin_matcher = SkinToneMatcher()
     identity_guard = IdentityGuard()
     attempt_intensity = float(payload.intensity)
     last_similarity = 0.0
@@ -127,7 +126,6 @@ def _process_payload(
         except RuntimeError as exc:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
-        tone = skin_matcher.detect(attempt_payload.melanin_index)
         similarity = float(base_result["identity_similarity"])
         last_similarity = similarity
         accepted = identity_guard.validate(similarity, attempt_intensity)[1]
@@ -146,11 +144,9 @@ def _process_payload(
 
             response = BeautyProcessResponse(
                 identity_similarity=round(similarity, 4),
-                skin_tone=tone["tone"],
-                undertone=tone["undertone"],
-                foundation_match=skin_matcher.recommend_foundation(
-                    tone["tone"], tone["undertone"]
-                ),
+                skin_tone=str(base_result["skin_tone"]),
+                undertone=str(base_result["undertone"]),
+                foundation_match=str(base_result["foundation_match"]),
                 intensity=round(attempt_intensity, 4),
                 processed=bool(base_result["processed"]),
             )
@@ -222,7 +218,6 @@ def process_beauty(
 def process_beauty_upload(
     file: UploadFile = File(...),
     intensity: float = Query(default=0.7, ge=0.0, le=1.0),
-    melanin_index: float = Query(default=2.0, ge=0.0, le=10.0),
     consent_confirmed: bool = Query(default=False),
     customer_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -264,7 +259,6 @@ def process_beauty_upload(
         payload = BeautyProcessRequest(
             image_path=str(input_path),
             intensity=intensity,
-            melanin_index=melanin_index,
             consent_confirmed=True,
         )
         response, generated_path = _process_payload(payload, BeautyProvider(), output_dir)

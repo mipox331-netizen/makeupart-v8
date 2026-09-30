@@ -17,6 +17,89 @@ except ImportError:  # pragma: no cover
     FaceAnalysis = None
 
 
+class SkinToneMatcher:
+    ToneMap = (
+        (190, "very-light"),
+        (170, "light"),
+        (145, "medium"),
+        (120, "olive"),
+        (95, "deep"),
+        (0, "very-deep"),
+    )
+
+    @staticmethod
+    def _face_sample_mask(image: np.ndarray, landmarks: Any) -> np.ndarray:
+        height, width = image.shape[:2]
+        points = np.array(
+            [[int(point.x * width), int(point.y * height)] for point in landmarks.landmark],
+            dtype=np.int32,
+        )
+        hull = cv2.convexHull(points)
+        face_mask = np.zeros((height, width), dtype=np.uint8)
+        cv2.fillConvexPoly(face_mask, hull, 255)
+
+        x, y, w, h = cv2.boundingRect(hull)
+        inner = np.zeros((height, width), dtype=np.uint8)
+        center = (x + w // 2, y + int(h * 0.56))
+        axes = (max(1, int(w * 0.38)), max(1, int(h * 0.34)))
+        cv2.ellipse(inner, center, axes, 0, 0, 360, 255, -1)
+
+        return cv2.bitwise_and(face_mask, inner)
+
+    @staticmethod
+    def _skin_candidate_mask(image: np.ndarray, face_mask: np.ndarray) -> np.ndarray:
+        ycrcb = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
+        y_channel, cr, cb = cv2.split(ycrcb)
+        blue, green, red = cv2.split(image)
+
+        color_mask = (
+            (y_channel > 35)
+            & (cr >= 125)
+            & (cr <= 195)
+            & (cb >= 65)
+            & (cb <= 145)
+            & (red >= green * 0.82)
+            & (red >= blue * 0.92)
+        )
+        return (color_mask.astype(np.uint8) * 255) & face_mask
+
+    @classmethod
+    def _sample_pixels(cls, image: np.ndarray, landmarks: Any) -> np.ndarray:
+        face_mask = cls._face_sample_mask(image, landmarks)
+        candidate_mask = cls._skin_candidate_mask(image, face_mask)
+
+        if int(np.count_nonzero(candidate_mask)) < 200:
+            candidate_mask = face_mask
+
+        pixels = image[candidate_mask > 0]
+        if pixels.size == 0:
+            raise ValueError("Could not estimate skin tone from the detected face")
+        return pixels
+
+    @classmethod
+    def detect(cls, image: np.ndarray, landmarks: Any) -> dict[str, str]:
+        pixels = cls._sample_pixels(image, landmarks)
+        sample = pixels.reshape(-1, 1, 3).astype(np.uint8)
+        lab = cv2.cvtColor(sample, cv2.COLOR_BGR2LAB).reshape(-1, 3)
+
+        lightness = float(np.median(lab[:, 0]))
+        a_channel = float(np.median(lab[:, 1])) - 128.0
+        b_channel = float(np.median(lab[:, 2])) - 128.0
+
+        tone = next(name for threshold, name in cls.ToneMap if lightness >= threshold)
+        delta = b_channel - a_channel
+        if delta >= 4.0:
+            undertone = "warm"
+        elif delta <= -4.0:
+            undertone = "cool"
+        else:
+            undertone = "neutral"
+        return {"tone": tone, "undertone": undertone}
+
+    def recommend_foundation(self, skin_tone: str, undertone: str) -> str:
+        return f"{skin_tone}-{undertone}"
+
+
 class BeautyProvider:
     _face_mesh: Any | None = None
     _face_app: Any | None = None
@@ -98,6 +181,8 @@ class BeautyProvider:
         if len(landmarks) != 1:
             raise ValueError("Please upload a photo containing exactly one face")
 
+        skin_matcher = SkinToneMatcher()
+        tone = skin_matcher.detect(image, landmarks[0])
         intensity = float(payload.get("intensity", 0.7))
         processed = self._enhance_skin(image, landmarks[0], intensity)
         face_app = self._get_face_app()
@@ -129,9 +214,11 @@ class BeautyProvider:
 
         return {
             "identity_similarity": round(similarity, 4),
-            "skin_tone": payload.get("skin_tone", "medium"),
-            "undertone": payload.get("undertone", "warm"),
-            "foundation_match": payload.get("foundation_match", "medium-warm"),
+            "skin_tone": tone["tone"],
+            "undertone": tone["undertone"],
+            "foundation_match": skin_matcher.recommend_foundation(
+                tone["tone"], tone["undertone"]
+            ),
             "processed": True,
             "output_path": saved_path,
         }
@@ -143,32 +230,3 @@ class IdentityGuard:
     def validate(self, similarity: float, intensity: float) -> tuple[float, bool]:
         current_intensity = max(0.0, min(1.0, intensity))
         return current_intensity, float(similarity) >= self.min_similarity
-
-
-class SkinToneMatcher:
-    FitzpatrickMap = {
-        1: {"tone": "very-light", "undertone": "cool"},
-        2: {"tone": "light", "undertone": "cool"},
-        3: {"tone": "medium", "undertone": "neutral"},
-        4: {"tone": "olive", "undertone": "warm"},
-        5: {"tone": "deep", "undertone": "warm"},
-        6: {"tone": "very-deep", "undertone": "neutral"},
-    }
-
-    def detect(self, melanin_index: float) -> dict[str, str]:
-        if melanin_index <= 0.75:
-            fitzpatrick = 1
-        elif melanin_index <= 1.3:
-            fitzpatrick = 2
-        elif melanin_index <= 2.1:
-            fitzpatrick = 3
-        elif melanin_index <= 3.0:
-            fitzpatrick = 4
-        elif melanin_index <= 4.3:
-            fitzpatrick = 5
-        else:
-            fitzpatrick = 6
-        return self.FitzpatrickMap[fitzpatrick]
-
-    def recommend_foundation(self, skin_tone: str, undertone: str) -> str:
-        return f"{skin_tone}-{undertone}"

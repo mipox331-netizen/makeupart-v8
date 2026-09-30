@@ -8,14 +8,25 @@ from app.services.beauty import BeautyProvider, IdentityGuard, SkinToneMatcher
 from tests.utils import API, auth_headers, register
 
 
-def test_fitzpatrick_detection_ranges_cover_all_types():
+def test_skin_tone_detection_uses_image_pixels():
     matcher = SkinToneMatcher()
-    assert matcher.detect(0.4)["tone"] == "very-light"
-    assert matcher.detect(0.9)["tone"] == "light"
-    assert matcher.detect(1.8)["tone"] == "medium"
-    assert matcher.detect(2.5)["tone"] == "olive"
-    assert matcher.detect(3.6)["tone"] == "deep"
-    assert matcher.detect(5.0)["tone"] == "very-deep"
+    landmarks = SimpleNamespace(
+        landmark=[
+            SimpleNamespace(x=0.2, y=0.2),
+            SimpleNamespace(x=0.8, y=0.2),
+            SimpleNamespace(x=0.8, y=0.85),
+            SimpleNamespace(x=0.2, y=0.85),
+        ]
+    )
+    light = np.full((128, 128, 3), 210, dtype=np.uint8)
+    deep = np.full((128, 128, 3), 75, dtype=np.uint8)
+
+    light_result = matcher.detect(light, landmarks)
+    deep_result = matcher.detect(deep, landmarks)
+
+    assert light_result["tone"] == "very-light"
+    assert deep_result["tone"] == "deep"
+    assert light_result["tone"] != deep_result["tone"]
 
 
 def test_beauty_process_requires_auth(client):
@@ -124,6 +135,9 @@ def test_beauty_upload_persists_and_secures_images(client, monkeypatch, tmp_path
         assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
         return {
             "identity_similarity": 0.99,
+            "skin_tone": "medium",
+            "undertone": "neutral",
+            "foundation_match": "medium-neutral",
             "processed": True,
             "output_path": str(output),
         }
@@ -231,6 +245,9 @@ def test_customer_linked_beauty_requires_stored_consent(client, monkeypatch, tmp
         assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
         return {
             "identity_similarity": 0.99,
+            "skin_tone": "medium",
+            "undertone": "neutral",
+            "foundation_match": "medium-neutral",
             "processed": True,
             "output_path": str(output),
         }
