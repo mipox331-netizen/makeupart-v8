@@ -62,7 +62,8 @@ def _process_payload(
     skin_matcher = SkinToneMatcher()
     identity_guard = IdentityGuard()
     try:
-        base_result = provider.process(payload.image_path, payload.model_dump())
+        provider_options = {**payload.model_dump(), "output_dir": str(_media_dirs()[1])}
+        base_result = provider.process(payload.image_path, provider_options)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
