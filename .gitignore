@@ -218,3 +218,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .venv
+
+# Local/private application data
+backend/backups/
+backend/media/
+makeup_art_v8/.dart_tool/
+makeup_art_v8/build/
