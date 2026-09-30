@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -101,9 +102,26 @@ class _BeautyPageState extends State<BeautyPage> {
                   Text('Foundation: \${result!['foundation_match']}'),
                   if (afterUrl != null) ...[
                     const SizedBox(height: 16),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.network(widget.api.imageUrl(afterUrl), fit: BoxFit.cover),
+                    FutureBuilder<Uint8List>(
+                      future: widget.api.fetchImage(afterUrl),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const SizedBox(
+                            height: 220,
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        if (snapshot.hasError || snapshot.data == null || snapshot.data!.isEmpty) {
+                          return const SizedBox(
+                            height: 120,
+                            child: Center(child: Icon(Icons.broken_image_outlined, size: 56)),
+                          );
+                        }
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.memory(snapshot.data!, fit: BoxFit.cover),
+                        );
+                      },
                     ),
                   ],
                 ]),
