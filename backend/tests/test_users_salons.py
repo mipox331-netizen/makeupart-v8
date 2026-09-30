@@ -95,3 +95,11 @@ def test_salons_are_isolated_from_each_other(client):
 
     listing_a = client.get(f"{API}/users", headers=headers_a).json()
     assert {u["email"] for u in listing_a} == {"owner.a@salon.com", "staff.a@salon.com"}
+
+
+def test_owner_delete_protection_remains_enforced(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    owner = client.get(f"{API}/users/me", headers=headers).json()
+    response = client.delete(f"{API}/users/{owner['id']}", headers=headers)
+    assert response.status_code == 400
