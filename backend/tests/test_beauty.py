@@ -83,3 +83,53 @@ def test_identity_guard_does_not_invent_similarity():
 
     assert intensity == 0.8
     assert accepted is False
+
+
+def test_beauty_upload_persists_and_secures_images(client, monkeypatch, tmp_path):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(tmp_path / "media"))
+
+    def fake_process(self, image_path, options=None):
+        output = tmp_path / "media" / "generated.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
+        return {
+            "identity_similarity": 0.99,
+            "processed": True,
+            "output_path": str(output),
+        }
+
+    monkeypatch.setattr(BeautyProvider, "process", fake_process)
+
+    response = client.post(
+        f"{API}/beauty/process-upload?intensity=0.8&melanin_index=3.5",
+        headers=headers,
+        files={"file": ("portrait.png", b"fake-image-bytes", "image/png")},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["processed"] is True
+    assert body["identity_similarity"] == 0.99
+    assert body["job_id"]
+    assert body["before_image_url"].startswith("/api/v1/beauty/jobs/")
+    assert body["after_image_url"].startswith("/api/v1/beauty/jobs/")
+
+    before = client.get(body["before_image_url"], headers=headers)
+    after = client.get(body["after_image_url"], headers=headers)
+    assert before.status_code == 200
+    assert after.status_code == 200
+    assert before.headers["content-type"].startswith("image/")
+    assert after.headers["content-type"].startswith("image/")
+
+
+def test_beauty_upload_rejects_unsupported_type(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    response = client.post(
+        f"{API}/beauty/process-upload",
+        headers=headers,
+        files={"file": ("payload.txt", b"not-an-image", "text/plain")},
+    )
+    assert response.status_code == 415
