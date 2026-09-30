@@ -27,10 +27,11 @@ def test_beauty_process_requires_auth(client):
 
 
 def test_beauty_process_satisfies_identity_threshold(client, monkeypatch, tmp_path):
-    register(client)
+    registration = register(client)
     headers = auth_headers(client, "owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
     media_root = tmp_path / "media"
-    image_path = media_root / "inputs" / "portrait.png"
+    image_path = media_root / "salons" / salon_id / "inputs" / "portrait.png"
     image_path.parent.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
     assert cv2.imwrite(str(image_path), np.full((128, 128, 3), 180, dtype=np.uint8))
@@ -71,27 +72,35 @@ def test_beauty_process_satisfies_identity_threshold(client, monkeypatch, tmp_pa
 def test_beauty_process_rejects_missing_image(client, monkeypatch, tmp_path):
     register(client)
     headers = auth_headers(client, "owner@salon.com")
+    registration = register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
     media_root = tmp_path / "media"
     monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
 
     response = client.post(
         f"{API}/beauty/process",
         headers=headers,
-        json={"image_path": str(media_root / "inputs" / "missing.png"), "consent_confirmed": True},
+        json={
+            "image_path": str(media_root / "salons" / salon_id / "inputs" / "missing.png"),
+            "consent_confirmed": True,
+        },
     )
 
     assert response.status_code == 404
 
 
 def test_beauty_process_rejects_path_outside_media_root(client, monkeypatch, tmp_path):
-    register(client)
+    registration = register(client)
     headers = auth_headers(client, "owner@salon.com")
-    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(tmp_path / "media"))
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
 
     response = client.post(
         f"{API}/beauty/process",
         headers=headers,
-        json={"image_path": str(tmp_path / "secret.png"), "consent_confirmed": True},
+        json={"image_path": str(media_root / "salons" / "other" / "secret.png"), "consent_confirmed": True},
     )
 
     assert response.status_code == 400
@@ -169,3 +178,27 @@ def test_beauty_process_requires_explicit_consent(client, monkeypatch, tmp_path)
         json={"image_path": str(image_path)},
     )
     assert response.status_code == 403
+
+
+def test_beauty_process_cannot_cross_salon_media_roots(client, monkeypatch, tmp_path):
+    registration_a = register(client, email="owner.a@salon.com", salon_name="Salon A")
+    register(client, email="owner.b@salon.com", salon_name="Salon B")
+    headers_a = auth_headers(client, "owner.a@salon.com")
+    salon_a = registration_a.json()["salon"]["id"]
+
+    # Create a file in another salon's storage root.
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+    foreign_path = media_root / "salons" / "foreign-salon" / "inputs" / "secret.png"
+    foreign_path.parent.mkdir(parents=True, exist_ok=True)
+    assert cv2.imwrite(str(foreign_path), np.full((16, 16, 3), 120, dtype=np.uint8))
+
+    response = client.post(
+        f"{API}/beauty/process",
+        headers=headers_a,
+        json={
+            "image_path": str(foreign_path),
+            "consent_confirmed": True,
+        },
+    )
+    assert response.status_code == 400
