@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -17,3 +19,13 @@ class BeautyProcessResponse(BaseModel):
     foundation_match: str
     intensity: float
     processed: bool
+
+
+class BeautyUploadResponse(BeautyProcessResponse):
+    job_id: UUID
+    before_image_url: str
+    after_image_url: str
+
+
+class BeautyJobImageKind(BaseModel):
+    kind: str = Field(pattern=r"^(before|after)$")
