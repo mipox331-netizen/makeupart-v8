@@ -86,8 +86,7 @@ def _process_payload(
         intensity=round(final_intensity, 4),
         processed=bool(base_result["processed"]),
     )
-    output_path = _safe_output_path(str(base_result["output_path"]))
-    return response, str(output_path)
+    return response, str(base_result["output_path"])
 
 
 @router.post("/process", response_model=BeautyProcessResponse, status_code=status.HTTP_200_OK)
@@ -103,8 +102,9 @@ def process_beauty(
     payload.image_path = str(input_path)
 
     response, output_path = _process_payload(payload, BeautyProvider())
+    generated_output = _safe_output_path(output_path)
     try:
-        os.unlink(output_path)
+        os.unlink(generated_output)
     except OSError:
         pass
     return response
@@ -154,8 +154,9 @@ def process_beauty_upload(
         )
         response, generated_path = _process_payload(payload, BeautyProvider())
 
+        generated_output = _safe_output_path(generated_path)
         output_path = output_dir / f"{uuid.uuid4()}.png"
-        shutil.move(generated_path, output_path)
+        shutil.move(generated_output, output_path)
 
         job = BeautyJob(
             salon_id=current_user.salon_id,
