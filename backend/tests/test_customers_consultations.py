@@ -76,3 +76,29 @@ def test_owner_can_privacy_delete_customer(client):
     assert client.get(
         f"{API}/consents/customer/{customer_id}/active", headers=headers
     ).status_code == 404
+
+
+def test_customer_optional_fields_can_be_cleared(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    created = client.post(
+        f"{API}/customers",
+        headers=headers,
+        json={
+            "first_name": "Clear",
+            "last_name": "Fields",
+            "phone": "0700000000",
+            "notes": "remove me",
+        },
+    )
+    assert created.status_code == 201
+    customer_id = created.json()["id"]
+
+    updated = client.patch(
+        f"{API}/customers/{customer_id}",
+        headers=headers,
+        json={"phone": None, "notes": None},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["phone"] is None
+    assert updated.json()["notes"] is None
