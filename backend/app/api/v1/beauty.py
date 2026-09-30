@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.beauty_job import BeautyJob, BeautyJobStatus
 from app.models.beauty_result import BeautyResult
+from app.models.customer import Customer
 from app.models.user import User
 from app.schemas.beauty import (
     BeautyProcessRequest,
@@ -110,6 +111,11 @@ def process_beauty_upload(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="Only JPEG, PNG, and WebP images are supported.",
         )
+
+    if customer_id is not None:
+        customer = db.get(Customer, customer_id)
+        if customer is None or customer.salon_id != current_user.salon_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
 
     input_dir, output_dir = _media_dirs()
     input_path = input_dir / f"{uuid.uuid4()}{extension}"
