@@ -39,12 +39,20 @@ def _media_dirs() -> tuple[Path, Path]:
     return input_dir, output_dir
 
 
-def _safe_output_path(path: str) -> Path:
+def _safe_media_path(path: str, *, error_status: int = status.HTTP_500_INTERNAL_SERVER_ERROR) -> Path:
     candidate = Path(path).resolve()
     root = settings.media_root_path
-    if root not in candidate.parents:
-        raise HTTPException(status_code=500, detail="Stored media path is outside media storage")
+    if candidate == root or root not in candidate.parents:
+        raise HTTPException(status_code=error_status, detail="Media path is outside media storage")
     return candidate
+
+
+def _safe_output_path(path: str) -> Path:
+    return _safe_media_path(path)
+
+
+def _safe_input_path(path: str) -> Path:
+    return _safe_media_path(path, error_status=status.HTTP_400_BAD_REQUEST)
 
 
 def _process_payload(
@@ -78,7 +86,8 @@ def _process_payload(
         intensity=round(final_intensity, 4),
         processed=bool(base_result["processed"]),
     )
-    return response, str(base_result["output_path"])
+    output_path = _safe_output_path(str(base_result["output_path"]))
+    return response, str(output_path)
 
 
 @router.post("/process", response_model=BeautyProcessResponse, status_code=status.HTTP_200_OK)
@@ -87,7 +96,12 @@ def process_beauty(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> BeautyProcessResponse:
-    del db, current_user
+    del db
+    input_path = _safe_input_path(payload.image_path)
+    if not input_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Input image not found")
+    payload.image_path = str(input_path)
+
     response, output_path = _process_payload(payload, BeautyProvider())
     try:
         os.unlink(output_path)
