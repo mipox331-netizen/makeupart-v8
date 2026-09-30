@@ -3,31 +3,26 @@ import shutil
 import uuid
 from pathlib import Path
 
+import cv2
+import numpy as np
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_active_user
 from app.core.config import settings
+from app.crud.consent import get_active_consent
 from app.db.session import get_db
 from app.models.beauty_job import BeautyJob, BeautyJobStatus
 from app.models.beauty_result import BeautyResult
 from app.models.customer import Customer
 from app.models.user import User
-from app.schemas.beauty import (
-    BeautyProcessRequest,
-    BeautyProcessResponse,
-    BeautyUploadResponse,
-)
+from app.schemas.beauty import BeautyProcessRequest, BeautyProcessResponse, BeautyUploadResponse
 from app.services.beauty import BeautyProvider, IdentityGuard, SkinToneMatcher
 
 router = APIRouter(prefix="/beauty", tags=["beauty"])
 
-ALLOWED_IMAGE_TYPES = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-}
+ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 
 def _media_dirs() -> tuple[Path, Path]:
@@ -53,6 +48,51 @@ def _safe_output_path(path: str) -> Path:
 
 def _safe_input_path(path: str) -> Path:
     return _safe_media_path(path, error_status=status.HTTP_400_BAD_REQUEST)
+
+
+def _require_consent(
+    db: Session,
+    current_user: User,
+    *,
+    customer_id: uuid.UUID | None,
+    consent_confirmed: bool,
+) -> None:
+    if not consent_confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Client consent is required before image processing",
+        )
+    if customer_id is None:
+        return
+    customer = db.get(Customer, customer_id)
+    if customer is None or customer.salon_id != current_user.salon_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    if customer.consent_required and get_active_consent(db, current_user.salon_id, customer.id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Active customer consent is required before image processing",
+        )
+
+
+def _validate_uploaded_image(path: Path) -> None:
+    try:
+        raw = np.fromfile(path, dtype=np.uint8)
+        image = cv2.imdecode(raw, cv2.IMREAD_UNCHANGED)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Could not validate image data"
+        ) from exc
+    if image is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Uploaded file is not a valid image",
+        )
+    height, width = image.shape[:2]
+    if height * width > settings.MAX_IMAGE_PIXELS:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Image dimensions are too large",
+        )
 
 
 def _process_payload(
@@ -87,7 +127,7 @@ def _process_payload(
         intensity=round(final_intensity, 4),
         processed=bool(base_result["processed"]),
     )
-    return response, str(base_result["output_path"])
+    return response, str(_safe_output_path(str(base_result["output_path"])))
 
 
 @router.post("/process", response_model=BeautyProcessResponse, status_code=status.HTTP_200_OK)
@@ -96,16 +136,20 @@ def process_beauty(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> BeautyProcessResponse:
-    del db
+    _require_consent(
+        db,
+        current_user,
+        customer_id=None,
+        consent_confirmed=payload.consent_confirmed,
+    )
     input_path = _safe_input_path(payload.image_path)
     if not input_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Input image not found")
     payload.image_path = str(input_path)
 
     response, output_path = _process_payload(payload, BeautyProvider())
-    generated_output = _safe_output_path(output_path)
     try:
-        os.unlink(generated_output)
+        os.unlink(output_path)
     except OSError:
         pass
     return response
@@ -116,6 +160,7 @@ def process_beauty_upload(
     file: UploadFile = File(...),
     intensity: float = Query(default=0.7, ge=0.0, le=1.0),
     melanin_index: float = Query(default=2.0, ge=0.0, le=10.0),
+    consent_confirmed: bool = Query(default=False),
     customer_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -126,11 +171,12 @@ def process_beauty_upload(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="Only JPEG, PNG, and WebP images are supported.",
         )
-
-    if customer_id is not None:
-        customer = db.get(Customer, customer_id)
-        if customer is None or customer.salon_id != current_user.salon_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    _require_consent(
+        db,
+        current_user,
+        customer_id=customer_id,
+        consent_confirmed=consent_confirmed,
+    )
 
     input_dir, output_dir = _media_dirs()
     input_path = input_dir / f"{uuid.uuid4()}{extension}"
@@ -148,10 +194,12 @@ def process_beauty_upload(
                     )
                 destination.write(chunk)
 
+        _validate_uploaded_image(input_path)
         payload = BeautyProcessRequest(
             image_path=str(input_path),
             intensity=intensity,
             melanin_index=melanin_index,
+            consent_confirmed=True,
         )
         response, generated_path = _process_payload(payload, BeautyProvider())
 
@@ -177,18 +225,19 @@ def process_beauty_upload(
         job.before_image_url = f"/api/v1/beauty/jobs/{job.id}/image?kind=before"
         job.after_image_url = f"/api/v1/beauty/jobs/{job.id}/image?kind=after"
 
-        result = BeautyResult(
-            salon_id=current_user.salon_id,
-            beauty_job_id=job.id,
-            before_image_url=job.before_image_url,
-            after_image_url=job.after_image_url,
-            identity_similarity=response.identity_similarity,
-            skin_tone=response.skin_tone,
-            undertone=response.undertone,
-            foundation_match=response.foundation_match,
-            watermark_applied=False,
+        db.add(
+            BeautyResult(
+                salon_id=current_user.salon_id,
+                beauty_job_id=job.id,
+                before_image_url=job.before_image_url,
+                after_image_url=job.after_image_url,
+                identity_similarity=response.identity_similarity,
+                skin_tone=response.skin_tone,
+                undertone=response.undertone,
+                foundation_match=response.foundation_match,
+                watermark_applied=False,
+            )
         )
-        db.add(result)
         db.commit()
 
         return BeautyUploadResponse(
@@ -205,11 +254,6 @@ def process_beauty_upload(
                     path.unlink()
                 except OSError:
                     pass
-        if output_path:
-            try:
-                Path(str(input_path) + ".output").unlink()
-            except OSError:
-                pass
         raise
     except Exception:
         db.rollback()
@@ -219,10 +263,6 @@ def process_beauty_upload(
                     path.unlink()
                 except OSError:
                     pass
-        try:
-            Path(str(input_path) + ".output").unlink()
-        except OSError:
-            pass
         raise
 
 
