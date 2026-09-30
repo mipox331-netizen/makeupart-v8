@@ -88,6 +88,6 @@ def readiness_check() -> dict[str, str]:
         logger.exception("Readiness check failed")
         return JSONResponse(
             status_code=503,
-            content={"status": "not_ready", "reason": str(exc)},
+            content={"status": "not_ready", "reason": "database_unavailable"},
         )
     return {"status": "ready"}
