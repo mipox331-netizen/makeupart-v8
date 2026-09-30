@@ -25,8 +25,8 @@ router = APIRouter(prefix="/beauty", tags=["beauty"])
 ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 
-def _media_dirs() -> tuple[Path, Path]:
-    root = settings.media_root_path
+def _media_dirs(salon_id: uuid.UUID) -> tuple[Path, Path]:
+    root = settings.media_root_path / "salons" / str(salon_id)
     input_dir = root / "inputs"
     output_dir = root / "outputs"
     input_dir.mkdir(parents=True, exist_ok=True)
@@ -34,20 +34,17 @@ def _media_dirs() -> tuple[Path, Path]:
     return input_dir, output_dir
 
 
-def _safe_media_path(path: str, *, error_status: int = status.HTTP_500_INTERNAL_SERVER_ERROR) -> Path:
+def _safe_media_path(
+    path: str,
+    salon_id: uuid.UUID,
+    *,
+    error_status: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+) -> Path:
     candidate = Path(path).resolve()
-    root = settings.media_root_path
+    root = (settings.media_root_path / "salons" / str(salon_id)).resolve()
     if candidate == root or root not in candidate.parents:
-        raise HTTPException(status_code=error_status, detail="Media path is outside media storage")
+        raise HTTPException(status_code=error_status, detail="Media path is outside salon storage")
     return candidate
-
-
-def _safe_output_path(path: str) -> Path:
-    return _safe_media_path(path)
-
-
-def _safe_input_path(path: str) -> Path:
-    return _safe_media_path(path, error_status=status.HTTP_400_BAD_REQUEST)
 
 
 def _require_consent(
@@ -80,7 +77,8 @@ def _validate_uploaded_image(path: Path) -> None:
         image = cv2.imdecode(raw, cv2.IMREAD_UNCHANGED)
     except Exception as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Could not validate image data"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not validate image data",
         ) from exc
     if image is None:
         raise HTTPException(
@@ -98,11 +96,12 @@ def _validate_uploaded_image(path: Path) -> None:
 def _process_payload(
     payload: BeautyProcessRequest,
     provider: BeautyProvider,
+    output_dir: Path,
 ) -> tuple[BeautyProcessResponse, str]:
     skin_matcher = SkinToneMatcher()
     identity_guard = IdentityGuard()
     try:
-        provider_options = {**payload.model_dump(), "output_dir": str(_media_dirs()[1])}
+        provider_options = {**payload.model_dump(), "output_dir": str(output_dir)}
         base_result = provider.process(payload.image_path, provider_options)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
@@ -115,6 +114,11 @@ def _process_payload(
     similarity = float(base_result["identity_similarity"])
     final_intensity, accepted = identity_guard.validate(similarity, float(payload.intensity))
     if not accepted:
+        generated_path = str(base_result.get("output_path", ""))
+        try:
+            Path(generated_path).unlink(missing_ok=True)
+        except OSError:
+            pass
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Beauty processing could not satisfy the identity similarity threshold.",
@@ -127,7 +131,7 @@ def _process_payload(
         intensity=round(final_intensity, 4),
         processed=bool(base_result["processed"]),
     )
-    return response, str(_safe_output_path(str(base_result["output_path"])))
+    return response, str(base_result["output_path"])
 
 
 @router.post("/process", response_model=BeautyProcessResponse, status_code=status.HTTP_200_OK)
@@ -142,14 +146,20 @@ def process_beauty(
         customer_id=None,
         consent_confirmed=payload.consent_confirmed,
     )
-    input_path = _safe_input_path(payload.image_path)
+    input_dir, output_dir = _media_dirs(current_user.salon_id)
+    input_path = Path(payload.image_path).resolve()
+    if input_dir.resolve() not in input_path.parents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Input image is outside salon storage",
+        )
     if not input_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Input image not found")
     payload.image_path = str(input_path)
 
-    response, output_path = _process_payload(payload, BeautyProvider())
+    response, output_path = _process_payload(payload, BeautyProvider(), output_dir)
     try:
-        os.unlink(output_path)
+        Path(output_path).unlink()
     except OSError:
         pass
     return response
@@ -178,7 +188,7 @@ def process_beauty_upload(
         consent_confirmed=consent_confirmed,
     )
 
-    input_dir, output_dir = _media_dirs()
+    input_dir, output_dir = _media_dirs(current_user.salon_id)
     input_path = input_dir / f"{uuid.uuid4()}{extension}"
     output_path: Path | None = None
 
@@ -201,9 +211,14 @@ def process_beauty_upload(
             melanin_index=melanin_index,
             consent_confirmed=True,
         )
-        response, generated_path = _process_payload(payload, BeautyProvider())
+        response, generated_path = _process_payload(payload, BeautyProvider(), output_dir)
+        generated_output = Path(generated_path).resolve()
+        if output_dir.resolve() not in generated_output.parents:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Beauty provider generated media outside salon storage",
+            )
 
-        generated_output = _safe_output_path(generated_path)
         output_path = output_dir / f"{uuid.uuid4()}.png"
         shutil.move(generated_output, output_path)
 
@@ -221,7 +236,6 @@ def process_beauty_upload(
         )
         db.add(job)
         db.flush()
-
         job.before_image_url = f"/api/v1/beauty/jobs/{job.id}/image?kind=before"
         job.after_image_url = f"/api/v1/beauty/jobs/{job.id}/image?kind=after"
 
@@ -281,7 +295,7 @@ def get_job_image(
     if not stored_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
 
-    path = _safe_output_path(stored_path)
+    path = _safe_media_path(stored_path, current_user.salon_id)
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
     return FileResponse(path)
