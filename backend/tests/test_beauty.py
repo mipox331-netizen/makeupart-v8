@@ -264,3 +264,46 @@ def test_customer_linked_beauty_requires_stored_consent(client, monkeypatch, tmp
         files={"file": ("portrait.png", image_bytes, "image/png")},
     )
     assert allowed.status_code == 201
+
+
+def test_beauty_retries_with_lower_intensity_when_identity_guard_fails(
+    client, monkeypatch, tmp_path
+):
+    registration = register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+
+    calls = []
+
+    def fake_process(self, image_path, options=None):
+        intensity = float((options or {}).get("intensity", 0.7))
+        calls.append(intensity)
+        output = media_root / "salons" / salon_id / "outputs" / f"attempt-{len(calls)}.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
+        return {
+            "identity_similarity": 0.80 if len(calls) == 1 else 0.90,
+            "processed": True,
+            "output_path": str(output),
+        }
+
+    monkeypatch.setattr(BeautyProvider, "process", fake_process)
+    image_path = media_root / "salons" / salon_id / "inputs" / "portrait.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    assert cv2.imwrite(str(image_path), np.full((16, 16, 3), 120, dtype=np.uint8))
+
+    response = client.post(
+        f"{API}/beauty/process",
+        headers=headers,
+        json={
+            "image_path": str(image_path),
+            "intensity": 0.9,
+            "consent_confirmed": True,
+        },
+    )
+    assert response.status_code == 200
+    assert len(calls) == 2
+    assert calls[1] < calls[0]
+    assert response.json()["identity_similarity"] == 0.9
