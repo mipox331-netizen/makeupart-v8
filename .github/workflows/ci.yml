@@ -33,6 +33,11 @@ jobs:
           CORS_ORIGINS=*
           EOF
 
+      - name: Validate production compose
+        run: |
+          cp .env.production.example .env.production
+          docker compose -f docker-compose.production.yml --env-file .env.production config >/dev/null
+
       - name: Build backend image
         run: docker compose build backend
 
