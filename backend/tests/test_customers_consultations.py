@@ -29,6 +29,17 @@ def test_customer_and_consultation_are_salon_scoped(client):
     assert listing_a.json()[0]['first_name'] == 'Aisha'
     assert listing_b.json()[0]['first_name'] == 'Bibi'
 
+    consent = client.post(
+        f"{API}/consents",
+        headers=headers_a,
+        json={
+            "customer_id": customer_a_id,
+            "granted": True,
+            "consent_text": "Client consented to consultation and AI beauty processing.",
+        },
+    )
+    assert consent.status_code == 201
+
     consultation = client.post(
         f'{API}/consultations',
         headers=headers_a,
