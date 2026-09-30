@@ -34,7 +34,14 @@ def test_beauty_quota_blocks_processing_after_limit(client, monkeypatch, tmp_pat
         output = media_root / "salons" / salon_id / "outputs" / "generated.png"
         output.parent.mkdir(parents=True, exist_ok=True)
         assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
-        return {"identity_similarity": 0.99, "processed": True, "output_path": str(output)}
+        return {
+            "identity_similarity": 0.99,
+            "skin_tone": "medium",
+            "undertone": "neutral",
+            "foundation_match": "medium-neutral",
+            "processed": True,
+            "output_path": str(output),
+        }
 
     monkeypatch.setattr(BeautyProvider, "process", fake_process)
     image_bytes = cv2.imencode(".png", np.full((16, 16, 3), 120, dtype=np.uint8))[1].tobytes()

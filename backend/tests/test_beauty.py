@@ -302,6 +302,9 @@ def test_beauty_retries_with_lower_intensity_when_identity_guard_fails(
         assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
         return {
             "identity_similarity": 0.80 if len(calls) == 1 else 0.90,
+            "skin_tone": "medium",
+            "undertone": "neutral",
+            "foundation_match": "medium-neutral",
             "processed": True,
             "output_path": str(output),
         }
