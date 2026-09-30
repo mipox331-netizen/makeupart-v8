@@ -201,3 +201,59 @@ def test_beauty_process_cannot_cross_salon_media_roots(client, monkeypatch, tmp_
         },
     )
     assert response.status_code == 400
+
+
+def test_customer_linked_beauty_requires_stored_consent(client, monkeypatch, tmp_path):
+    registration = register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
+    customer = client.post(
+        f"{API}/customers",
+        headers=headers,
+        json={"first_name": "Consent", "last_name": "Client", "consent_required": True},
+    )
+    assert customer.status_code == 201
+    customer_id = customer.json()["id"]
+
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+
+    def fake_process(self, image_path, options=None):
+        output = media_root / "salons" / salon_id / "outputs" / "generated.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
+        return {
+            "identity_similarity": 0.99,
+            "processed": True,
+            "output_path": str(output),
+        }
+
+    monkeypatch.setattr(BeautyProvider, "process", fake_process)
+    image_bytes = cv2.imencode(
+        ".png", np.full((16, 16, 3), 120, dtype=np.uint8)
+    )[1].tobytes()
+
+    blocked = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true&customer_id={customer_id}",
+        headers=headers,
+        files={"file": ("portrait.png", image_bytes, "image/png")},
+    )
+    assert blocked.status_code == 403
+
+    granted = client.post(
+        f"{API}/consents",
+        headers=headers,
+        json={
+            "customer_id": customer_id,
+            "granted": True,
+            "consent_text": "Client consented to AI beauty processing.",
+        },
+    )
+    assert granted.status_code == 201
+
+    allowed = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true&customer_id={customer_id}",
+        headers=headers,
+        files={"file": ("portrait.png", image_bytes, "image/png")},
+    )
+    assert allowed.status_code == 201
