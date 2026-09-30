@@ -89,7 +89,9 @@ def refresh_token(refresh_in: RefreshRequest, db: Session = Depends(get_db)) -> 
         raise invalid
 
     session = db.execute(
-        select(RefreshSession).where(
+        select(RefreshSession)
+        .with_for_update()
+        .where(
             RefreshSession.user_id == user_id,
             RefreshSession.token_hash == _hash_refresh_token(refresh_in.refresh_token),
             RefreshSession.revoked_at.is_(None),
