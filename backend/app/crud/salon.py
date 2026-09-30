@@ -3,12 +3,21 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.models.salon import Salon
+from app.models.subscription import Subscription
 from app.schemas.salon import SalonCreate, SalonUpdate
 
 
 def create_salon(db: Session, salon_in: SalonCreate) -> Salon:
     salon = Salon(**salon_in.model_dump())
     db.add(salon)
+    db.flush()
+    db.add(
+        Subscription(
+            salon_id=salon.id,
+            plan=salon.subscription_plan.value,
+            status="active",
+        )
+    )
     db.flush()
     return salon
 

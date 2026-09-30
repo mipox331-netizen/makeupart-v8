@@ -25,6 +25,7 @@ from app.schemas.beauty import (
     BeautyUploadResponse,
 )
 from app.services.beauty import BeautyProvider, IdentityGuard, SkinToneMatcher
+from app.services.subscription import release_beauty_job_quota, reserve_beauty_job_quota
 
 router = APIRouter(prefix="/beauty", tags=["beauty"])
 
@@ -186,6 +187,7 @@ def process_beauty(
         customer_id=None,
         consent_confirmed=payload.consent_confirmed,
     )
+    quota_reserved = False
     input_dir, output_dir = _media_dirs(current_user.salon_id)
     input_path = Path(payload.image_path).resolve()
     if input_dir.resolve() not in input_path.parents:
@@ -197,12 +199,23 @@ def process_beauty(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Input image not found")
     payload.image_path = str(input_path)
 
-    response, output_path = _process_payload(payload, BeautyProvider(), output_dir)
     try:
-        Path(output_path).unlink()
-    except OSError:
-        pass
-    return response
+        reserve_beauty_job_quota(db, current_user.salon_id)
+        quota_reserved = True
+        response, output_path = _process_payload(payload, BeautyProvider(), output_dir)
+        quota_reserved = False
+        return response
+    except Exception:
+        db.rollback()
+        if quota_reserved:
+            release_beauty_job_quota(db, current_user.salon_id)
+        raise
+    finally:
+        if "output_path" in locals():
+            try:
+                Path(output_path).unlink()
+            except OSError:
+                pass
 
 
 @router.post("/process-upload", response_model=BeautyUploadResponse, status_code=status.HTTP_201_CREATED)
@@ -231,8 +244,11 @@ def process_beauty_upload(
     input_dir, output_dir = _media_dirs(current_user.salon_id)
     input_path = input_dir / f"{uuid.uuid4()}{extension}"
     output_path: Path | None = None
+    quota_reserved = False
 
     try:
+        reserve_beauty_job_quota(db, current_user.salon_id)
+        quota_reserved = True
         total = 0
         with input_path.open("wb") as destination:
             while chunk := file.file.read(1024 * 1024):
@@ -293,6 +309,7 @@ def process_beauty_upload(
             )
         )
         db.commit()
+        quota_reserved = False
 
         return BeautyUploadResponse(
             **response.model_dump(),
@@ -302,6 +319,8 @@ def process_beauty_upload(
         )
     except HTTPException:
         db.rollback()
+        if quota_reserved:
+            release_beauty_job_quota(db, current_user.salon_id)
         for path in (input_path, output_path):
             if path:
                 try:
@@ -311,6 +330,8 @@ def process_beauty_upload(
         raise
     except Exception:
         db.rollback()
+        if quota_reserved:
+            release_beauty_job_quota(db, current_user.salon_id)
         for path in (input_path, output_path):
             if path:
                 try:

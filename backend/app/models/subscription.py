@@ -1,6 +1,7 @@
 import uuid
+from datetime import date, datetime, timezone
 
-from sqlalchemy import ForeignKey, String, Uuid
+from sqlalchemy import Date, ForeignKey, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, TimestampMixin
@@ -15,5 +16,9 @@ class Subscription(TimestampMixin, Base):
     )
     plan: Mapped[str] = mapped_column(String(50), default="free", nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="active", nullable=False)
+    usage_period_start: Mapped[date] = mapped_column(
+        Date, default=lambda: datetime.now(timezone.utc).date(), nullable=False
+    )
+    beauty_jobs_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     salon: Mapped["Salon"] = relationship("Salon", back_populates="subscription")
