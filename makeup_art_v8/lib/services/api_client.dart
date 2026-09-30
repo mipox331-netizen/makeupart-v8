@@ -37,7 +37,8 @@ class ApiClient {
   Future<void> login(String email, String password) async {
     final response = await dio.post(
       '/auth/login',
-      data: FormData.fromMap({'username': email, 'password': password}),
+      data: {'username': email, 'password': password},
+      options: Options(contentType: Headers.formUrlEncodedContentType),
     );
     final data = Map<String, dynamic>.from(response.data as Map);
     await storage.write(key: _accessKey, value: data['access_token'] as String);
