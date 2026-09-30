@@ -1,40 +1,51 @@
 # Final Status
 
-## Completed work
-- Backend API foundation with FastAPI, SQLAlchemy 2, Alembic, JWT auth, and salon-scoped access checks
-- Database models for salons, users, customers, beauty jobs, beauty results, consultations, consents, watermarks, and subscriptions
-- Beauty processing provider using MediaPipe Face Mesh landmarks, InsightFace buffalo_l embeddings for identity similarity, and OpenCV bilateral skin smoothing
-- Beauty endpoint validation for missing/invalid images and unavailable AI runtime
-- Architecture and implementation-plan documentation in docs/
-- Flutter app skeleton for salon-oriented workflow in `makeup_art_v8/`
+## Current state
 
-## Test evidence
-Executed command:
+MakeupArt V8 now has a working backend foundation plus the first mobile beauty-studio workflow.
 
-```bash
-cd /workspaces/makeupart-v8/backend && .venv/bin/python -m pytest -q
-```
+### Backend
+- FastAPI API with JWT access/refresh authentication and salon-scoped authorization.
+- PostgreSQL 16 with Alembic migrations.
+- Complete application tables for salons, users, customers, beauty jobs/results, consultations, consents, subscriptions, and watermarks.
+- Secure multipart image upload with JPEG/PNG/WebP validation and a configurable 10 MB upload limit.
+- Persistent input/output media storage under a mounted Docker volume.
+- Authenticated before/after image delivery; media paths are kept server-side and checked against the configured media root.
+- Customer IDs are validated against the authenticated user's salon.
+- Existing local beauty processing uses MediaPipe landmarks, InsightFace identity similarity, and OpenCV skin smoothing.
 
-Result:
-- 26 passed
+### Mobile MVP
+- Flutter application shell with login/session storage.
+- Dio API client with bearer-token injection.
+- Gallery image selection.
+- Beauty processing screen with intensity control.
+- Result display for identity similarity, tone/undertone, foundation recommendation, and processed image.
 
-The actual AI packages were installed and imported in the Python 3.12 virtualenv. MediaPipe Face Mesh and InsightFace were run together on a real portrait image; the run produced an output image and measured 0.9994 cosine similarity. `pip check` reported no broken requirements.
+## Verification
+
+The GitHub CI workflow is configured to:
+1. Build the backend Docker image.
+2. Start PostgreSQL.
+3. Run all Alembic migrations.
+4. Run the backend pytest suite.
+5. Start FastAPI/Uvicorn.
+6. Verify `/health`.
+7. Clean up Docker resources.
+
+The latest changes have triggered CI runs; the final green result must be observed before claiming the new upload/migration/mobile changes are fully verified.
 
 ## Known limitations
-- The beauty effect is classical OpenCV skin smoothing guided by MediaPipe landmarks, not a generative makeup model. The returned skin-tone and undertone values are derived from a request-supplied melanin index, not estimated from image pixels.
-- The API currently accepts a server-local `image_path` and its response does not deliver the generated image to a mobile client; a secure image-upload and result-delivery workflow remains to be implemented.
-- InsightFace's pretrained buffalo_l model pack has licensing restrictions that must be reviewed for commercial deployment; successful technical verification does not grant commercial model rights.
-- Flutter was not available in this container, so the mobile app could not be analyzed or tested here.
-- Docker compose verification was not executed because the wider environment does not provide the Docker runtime used for the target deployment.
 
-## Commands used
-- `cd /workspaces/makeupart-v8/backend && .venv/bin/python -m pytest -q`
-- `cd /workspaces/makeupart-v8 && flutter --version || echo 'FLUTTER_MISSING'`
-- `cd /workspaces/makeupart-v8 && which dart || which flutter || echo 'NO_DART_OR_FLUTTER'`
+- The beauty effect is classical OpenCV skin smoothing, not a generative makeup model.
+- The current shade workflow still uses a request-supplied melanin index; it has not yet been replaced by a validated image-based shade estimator.
+- InsightFace's pretrained `buffalo_l` model pack has licensing restrictions that require review before commercial deployment.
+- Flutter dependencies and source were added, but Flutter SDK availability has not been established in the current backend CI environment, so `flutter analyze` / `flutter test` remain to be run on a Flutter-enabled machine.
+- Production deployment still needs HTTPS, a production secret, object storage or equivalent durable media storage, rate limiting, operational monitoring, and a documented retention/deletion policy for client images.
 
-## Remaining work
-- Add secure image upload/result delivery and persistent output storage for mobile use.
-- Replace request-provided melanin index with a validated image-based shade workflow, with suitable user consent and bias evaluation.
-- Confirm commercial rights for the selected face-recognition model or replace it with an appropriately licensed alternative.
-- Add the full Flutter project dependencies and run `flutter analyze` / `flutter test` on a machine with Flutter installed.
-- Run Docker Compose validation on a host with the Docker daemon available.
+## Next engineering priorities
+
+1. Run Flutter analysis/tests on a Flutter-enabled runner and add a dedicated mobile CI job.
+2. Add refresh-token rotation/revocation and stronger production token/session controls.
+3. Replace request-supplied melanin index with a validated shade workflow and consent/bias evaluation.
+4. Add job history/list endpoints and customer-linked consultation history.
+5. Replace local media storage with production object storage while preserving authenticated access control.
