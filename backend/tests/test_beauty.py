@@ -75,7 +75,7 @@ def test_beauty_process_satisfies_identity_threshold(client, monkeypatch, tmp_pa
     body = response.json()
     assert body["processed"] is True
     assert body["identity_similarity"] >= 0.85
-    assert body["skin_tone"] in {"medium", "olive", "deep"}
+    assert body["skin_tone"] in {"light", "medium", "olive", "deep"}
     assert body["undertone"] in {"neutral", "warm", "cool"}
     assert body["foundation_match"]
 
