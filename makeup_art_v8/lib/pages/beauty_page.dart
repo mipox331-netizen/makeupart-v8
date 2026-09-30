@@ -76,7 +76,7 @@ class _BeautyPageState extends State<BeautyPage> {
                 OutlinedButton.icon(onPressed: loading ? null : pick,
                   icon: const Icon(Icons.photo_library_outlined), label: const Text('Choose photo')),
                 const SizedBox(height: 12),
-                Text('Intensity \${(intensity * 100).round()}%'),
+                Text('Intensity ${(intensity * 100).round()}%'),
                 Slider(value: intensity, onChanged: loading ? null : (v) => setState(() => intensity = v)),
                 FilledButton.icon(onPressed: selected == null || loading ? null : process,
                   icon: const Icon(Icons.auto_awesome),
