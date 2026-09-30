@@ -2,50 +2,40 @@
 
 ## Current state
 
-MakeupArt V8 now has a working backend foundation plus the first mobile beauty-studio workflow.
+MakeupArt V8 now has a verified backend foundation and a usable Flutter mobile MVP for salon beauty processing.
 
 ### Backend
-- FastAPI API with JWT access/refresh authentication and salon-scoped authorization.
-- PostgreSQL 16 with Alembic migrations.
-- Complete application tables for salons, users, customers, beauty jobs/results, consultations, consents, subscriptions, and watermarks.
-- Secure multipart image upload with JPEG/PNG/WebP validation and a configurable 10 MB upload limit.
-- Persistent input/output media storage under a mounted Docker volume.
-- Authenticated before/after image delivery; media paths are kept server-side and checked against the configured media root.
-- Customer IDs are validated against the authenticated user's salon.
+- FastAPI API with JWT access tokens and rotating, server-tracked refresh sessions.
+- PostgreSQL 16 with Alembic migrations through 0003_refresh_sessions.
+- Salon-scoped authorization for users, customers, consultations, consents, beauty jobs, and results.
+- Explicit client-consent enforcement before beauty processing.
+- Consent records with grant/revoke history and optional expiry.
+- Secure multipart image upload with JPEG/PNG/WebP allow-listing, decode validation, upload-size limits, and image-pixel limits.
+- Media paths are kept server-side and constrained to the configured media root.
+- Authenticated before/after image delivery.
 - Existing local beauty processing uses MediaPipe landmarks, InsightFace identity similarity, and OpenCV skin smoothing.
 
 ### Mobile MVP
-- Flutter application shell with login/session storage.
-- Dio API client with bearer-token injection.
-- Gallery image selection.
-- Beauty processing screen with intensity control.
-- Result display for identity similarity, tone/undertone, foundation recommendation, and processed image.
+- Flutter app with salon registration and login.
+- Secure token persistence with automatic access-token refresh and refresh-token rotation.
+- Gallery and camera image selection.
+- Required client-consent confirmation before AI processing.
+- Enhancement intensity control.
+- Authenticated result image loading.
+- Graceful local logout and API-failure handling.
 
 ## Verification
 
-The GitHub CI workflow is configured to:
-1. Build the backend Docker image.
-2. Start PostgreSQL.
-3. Run all Alembic migrations.
-4. Run the backend pytest suite.
-5. Start FastAPI/Uvicorn.
-6. Verify `/health`.
-7. Clean up Docker resources.
+GitHub Actions verifies backend Docker build, PostgreSQL startup, Alembic migrations, backend pytest, FastAPI startup and health, plus Flutter dependency installation, analyzer and widget tests.
 
-The latest changes have triggered CI runs; the final green result must be observed before claiming the new upload/migration/mobile changes are fully verified.
+The repository is only described as verified after the latest commit's CI is green.
 
 ## Known limitations
-
 - The beauty effect is classical OpenCV skin smoothing, not a generative makeup model.
-- The current shade workflow still uses a request-supplied melanin index; it has not yet been replaced by a validated image-based shade estimator.
-- InsightFace's pretrained `buffalo_l` model pack has licensing restrictions that require review before commercial deployment.
-- Flutter dependencies and source were added, but Flutter SDK availability has not been established in the current backend CI environment, so `flutter analyze` / `flutter test` remain to be run on a Flutter-enabled machine.
-- Production deployment still needs HTTPS, a production secret, object storage or equivalent durable media storage, rate limiting, operational monitoring, and a documented retention/deletion policy for client images.
+- The current shade workflow still uses request-supplied melanin index; it is not a validated image-based shade estimator.
+- InsightFace's pretrained buffalo_l model pack requires licensing review before commercial deployment.
+- Production deployment still requires HTTPS, production secrets, private durable object storage, rate limiting, monitoring, and a documented image-retention/deletion policy.
+- Consent confirmation in anonymous upload flow is an operator attestation; customer-linked processing additionally requires an active stored consent record.
 
-## Next engineering priorities
-
-1. Run Flutter analysis/tests on a Flutter-enabled runner and add a dedicated mobile CI job.
-2. Add refresh-token rotation/revocation and stronger production token/session controls.
-3. Replace request-supplied melanin index with a validated shade workflow and consent/bias evaluation.
-4. Add job history/list endpoints and customer-linked consultation history.
-5. Replace local media storage with production object storage while preserving authenticated access control.
+## Delivery posture
+The current branch is an MVP ready for local integration testing and controlled pilot use. Production launch still requires the deployment and privacy controls listed above.
