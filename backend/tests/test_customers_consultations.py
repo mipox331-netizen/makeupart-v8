@@ -56,3 +56,23 @@ def test_customer_and_consultation_are_salon_scoped(client):
 
     assert client.get(f'{API}/customers/{customer_b.json()["id"]}', headers=headers_a).status_code == 404
     assert client.get(f'{API}/consultations/{consultation.json()["id"]}', headers=headers_b).status_code == 404
+
+
+def test_owner_can_privacy_delete_customer(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+
+    created = client.post(
+        f"{API}/customers",
+        headers=headers,
+        json={"first_name": "Delete", "last_name": "Me", "consent_required": True},
+    )
+    assert created.status_code == 201
+    customer_id = created.json()["id"]
+
+    deleted = client.delete(f"{API}/customers/{customer_id}", headers=headers)
+    assert deleted.status_code == 204
+    assert client.get(f"{API}/customers/{customer_id}", headers=headers).status_code == 404
+    assert client.get(
+        f"{API}/consents/customer/{customer_id}/active", headers=headers
+    ).status_code == 404
