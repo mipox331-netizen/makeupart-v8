@@ -24,12 +24,15 @@
 - CI for backend build/migrations/tests, Flutter analyze/tests, production compose validation and Android debug APK builds.
 
 ## Verification
-The final `main` branch is verified through GitHub Actions after the latest source changes. CI is the source of truth for backend tests, Flutter analysis/tests and Android build verification.
+GitHub Actions is the source of truth for backend tests, Flutter analysis/tests and Android build verification.
+
+The latest hardening commits are intentionally treated as unverified until their corresponding GitHub Actions run completes successfully.
 
 ## Production-specific work
 Release signing, App Store Connect/Play Console credentials, production DNS, backups, monitoring and object-storage migration remain environment-specific deployment responsibilities. No secret values are stored in the repository.
 
 ## AI limitations
 - The current effect is bounded OpenCV enhancement rather than generative makeup.
+- Beauty processing now rejects ambiguous multi-face inputs and requires exactly one detected face.
 - Shade matching still depends on a request-supplied melanin index and is not a validated clinical or cosmetic measurement.
 - InsightFace `buffalo_l` licensing must be reviewed before commercial deployment.
