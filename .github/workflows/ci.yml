@@ -121,3 +121,12 @@ jobs:
           else
             echo "Android platform not bootstrapped yet; skipping APK build."
           fi
+
+      - name: Upload Android debug APK
+        if: ${{ hashFiles('makeup_art_v8/android/**') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: makeupart-v8-android-debug
+          path: makeup_art_v8/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
