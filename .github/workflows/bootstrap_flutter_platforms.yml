@@ -78,10 +78,21 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git rebase origin/main
           git add android ios
           if git diff --cached --quiet; then
             echo "Mobile platform files already present."
             exit 0
           fi
           git commit -m "chore: bootstrap Flutter Android and iOS platforms"
-          git push origin HEAD:main
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push race detected; rebasing and retrying..."
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo "Could not push generated mobile platform files."
+          exit 1
