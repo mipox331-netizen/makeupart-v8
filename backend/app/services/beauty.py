@@ -1,5 +1,6 @@
 import os
 import tempfile
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -108,8 +109,15 @@ class BeautyProvider:
         similarity = 0.0 if norm_product == 0 else float(np.dot(original_embedding, processed_embedding) / norm_product)
         similarity = float(np.clip(similarity, 0.0, 1.0))
 
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
-            saved_path = tmp_file.name
+        output_dir = payload.get("output_dir")
+        if output_dir:
+            output_path = Path(str(output_dir)).expanduser().resolve()
+            output_path.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(dir=output_path, suffix=".png", delete=False) as tmp_file:
+                saved_path = tmp_file.name
+        else:
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                saved_path = tmp_file.name
         if not cv2.imwrite(saved_path, processed):
             os.unlink(saved_path)
             raise OSError("Could not write the processed image")
