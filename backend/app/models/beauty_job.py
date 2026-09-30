@@ -1,7 +1,7 @@
 import uuid
 from enum import Enum as PyEnum
 
-from sqlalchemy import Enum, ForeignKey, String, Uuid
+from sqlalchemy import Enum, Float, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, TimestampMixin
@@ -28,11 +28,13 @@ class BeautyJob(TimestampMixin, Base):
         Enum(BeautyJobStatus, name="beauty_job_status"), default=BeautyJobStatus.QUEUED, nullable=False
     )
     selected_makeup: Mapped[str] = mapped_column(String(500), nullable=False, default="")
-    intensity: Mapped[float] = mapped_column(default=0.7, nullable=False)
+    intensity: Mapped[float] = mapped_column(Float, default=0.7, nullable=False)
     shade: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     before_image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     after_image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    input_file_path: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    output_file_path: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     salon: Mapped["Salon"] = relationship("Salon", back_populates="beauty_jobs")
