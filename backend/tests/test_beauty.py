@@ -21,7 +21,7 @@ def test_fitzpatrick_detection_ranges_cover_all_types():
 def test_beauty_process_requires_auth(client):
     response = client.post(
         f"{API}/beauty/process",
-        json={"image_path": "/tmp/face.jpg", "intensity": 0.7, "melanin_index": 2.1},
+        json={"image_path": "/tmp/face.jpg", "intensity": 0.7, "melanin_index": 2.1, "consent_confirmed": True},
     )
     assert response.status_code == 401
 
@@ -56,7 +56,7 @@ def test_beauty_process_satisfies_identity_threshold(client, monkeypatch, tmp_pa
     response = client.post(
         f"{API}/beauty/process",
         headers=headers,
-        json={"image_path": str(image_path), "intensity": 0.8, "melanin_index": 3.5},
+        json={"image_path": str(image_path), "intensity": 0.8, "melanin_index": 3.5, "consent_confirmed": True},
     )
 
     assert response.status_code == 200
@@ -77,7 +77,7 @@ def test_beauty_process_rejects_missing_image(client, monkeypatch, tmp_path):
     response = client.post(
         f"{API}/beauty/process",
         headers=headers,
-        json={"image_path": str(media_root / "inputs" / "missing.png")},
+        json={"image_path": str(media_root / "inputs" / "missing.png"), "consent_confirmed": True},
     )
 
     assert response.status_code == 404
@@ -91,7 +91,7 @@ def test_beauty_process_rejects_path_outside_media_root(client, monkeypatch, tmp
     response = client.post(
         f"{API}/beauty/process",
         headers=headers,
-        json={"image_path": str(tmp_path / "secret.png")},
+        json={"image_path": str(tmp_path / "secret.png"), "consent_confirmed": True},
     )
 
     assert response.status_code == 400
@@ -122,9 +122,9 @@ def test_beauty_upload_persists_and_secures_images(client, monkeypatch, tmp_path
     monkeypatch.setattr(BeautyProvider, "process", fake_process)
 
     response = client.post(
-        f"{API}/beauty/process-upload?intensity=0.8&melanin_index=3.5",
+        f"{API}/beauty/process-upload?intensity=0.8&melanin_index=3.5&consent_confirmed=true",
         headers=headers,
-        files={"file": ("portrait.png", b"fake-image-bytes", "image/png")},
+        files={"file": ("portrait.png", cv2.imencode(".png", np.full((16, 16, 3), 120, dtype=np.uint8))[1].tobytes(), "image/png")},
     )
 
     assert response.status_code == 201
@@ -152,3 +152,20 @@ def test_beauty_upload_rejects_unsupported_type(client):
         files={"file": ("payload.txt", b"not-an-image", "text/plain")},
     )
     assert response.status_code == 415
+
+
+def test_beauty_process_requires_explicit_consent(client, monkeypatch, tmp_path):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    media_root = tmp_path / "media"
+    image_path = media_root / "inputs" / "portrait.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+    assert cv2.imwrite(str(image_path), np.full((16, 16, 3), 120, dtype=np.uint8))
+
+    response = client.post(
+        f"{API}/beauty/process",
+        headers=headers,
+        json={"image_path": str(image_path)},
+    )
+    assert response.status_code == 403
