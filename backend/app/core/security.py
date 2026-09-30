@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -25,6 +26,7 @@ def _create_token(subject: str, token_type: str, expires_delta: timedelta) -> st
     payload = {
         "sub": subject,
         "type": token_type,
+        "jti": str(uuid.uuid4()),
         "iat": now,
         "exp": now + expires_delta,
     }
