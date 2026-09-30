@@ -95,7 +95,12 @@ def refresh_token(refresh_in: RefreshRequest, db: Session = Depends(get_db)) -> 
             RefreshSession.revoked_at.is_(None),
         )
     ).scalars().first()
-    if session is None or session.expires_at <= datetime.now(timezone.utc):
+    if session is None:
+        raise invalid
+    expires_at = session.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= datetime.now(timezone.utc):
         raise invalid
 
     user = get_user(db, user_id)
