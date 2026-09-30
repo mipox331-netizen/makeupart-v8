@@ -19,7 +19,7 @@ def test_skin_tone_detection_uses_image_pixels():
         ]
     )
     light = np.full((128, 128, 3), 210, dtype=np.uint8)
-    deep = np.full((128, 128, 3), 75, dtype=np.uint8)
+    deep = np.full((128, 128, 3), 110, dtype=np.uint8)
 
     light_result = matcher.detect(light, landmarks)
     deep_result = matcher.detect(deep, landmarks)
