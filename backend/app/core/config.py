@@ -41,8 +41,12 @@ class Settings(BaseSettings):
         if self.ENVIRONMENT.lower() == "production":
             if len(self.SECRET_KEY) < 32:
                 raise RuntimeError("SECRET_KEY must be at least 32 characters in production")
+            if "replace-with" in self.SECRET_KEY.lower() or self.SECRET_KEY.lower() in {"change-me", "changeme"}:
+                raise RuntimeError("SECRET_KEY still contains a development placeholder")
             if self.cors_origins_list == ["*"]:
                 raise RuntimeError("CORS_ORIGINS must be explicit in production")
+            if any("example.com" in origin.lower() for origin in self.cors_origins_list):
+                raise RuntimeError("CORS_ORIGINS still contains an example domain")
             if self.MAX_UPLOAD_BYTES <= 0 or self.MAX_IMAGE_PIXELS <= 0:
                 raise RuntimeError("Production upload limits must be positive")
 
