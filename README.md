@@ -51,3 +51,17 @@ GitHub Actions verifies:
 - Flutter dependency resolution, analyze and tests
 - production Compose configuration
 - Android debug build when platform files are present
+
+
+## Physical Android phone testing
+
+The default Android debug build targets the Android Emulator at `10.0.2.2`.
+For a physical phone, the APK must use the backend machine's reachable API address, for example:
+
+```text
+http://192.168.1.20:8000/api/v1
+```
+
+In GitHub Actions, use **Run workflow** and set the `api_base_url` input to build a debug APK for that device/network without changing source code.
+
+The phone and backend machine must be on a network that allows the phone to reach the API.
