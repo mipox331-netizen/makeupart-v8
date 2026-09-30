@@ -32,8 +32,7 @@ def list_customers(db: Session, salon_id: uuid.UUID) -> list[Customer]:
 
 def update_customer(db: Session, customer: Customer, payload: dict) -> Customer:
     for field, value in payload.items():
-        if value is not None:
-            setattr(customer, field, value)
+        setattr(customer, field, value)
     db.add(customer)
     db.flush()
     return customer
