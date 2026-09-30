@@ -1,43 +1,34 @@
 # MakeupArt V8 Architecture
 
-## Overview
-MakeupArt V8 is a salon-first beauty AI platform that preserves recognizable identity while applying bounded enhancement.
+## Runtime
+- FastAPI API with PostgreSQL and Alembic.
+- Flutter mobile client with Dio and secure token storage.
+- Docker Compose for development and production.
+- Caddy reverse proxy for production HTTPS.
 
-## Runtime components
+## Authentication
+Access JWTs are short-lived and include a unique `jti`. Refresh JWTs are stored server-side as SHA-256 token hashes, rotated on use, and revocable on logout.
 
-### Backend
-- FastAPI with PostgreSQL 16, SQLAlchemy 2 and Alembic.
-- JWT access tokens plus server-tracked, rotating refresh sessions.
-- Salon-scoped authorization and authenticated media delivery.
-- Consent records and consent enforcement before AI processing.
-- Local media storage for the MVP.
-
-### Mobile app
-- Flutter Material 3 application.
-- Dio API client with automatic access-token refresh.
-- flutter_secure_storage for token persistence.
-- image_picker for gallery and camera input.
-
-## Security and privacy
-- Access tokens are short lived; refresh tokens are rotated and revocable.
-- Stored refresh tokens are represented by SHA-256 hashes in the database.
-- All domain access is checked against the authenticated user's salon.
-- Beauty processing requires explicit operator consent confirmation.
-- Customer-linked processing additionally requires an active stored consent record when configured.
-- Uploads are restricted by media type, byte limit, successful decode, and pixel limit.
-- Stored media paths are constrained to MEDIA_ROOT.
-- Production rejects wildcard CORS.
+## Salon isolation
+Every customer, consultation, consent, beauty job, result and media path is checked against the authenticated salon ID. Media paths are physically partitioned under `MEDIA_ROOT/salons/<salon_id>/`.
 
 ## Beauty pipeline
-1. Authenticate the operator.
-2. Confirm client consent.
-3. Optionally resolve a salon customer and require active stored consent.
-4. Validate and store the input image.
-5. Run the provider with a managed output directory.
-6. Detect face landmarks and apply bounded OpenCV enhancement.
-7. Measure identity similarity with InsightFace embeddings.
-8. Reject results below the configured identity threshold.
-9. Persist job/result metadata and expose media through authenticated endpoints.
+1. Authenticate operator.
+2. Confirm operator consent.
+3. Resolve optional customer and require active stored customer consent.
+4. Validate upload type, bytes, decoded image and pixel count.
+5. Normalize the stored input image to remove embedded metadata.
+6. Run MediaPipe face landmarks and OpenCV enhancement.
+7. Measure identity similarity with InsightFace.
+8. Retry at lower intensity when the similarity guard fails.
+9. Persist job/result metadata.
+10. Serve before/after assets only through authenticated endpoints.
 
-## Deployment
-The MVP uses Docker Compose with PostgreSQL and a mounted media volume. Production should add HTTPS, private object storage, rate limiting, monitoring, backup/restore, and a documented image-retention policy.
+## Privacy
+Customer deletion removes customer records, consent records, consultations, beauty jobs and associated media. A daily cleanup service removes data beyond the configured retention period and old refresh sessions.
+
+## Operations
+Production uses a non-root backend container, DB connection pooling, liveness/readiness checks, security response headers, private media volumes, Caddy HTTPS termination, and a documented PostgreSQL backup helper.
+
+## Mobile release
+Android and iOS platform projects are checked into the repository. Android debug APKs are built in CI; release signing remains deployment-specific.
