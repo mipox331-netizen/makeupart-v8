@@ -106,38 +106,56 @@ def _process_payload(
 ) -> tuple[BeautyProcessResponse, str]:
     skin_matcher = SkinToneMatcher()
     identity_guard = IdentityGuard()
-    try:
-        provider_options = {**payload.model_dump(), "output_dir": str(output_dir)}
-        base_result = provider.process(payload.image_path, provider_options)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    attempt_intensity = float(payload.intensity)
+    last_similarity = 0.0
 
-    tone = skin_matcher.detect(payload.melanin_index)
-    similarity = float(base_result["identity_similarity"])
-    final_intensity, accepted = identity_guard.validate(similarity, float(payload.intensity))
-    if not accepted:
-        generated_path = str(base_result.get("output_path", ""))
+    for _ in range(4):
+        attempt_payload = payload.model_copy(update={"intensity": attempt_intensity})
         try:
-            Path(generated_path).unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Beauty processing could not satisfy the identity similarity threshold.",
-        )
-    response = BeautyProcessResponse(
-        identity_similarity=round(similarity, 4),
-        skin_tone=tone["tone"],
-        undertone=tone["undertone"],
-        foundation_match=skin_matcher.recommend_foundation(tone["tone"], tone["undertone"]),
-        intensity=round(final_intensity, 4),
-        processed=bool(base_result["processed"]),
+            provider_options = {**attempt_payload.model_dump(), "output_dir": str(output_dir)}
+            base_result = provider.process(attempt_payload.image_path, provider_options)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+        tone = skin_matcher.detect(attempt_payload.melanin_index)
+        similarity = float(base_result["identity_similarity"])
+        last_similarity = similarity
+        accepted = identity_guard.validate(similarity, attempt_intensity)[1]
+        if accepted:
+            response = BeautyProcessResponse(
+                identity_similarity=round(similarity, 4),
+                skin_tone=tone["tone"],
+                undertone=tone["undertone"],
+                foundation_match=skin_matcher.recommend_foundation(
+                    tone["tone"], tone["undertone"]
+                ),
+                intensity=round(attempt_intensity, 4),
+                processed=bool(base_result["processed"]),
+            )
+            return response, str(base_result["output_path"])
+
+        rejected_output = str(base_result.get("output_path", ""))
+        if rejected_output:
+            try:
+                Path(rejected_output).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        if attempt_intensity <= 0.05:
+            break
+        attempt_intensity = max(0.05, round(attempt_intensity * 0.65, 4))
+
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=(
+            "Beauty processing could not satisfy the identity similarity threshold "
+            f"(last_similarity={round(last_similarity, 4)})."
+        ),
     )
-    return response, str(base_result["output_path"])
 
 
 @router.post("/process", response_model=BeautyProcessResponse, status_code=status.HTTP_200_OK)
