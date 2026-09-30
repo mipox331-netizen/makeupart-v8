@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "MakeupArt V8"
     API_V1_STR: str = "/api/v1"
+    ENVIRONMENT: str = "development"
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "*"
     MEDIA_ROOT: str = "./media"
     MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
+    MAX_IMAGE_PIXELS: int = 40_000_000
 
     @property
     def cors_origins_list(self) -> List[str]:
