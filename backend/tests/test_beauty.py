@@ -150,6 +150,13 @@ def test_beauty_upload_persists_and_secures_images(client, monkeypatch, tmp_path
     assert after.status_code == 200
     assert before.headers["content-type"].startswith("image/")
     assert after.headers["content-type"].startswith("image/")
+    listed = client.get(f"{API}/beauty/jobs", headers=headers)
+    assert listed.status_code == 200
+    assert listed.json()[0]["id"] == body["job_id"]
+
+    detail = client.get(f"{API}/beauty/jobs/{body['job_id']}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "COMPLETED"
 
 
 def test_beauty_upload_rejects_unsupported_type(client):
