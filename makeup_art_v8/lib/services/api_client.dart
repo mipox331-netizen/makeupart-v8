@@ -154,14 +154,21 @@ class ApiClient {
     XFile image, {
     double intensity = 0.7,
     bool consentConfirmed = false,
+    String? customerId,
   }) async {
     final data = FormData.fromMap({
       'file': await MultipartFile.fromFile(image.path, filename: image.name),
-      'intensity': intensity.toString(),
-      'melanin_index': '2.0',
-      'consent_confirmed': consentConfirmed.toString(),
     });
-    final response = await dio.post('/beauty/process-upload', data: data);
+    final response = await dio.post(
+      '/beauty/process-upload',
+      queryParameters: {
+        'intensity': intensity,
+        'melanin_index': 2.0,
+        'consent_confirmed': consentConfirmed,
+        if (customerId != null) 'customer_id': customerId,
+      },
+      data: data,
+    );
     return Map<String, dynamic>.from(response.data as Map);
   }
 
