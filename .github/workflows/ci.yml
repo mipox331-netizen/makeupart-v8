@@ -113,3 +113,11 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      - name: Build Android debug APK
+        run: |
+          if [ -d android ]; then
+            flutter build apk --debug
+          else
+            echo "Android platform not bootstrapped yet; skipping APK build."
+          fi
