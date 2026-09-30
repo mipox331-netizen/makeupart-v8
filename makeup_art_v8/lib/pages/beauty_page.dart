@@ -96,10 +96,10 @@ class _BeautyPageState extends State<BeautyPage> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Result', style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 10),
-                  Text('Identity similarity: \${result!['identity_similarity']}'),
-                  Text('Skin tone: \${result!['skin_tone']}'),
-                  Text('Undertone: \${result!['undertone']}'),
-                  Text('Foundation: \${result!['foundation_match']}'),
+                  Text('Identity similarity: ${result!['identity_similarity']}'),
+                  Text('Skin tone: ${result!['skin_tone']}'),
+                  Text('Undertone: ${result!['undertone']}'),
+                  Text('Foundation: ${result!['foundation_match']}'),
                   if (afterUrl != null) ...[
                     const SizedBox(height: 16),
                     FutureBuilder<Uint8List>(
