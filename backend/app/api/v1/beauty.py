@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_active_user
+from app.crud.beauty_job import get_beauty_job, list_beauty_jobs
 from app.core.config import settings
 from app.crud.consent import get_active_consent
 from app.db.session import get_db
@@ -17,7 +18,12 @@ from app.models.beauty_job import BeautyJob, BeautyJobStatus
 from app.models.beauty_result import BeautyResult
 from app.models.customer import Customer
 from app.models.user import User
-from app.schemas.beauty import BeautyProcessRequest, BeautyProcessResponse, BeautyUploadResponse
+from app.schemas.beauty import (
+    BeautyJobOut,
+    BeautyProcessRequest,
+    BeautyProcessResponse,
+    BeautyUploadResponse,
+)
 from app.services.beauty import BeautyProvider, IdentityGuard, SkinToneMatcher
 
 router = APIRouter(prefix="/beauty", tags=["beauty"])
@@ -278,6 +284,39 @@ def process_beauty_upload(
                 except OSError:
                     pass
         raise
+
+
+@router.get("/jobs", response_model=list[BeautyJobOut])
+def list_job_records(
+    customer_id: uuid.UUID | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=10_000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[BeautyJob]:
+    if customer_id is not None:
+        customer = db.get(Customer, customer_id)
+        if customer is None or customer.salon_id != current_user.salon_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    return list_beauty_jobs(
+        db,
+        current_user.salon_id,
+        customer_id=customer_id,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/jobs/{job_id}", response_model=BeautyJobOut)
+def read_job_record(
+    job_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> BeautyJob:
+    job = get_beauty_job(db, current_user.salon_id, job_id)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Beauty job not found")
+    return job
 
 
 @router.get("/jobs/{job_id}/image")
