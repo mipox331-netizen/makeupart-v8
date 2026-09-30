@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -42,8 +43,8 @@ class BeautyJobOut(BaseModel):
     before_image_url: str | None
     after_image_url: str | None
     error_message: str | None
-    created_at: object
-    updated_at: object
+    created_at: datetime
+    updated_at: datetime
 
 
 class BeautyJobImageKind(BaseModel):
