@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.consent import ConsentRecord
@@ -30,22 +30,32 @@ def create_consent(
     return record
 
 
-def get_active_consent(db: Session, salon_id: uuid.UUID, customer_id: uuid.UUID) -> ConsentRecord | None:
-    now = datetime.now(timezone.utc)
+def get_active_consent(
+    db: Session,
+    salon_id: uuid.UUID,
+    customer_id: uuid.UUID,
+) -> ConsentRecord | None:
     stmt = (
         select(ConsentRecord)
         .where(
             ConsentRecord.salon_id == salon_id,
             ConsentRecord.customer_id == customer_id,
-            ConsentRecord.granted.is_(True),
-            or_(ConsentRecord.expires_at.is_(None), ConsentRecord.expires_at > now),
         )
         .order_by(ConsentRecord.created_at.desc())
     )
-    return db.execute(stmt).scalars().first()
+    latest = db.execute(stmt).scalars().first()
+    if latest is None or not latest.granted:
+        return None
+    if latest.expires_at is not None and latest.expires_at <= datetime.now(timezone.utc):
+        return None
+    return latest
 
 
-def list_customer_consents(db: Session, salon_id: uuid.UUID, customer_id: uuid.UUID) -> list[ConsentRecord]:
+def list_customer_consents(
+    db: Session,
+    salon_id: uuid.UUID,
+    customer_id: uuid.UUID,
+) -> list[ConsentRecord]:
     stmt = (
         select(ConsentRecord)
         .where(
