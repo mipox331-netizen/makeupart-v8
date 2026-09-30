@@ -1,0 +1,79 @@
+name: MakeupArt V8 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker compose build backend
+
+      - name: Start database
+        run: docker compose up -d db
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..30}; do
+            if docker compose exec -T db pg_isready -U makeupart -d makeupart; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs db
+          exit 1
+
+      - name: Run migrations
+        env:
+          SECRET_KEY: ci-test-secret-key
+          DATABASE_URL: postgresql+psycopg2://makeupart:makeupart@db:5432/makeupart
+          POSTGRES_USER: makeupart
+          POSTGRES_PASSWORD: makeupart
+          POSTGRES_DB: makeupart
+        run: |
+          docker compose run --rm             -e SECRET_KEY             -e DATABASE_URL             -e POSTGRES_USER             -e POSTGRES_PASSWORD             -e POSTGRES_DB             backend alembic upgrade head
+
+      - name: Start backend
+        env:
+          SECRET_KEY: ci-test-secret-key
+          DATABASE_URL: postgresql+psycopg2://makeupart:makeupart@db:5432/makeupart
+          POSTGRES_USER: makeupart
+          POSTGRES_PASSWORD: makeupart
+          POSTGRES_DB: makeupart
+        run: |
+          docker compose up -d backend
+          sleep 5
+          docker compose ps
+
+      - name: Health check
+        run: |
+          for i in {1..20}; do
+            if curl --fail --silent http://localhost:8000/health; then
+              echo
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs backend
+          docker compose logs db
+          exit 1
+
+      - name: Show backend logs
+        if: always()
+        run: docker compose logs backend
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
