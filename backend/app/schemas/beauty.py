@@ -1,4 +1,4 @@
-from uuid import UUID
+import uuid
 
 from pydantic import BaseModel, Field
 
@@ -23,9 +23,27 @@ class BeautyProcessResponse(BaseModel):
 
 
 class BeautyUploadResponse(BeautyProcessResponse):
-    job_id: UUID
+    job_id: uuid.UUID
     before_image_url: str
     after_image_url: str
+
+
+class BeautyJobOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    salon_id: uuid.UUID
+    customer_id: uuid.UUID | None
+    status: str
+    selected_makeup: str
+    intensity: float
+    shade: str | None
+    notes: str | None
+    before_image_url: str | None
+    after_image_url: str | None
+    error_message: str | None
+    created_at: object
+    updated_at: object
 
 
 class BeautyJobImageKind(BaseModel):
