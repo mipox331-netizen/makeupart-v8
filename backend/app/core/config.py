@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_RECYCLE_SECONDS: int = 1800
     LOG_LEVEL: str = "INFO"
+    MEDIA_RETENTION_DAYS: int = 30
+    REFRESH_SESSION_RETENTION_DAYS: int = 7
 
     @property
     def cors_origins_list(self) -> List[str]:
