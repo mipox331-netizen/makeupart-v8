@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 
+if settings.ENVIRONMENT.lower() == "production" and settings.cors_origins_list == ["*"]:
+    raise RuntimeError("CORS_ORIGINS must be explicit when ENVIRONMENT=production")
+
 app = FastAPI(title=settings.PROJECT_NAME, version="8.0.0")
 
 app.add_middleware(
