@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.api, required this.onLoggedIn});
@@ -78,6 +79,22 @@ class _LoginPageState extends State<LoginPage> {
                           ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Text('Sign in'),
                     ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: loading
+                        ? null
+                        : () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => RegisterPage(
+                                  api: widget.api,
+                                  onRegistered: widget.onLoggedIn,
+                                ),
+                              ),
+                            );
+                          },
+                    child: const Text('Create salon account'),
                   ),
                 ],
               ),
