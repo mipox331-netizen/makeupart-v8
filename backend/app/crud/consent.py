@@ -46,8 +46,12 @@ def get_active_consent(
     latest = db.execute(stmt).scalars().first()
     if latest is None or not latest.granted:
         return None
-    if latest.expires_at is not None and latest.expires_at <= datetime.now(timezone.utc):
-        return None
+    if latest.expires_at is not None:
+        expires_at = latest.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            return None
     return latest
 
 
