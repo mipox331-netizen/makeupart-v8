@@ -44,6 +44,23 @@ services:
       start_period: 90s
       retries: 5
 
+  cleanup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    command: >
+      sh -c "while true; do python -m scripts.cleanup; sleep 86400; done"
+
 volumes:
   pgdata:
   media:
