@@ -72,5 +72,15 @@ def remove_staff(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete your own account"
         )
+    if target.role == UserRole.OWNER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Owner accounts cannot be deleted through this endpoint",
+        )
+    if current_user.role == UserRole.ADMIN and target.role != UserRole.STAFF:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admins can only remove staff accounts",
+        )
     delete_user(db, target)
     db.commit()
