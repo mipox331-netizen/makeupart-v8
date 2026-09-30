@@ -95,6 +95,53 @@ class ApiClient {
     );
   }
 
+  Future<List<Map<String, dynamic>>> listCustomers() async {
+    final response = await dio.get('/customers');
+    final rows = (response.data as List<dynamic>? ?? const <dynamic>[]);
+    return rows
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> createCustomer({
+    required String firstName,
+    required String lastName,
+    String? phone,
+  }) async {
+    final response = await dio.post(
+      '/customers',
+      data: {
+        'first_name': firstName,
+        'last_name': lastName,
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+        'consent_required': true,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>?> getActiveConsent(String customerId) async {
+    final response = await dio.get('/consents/customer/$customerId/active');
+    if (response.data == null) return null;
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<void> setCustomerConsent({
+    required String customerId,
+    required bool granted,
+  }) async {
+    await dio.post(
+      '/consents',
+      data: {
+        'customer_id': customerId,
+        'granted': granted,
+        'consent_text': granted
+            ? 'Client consented to AI beauty processing.'
+            : 'Client withdrew AI beauty processing consent.',
+      },
+    );
+  }
+
   Future<void> login(String email, String password) async {
     final response = await dio.post(
       '/auth/login',
