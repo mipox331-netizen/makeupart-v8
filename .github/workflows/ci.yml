@@ -18,6 +18,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Create CI environment
+        run: |
+          cat > .env <<'EOF'
+          SECRET_KEY=ci-test-secret-key
+          DATABASE_URL=postgresql+psycopg2://makeupart:makeupart@db:5432/makeupart
+          POSTGRES_USER=makeupart
+          POSTGRES_PASSWORD=makeupart
+          POSTGRES_DB=makeupart
+          CORS_ORIGINS=*
+          EOF
+
       - name: Build backend image
         run: docker compose build backend
 
@@ -36,22 +47,9 @@ jobs:
           exit 1
 
       - name: Run migrations
-        env:
-          SECRET_KEY: ci-test-secret-key
-          DATABASE_URL: postgresql+psycopg2://makeupart:makeupart@db:5432/makeupart
-          POSTGRES_USER: makeupart
-          POSTGRES_PASSWORD: makeupart
-          POSTGRES_DB: makeupart
-        run: |
-          docker compose run --rm             -e SECRET_KEY             -e DATABASE_URL             -e POSTGRES_USER             -e POSTGRES_PASSWORD             -e POSTGRES_DB             backend alembic upgrade head
+        run: docker compose run --rm backend alembic upgrade head
 
       - name: Start backend
-        env:
-          SECRET_KEY: ci-test-secret-key
-          DATABASE_URL: postgresql+psycopg2://makeupart:makeupart@db:5432/makeupart
-          POSTGRES_USER: makeupart
-          POSTGRES_PASSWORD: makeupart
-          POSTGRES_DB: makeupart
         run: |
           docker compose up -d backend
           sleep 5
