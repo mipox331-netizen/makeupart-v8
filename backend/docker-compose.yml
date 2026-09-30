@@ -21,6 +21,9 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+      
+    volumes:
+      - ./media:/app/media
     depends_on:
       db:
         condition: service_healthy
