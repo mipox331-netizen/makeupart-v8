@@ -6,6 +6,14 @@ def test_health(client):
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
+    live = client.get("/health/live")
+    assert live.status_code == 200
+    assert live.json()["status"] == "alive"
+
+    ready = client.get("/health/ready")
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+
 
 def test_register_creates_salon_and_owner(client):
     response = register(client)
