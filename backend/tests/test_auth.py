@@ -71,9 +71,10 @@ def test_refresh_returns_new_tokens(client):
     refresh = login(client, "owner@salon.com").json()["refresh_token"]
     response = client.post(f"{API}/auth/refresh", json={"refresh_token": refresh})
     assert response.status_code == 200
-    new_access = response.json()["access_token"]
-    me = client.get(f"{API}/auth/me", headers={"Authorization": f"Bearer {new_access}"})
+    new_tokens = response.json()
+    me = client.get(f"{API}/auth/me", headers={"Authorization": f"Bearer {new_tokens["access_token"]}"})
     assert me.status_code == 200
+    assert client.post(f"{API}/auth/refresh", json={"refresh_token": refresh}).status_code == 401
 
 
 def test_refresh_rejects_access_token(client):
@@ -93,3 +94,11 @@ def test_refresh_token_cannot_be_used_as_access_token(client):
 def test_garbage_token_rejected(client):
     response = client.get(f"{API}/auth/me", headers={"Authorization": "Bearer not-a-token"})
     assert response.status_code == 401
+
+
+def test_logout_revokes_refresh_token(client):
+    register(client)
+    refresh = login(client, "owner@salon.com").json()["refresh_token"]
+    response = client.post(f"{API}/auth/logout", json={"refresh_token": refresh})
+    assert response.status_code == 204
+    assert client.post(f"{API}/auth/refresh", json={"refresh_token": refresh}).status_code == 401
