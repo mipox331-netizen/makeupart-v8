@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:image_picker/image_picker.dart';
@@ -58,6 +60,14 @@ class ApiClient {
     });
     final response = await dio.post('/beauty/process-upload', data: data);
     return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Uint8List> fetchImage(String relativeUrl) async {
+    final response = await dio.get<List<int>>(
+      relativeUrl,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return Uint8List.fromList(response.data ?? const <int>[]);
   }
 
   String imageUrl(String relativeUrl) {
