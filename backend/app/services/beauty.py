@@ -37,7 +37,7 @@ class BeautyProvider:
         if cls._face_mesh is None:
             cls._face_mesh = mp.solutions.face_mesh.FaceMesh(
                 static_image_mode=True,
-                max_num_faces=1,
+                max_num_faces=2,
                 refine_landmarks=True,
             )
         return cls._face_mesh
@@ -92,16 +92,21 @@ class BeautyProvider:
 
         face_mesh = self._get_face_mesh()
         face_mesh_result = face_mesh.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        if not face_mesh_result.multi_face_landmarks:
-            raise ValueError("No face landmarks detected in the provided image")
+        landmarks = face_mesh_result.multi_face_landmarks or []
+        if not landmarks:
+            raise ValueError("No face detected in the provided image")
+        if len(landmarks) != 1:
+            raise ValueError("Please upload a photo containing exactly one face")
 
         intensity = float(payload.get("intensity", 0.7))
-        processed = self._enhance_skin(image, face_mesh_result.multi_face_landmarks[0], intensity)
+        processed = self._enhance_skin(image, landmarks[0], intensity)
         face_app = self._get_face_app()
         original_faces = face_app.get(image)
         processed_faces = face_app.get(processed)
         if not original_faces or not processed_faces:
             raise ValueError("InsightFace could not detect a face in the image")
+        if len(original_faces) != 1 or len(processed_faces) != 1:
+            raise ValueError("Please upload a photo containing exactly one face")
 
         original_embedding = original_faces[0].embedding.astype(np.float64)
         processed_embedding = processed_faces[0].embedding.astype(np.float64)
