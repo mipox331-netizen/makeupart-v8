@@ -29,7 +29,10 @@ def test_beauty_process_requires_auth(client):
 def test_beauty_process_satisfies_identity_threshold(client, monkeypatch, tmp_path):
     register(client)
     headers = auth_headers(client, "owner@salon.com")
-    image_path = tmp_path / "portrait.png"
+    media_root = tmp_path / "media"
+    image_path = media_root / "inputs" / "portrait.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
     assert cv2.imwrite(str(image_path), np.full((128, 128, 3), 180, dtype=np.uint8))
 
     landmarks = SimpleNamespace(
@@ -65,17 +68,33 @@ def test_beauty_process_satisfies_identity_threshold(client, monkeypatch, tmp_pa
     assert body["foundation_match"]
 
 
-def test_beauty_process_rejects_missing_image(client, monkeypatch):
+def test_beauty_process_rejects_missing_image(client, monkeypatch, tmp_path):
     register(client)
     headers = auth_headers(client, "owner@salon.com")
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
 
     response = client.post(
         f"{API}/beauty/process",
         headers=headers,
-        json={"image_path": "/missing/portrait.png"},
+        json={"image_path": str(media_root / "inputs" / "missing.png")},
     )
 
     assert response.status_code == 404
+
+
+def test_beauty_process_rejects_path_outside_media_root(client, monkeypatch, tmp_path):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(tmp_path / "media"))
+
+    response = client.post(
+        f"{API}/beauty/process",
+        headers=headers,
+        json={"image_path": str(tmp_path / "secret.png")},
+    )
+
+    assert response.status_code == 400
 
 
 def test_identity_guard_does_not_invent_similarity():
