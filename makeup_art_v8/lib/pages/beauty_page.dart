@@ -3,10 +3,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../services/api_client.dart';
 
 class BeautyPage extends StatefulWidget {
   const BeautyPage({super.key, required this.api, required this.onLogout});
+
   final ApiClient api;
   final VoidCallback onLogout;
 
@@ -18,25 +20,50 @@ class _BeautyPageState extends State<BeautyPage> {
   final picker = ImagePicker();
   XFile? selected;
   Map<String, dynamic>? result;
+  Future<Uint8List>? afterImageFuture;
   double intensity = 0.7;
   bool loading = false;
+  bool consentConfirmed = false;
   String? error;
 
-  Future<void> pick() async {
-    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 92);
-    if (image != null) {
-      setState(() { selected = image; result = null; error = null; });
-    }
+  Future<void> pick(ImageSource source) async {
+    final image = await picker.pickImage(source: source, imageQuality: 92);
+    if (image == null || !mounted) return;
+    setState(() {
+      selected = image;
+      result = null;
+      afterImageFuture = null;
+      error = null;
+    });
   }
 
   Future<void> process() async {
-    if (selected == null) return;
-    setState(() { loading = true; error = null; });
+    if (selected == null || !consentConfirmed) return;
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
-      final response = await widget.api.processImage(selected!, intensity: intensity);
-      if (mounted) setState(() => result = response);
-    } catch (_) {
-      if (mounted) setState(() => error = 'Could not process this image.');
+      final response = await widget.api.processImage(
+        selected!,
+        intensity: intensity,
+        consentConfirmed: consentConfirmed,
+      );
+      if (!mounted) return;
+      setState(() {
+        result = response;
+        final afterUrl = response['after_image_url'] as String?;
+        afterImageFuture =
+            afterUrl == null ? null : widget.api.fetchImage(afterUrl);
+      });
+    } catch (exception) {
+      if (!mounted) return;
+      final message = exception.toString();
+      setState(() {
+        error = message.contains('consent')
+            ? 'Client consent is required before processing.'
+            : 'Could not process this image. Check the API and image quality.';
+      });
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -44,48 +71,124 @@ class _BeautyPageState extends State<BeautyPage> {
 
   @override
   Widget build(BuildContext context) {
-    final afterUrl = result?['after_image_url'] as String?;
     return Scaffold(
-      appBar: AppBar(title: const Text('Beauty Studio'),
-        actions: [IconButton(onPressed: widget.onLogout, icon: const Icon(Icons.logout))]),
+      appBar: AppBar(
+        title: const Text('Beauty Studio'),
+        actions: [
+          IconButton(
+            onPressed: loading ? null : widget.onLogout,
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign out',
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text('AI Beauty Preview', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
-                const Text('Choose a client photo, adjust enhancement strength, then process it securely.'),
-                const SizedBox(height: 18),
-                if (selected != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.file(File(selected!.path), height: 300, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox(
-                        height: 120, child: Center(child: Icon(Icons.image_outlined, size: 56)))),
-                  )
-                else
-                  Container(height: 220,
-                    decoration: BoxDecoration(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'AI Beauty Preview',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Choose a client photo, confirm consent, adjust enhancement strength, then process it securely.',
+                  ),
+                  const SizedBox(height: 18),
+                  if (selected != null)
+                    ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Theme.of(context).colorScheme.outline)),
-                    child: const Center(child: Icon(Icons.face_retouching_natural, size: 64))),
-                const SizedBox(height: 14),
-                OutlinedButton.icon(onPressed: loading ? null : pick,
-                  icon: const Icon(Icons.photo_library_outlined), label: const Text('Choose photo')),
-                const SizedBox(height: 12),
-                Text('Intensity ${(intensity * 100).round()}%'),
-                Slider(value: intensity, onChanged: loading ? null : (v) => setState(() => intensity = v)),
-                FilledButton.icon(onPressed: selected == null || loading ? null : process,
-                  icon: const Icon(Icons.auto_awesome),
-                  label: Text(loading ? 'Processing...' : 'Process with AI')),
-                if (error != null) ...[
+                      child: Image.file(
+                        File(selected!.path),
+                        height: 300,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox(
+                          height: 120,
+                          child: Center(
+                            child: Icon(Icons.image_outlined, size: 56),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      height: 220,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.face_retouching_natural, size: 64),
+                      ),
+                    ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed:
+                              loading ? null : () => pick(ImageSource.gallery),
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: const Text('Gallery'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed:
+                              loading ? null : () => pick(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: const Text('Camera'),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 12),
-                  Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  Text('Intensity ${(intensity * 100).round()}%'),
+                  Slider(
+                    value: intensity,
+                    onChanged: loading
+                        ? null
+                        : (value) => setState(() => intensity = value),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: consentConfirmed,
+                    onChanged: loading
+                        ? null
+                        : (value) => setState(
+                              () => consentConfirmed = value ?? false,
+                            ),
+                    title: const Text('Client consent confirmed'),
+                    subtitle: const Text(
+                      'I have permission to process this client image with AI.',
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: selected == null || loading || !consentConfirmed
+                        ? null
+                        : process,
+                    icon: const Icon(Icons.auto_awesome),
+                    label: Text(loading ? 'Processing...' : 'Process with AI'),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
                 ],
-              ]),
+              ),
             ),
           ),
           if (result != null) ...[
@@ -93,38 +196,59 @@ class _BeautyPageState extends State<BeautyPage> {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(18),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Result', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 10),
-                  Text('Identity similarity: ${result!['identity_similarity']}'),
-                  Text('Skin tone: ${result!['skin_tone']}'),
-                  Text('Undertone: ${result!['undertone']}'),
-                  Text('Foundation: ${result!['foundation_match']}'),
-                  if (afterUrl != null) ...[
-                    const SizedBox(height: 16),
-                    FutureBuilder<Uint8List>(
-                      future: widget.api.fetchImage(afterUrl),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const SizedBox(
-                            height: 220,
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        if (snapshot.hasError || snapshot.data == null || snapshot.data!.isEmpty) {
-                          return const SizedBox(
-                            height: 120,
-                            child: Center(child: Icon(Icons.broken_image_outlined, size: 56)),
-                          );
-                        }
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.memory(snapshot.data!, fit: BoxFit.cover),
-                        );
-                      },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Result',
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Identity similarity: ${result!['identity_similarity']}',
+                    ),
+                    Text('Skin tone: ${result!['skin_tone']}'),
+                    Text('Undertone: ${result!['undertone']}'),
+                    Text('Foundation: ${result!['foundation_match']}'),
+                    if (afterImageFuture != null) ...[
+                      const SizedBox(height: 16),
+                      FutureBuilder<Uint8List>(
+                        future: afterImageFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const SizedBox(
+                              height: 220,
+                              child: Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          }
+                          if (snapshot.hasError ||
+                              snapshot.data == null ||
+                              snapshot.data!.isEmpty) {
+                            return const SizedBox(
+                              height: 120,
+                              child: Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 56,
+                                ),
+                              ),
+                            );
+                          }
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.memory(
+                              snapshot.data!,
+                              fit: BoxFit.cover,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ],
-                ]),
+                ),
               ),
             ),
           ],
