@@ -14,27 +14,86 @@ class ApiClient {
 
   final FlutterSecureStorage storage;
   late final Dio dio;
+  Future<String?>? _refreshInFlight;
 
   ApiClient({FlutterSecureStorage? storage}) : storage = storage ?? const FlutterSecureStorage() {
-    dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 120),
-      headers: {'Accept': 'application/json'},
-    ));
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) async {
-        final token = await this.storage.read(key: _accessKey);
-        if (token != null && token.isNotEmpty) {
-          options.headers['Authorization'] = 'Bearer $token';
-        }
-        handler.next(options);
-      },
-    ));
+    dio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 120),
+        headers: {'Accept': 'application/json'},
+      ),
+    );
+
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final token = await this.storage.read(key: _accessKey);
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          handler.next(options);
+        },
+        onError: (error, handler) async {
+          final request = error.requestOptions;
+          final isUnauthorized = error.response?.statusCode == 401;
+          final alreadyRetried = request.extra['authRetried'] == true;
+          final isAuthEndpoint = request.path.contains('/auth/login') ||
+              request.path.contains('/auth/refresh');
+
+          if (!isUnauthorized || alreadyRetried || isAuthEndpoint) {
+            handler.next(error);
+            return;
+          }
+
+          final refreshToken = await storage.read(key: _refreshKey);
+          if (refreshToken == null || refreshToken.isEmpty) {
+            handler.next(error);
+            return;
+          }
+
+          final accessToken = await _refreshAccessToken(refreshToken);
+          if (accessToken == null) {
+            await logoutLocal();
+            handler.next(error);
+            return;
+          }
+
+          request.extra['authRetried'] = true;
+          request.headers['Authorization'] = 'Bearer $accessToken';
+          try {
+            final response = await dio.fetch(request);
+            handler.resolve(response);
+          } on DioException catch (retryError) {
+            handler.next(retryError);
+          }
+        },
+      ),
+    );
   }
 
   Future<bool> hasSession() async =>
       (await storage.read(key: _accessKey))?.isNotEmpty == true;
+
+  Future<void> register({
+    required String salonName,
+    required String ownerFullName,
+    required String email,
+    required String password,
+    String? phone,
+  }) async {
+    await dio.post(
+      '/auth/register',
+      data: {
+        'salon_name': salonName,
+        'owner_full_name': ownerFullName,
+        'email': email,
+        'password': password,
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      },
+    );
+  }
 
   Future<void> login(String email, String password) async {
     final response = await dio.post(
@@ -47,16 +106,60 @@ class ApiClient {
     await storage.write(key: _refreshKey, value: data['refresh_token'] as String);
   }
 
+  Future<String?> _refreshAccessToken(String refreshToken) {
+    final running = _refreshInFlight;
+    if (running != null) return running;
+
+    final future = () async {
+      try {
+        final refreshDio = Dio(BaseOptions(baseUrl: baseUrl));
+        final response = await refreshDio.post(
+          '/auth/refresh',
+          data: {'refresh_token': refreshToken},
+        );
+        final data = Map<String, dynamic>.from(response.data as Map);
+        final accessToken = data['access_token'] as String?;
+        final rotatedRefresh = data['refresh_token'] as String?;
+        if (accessToken == null || rotatedRefresh == null) return null;
+        await storage.write(key: _accessKey, value: accessToken);
+        await storage.write(key: _refreshKey, value: rotatedRefresh);
+        return accessToken;
+      } on DioException {
+        return null;
+      }
+    }();
+
+    _refreshInFlight = future;
+    return future.whenComplete(() => _refreshInFlight = null);
+  }
+
   Future<void> logout() async {
+    final refreshToken = await storage.read(key: _refreshKey);
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      try {
+        await dio.post('/auth/logout', data: {'refresh_token': refreshToken});
+      } on DioException {
+        // Local logout must still succeed when the API is unavailable.
+      }
+    }
+    await logoutLocal();
+  }
+
+  Future<void> logoutLocal() async {
     await storage.delete(key: _accessKey);
     await storage.delete(key: _refreshKey);
   }
 
-  Future<Map<String, dynamic>> processImage(XFile image, {double intensity = 0.7}) async {
+  Future<Map<String, dynamic>> processImage(
+    XFile image, {
+    double intensity = 0.7,
+    bool consentConfirmed = false,
+  }) async {
     final data = FormData.fromMap({
       'file': await MultipartFile.fromFile(image.path, filename: image.name),
       'intensity': intensity.toString(),
       'melanin_index': '2.0',
+      'consent_confirmed': consentConfirmed.toString(),
     });
     final response = await dio.post('/beauty/process-upload', data: data);
     return Map<String, dynamic>.from(response.data as Map);
