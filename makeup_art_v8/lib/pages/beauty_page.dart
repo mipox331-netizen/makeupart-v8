@@ -18,13 +18,151 @@ class BeautyPage extends StatefulWidget {
 
 class _BeautyPageState extends State<BeautyPage> {
   final picker = ImagePicker();
+
   XFile? selected;
   Map<String, dynamic>? result;
   Future<Uint8List>? afterImageFuture;
+  List<Map<String, dynamic>> customers = [];
+  String? customerId;
+  bool? customerConsentActive;
   double intensity = 0.7;
   bool loading = false;
+  bool loadingCustomers = true;
   bool consentConfirmed = false;
   String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomers();
+  }
+
+  Future<void> _loadCustomers() async {
+    if (mounted) setState(() => loadingCustomers = true);
+    try {
+      final rows = await widget.api.listCustomers();
+      if (!mounted) return;
+      setState(() => customers = rows);
+      if (customerId != null) await _refreshCustomerConsent(customerId!);
+    } catch (_) {
+      if (mounted) setState(() => error = 'Could not load client profiles.');
+    } finally {
+      if (mounted) setState(() => loadingCustomers = false);
+    }
+  }
+
+  Future<void> _selectCustomer(String value) async {
+    if (value == 'walk-in') {
+      setState(() {
+        customerId = null;
+        customerConsentActive = null;
+      });
+      return;
+    }
+    setState(() {
+      customerId = value;
+      customerConsentActive = null;
+    });
+    await _refreshCustomerConsent(value);
+  }
+
+  Future<void> _refreshCustomerConsent(String id) async {
+    try {
+      final consent = await widget.api.getActiveConsent(id);
+      if (!mounted || customerId != id) return;
+      setState(() => customerConsentActive = consent != null);
+    } catch (_) {
+      if (mounted) setState(() => customerConsentActive = false);
+    }
+  }
+
+  Future<void> _toggleStoredConsent() async {
+    final id = customerId;
+    if (id == null) return;
+    final grant = customerConsentActive != true;
+    try {
+      await widget.api.setCustomerConsent(customerId: id, granted: grant);
+      await _refreshCustomerConsent(id);
+    } catch (_) {
+      if (mounted) setState(() => error = 'Could not update client consent.');
+    }
+  }
+
+  Future<void> _addCustomer() async {
+    final firstName = TextEditingController();
+    final lastName = TextEditingController();
+    final phone = TextEditingController();
+
+    final payload = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add client'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                controller: firstName,
+                decoration: const InputDecoration(labelText: 'First name'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: lastName,
+                decoration: const InputDecoration(labelText: 'Last name'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: phone,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'Phone (optional)'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (firstName.text.trim().isEmpty || lastName.text.trim().isEmpty) return;
+              Navigator.pop(
+                dialogContext,
+                {
+                  'first_name': firstName.text.trim(),
+                  'last_name': lastName.text.trim(),
+                  'phone': phone.text.trim(),
+                },
+              );
+            },
+            child: const Text('Save client'),
+          ),
+        ],
+      ),
+    );
+
+    firstName.dispose();
+    lastName.dispose();
+    phone.dispose();
+
+    if (payload == null) return;
+
+    try {
+      final client = await widget.api.createCustomer(
+        firstName: payload['first_name']!,
+        lastName: payload['last_name']!,
+        phone: payload['phone'],
+      );
+      await _loadCustomers();
+      if (!mounted) return;
+      setState(() {
+        customerId = client['id'] as String;
+        customerConsentActive = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => error = 'Could not create client profile.');
+    }
+  }
 
   Future<void> pick(ImageSource source) async {
     final image = await picker.pickImage(source: source, imageQuality: 92);
@@ -39,15 +177,19 @@ class _BeautyPageState extends State<BeautyPage> {
 
   Future<void> process() async {
     if (selected == null || !consentConfirmed) return;
+    if (customerId != null && customerConsentActive != true) return;
+
     setState(() {
       loading = true;
       error = null;
     });
+
     try {
       final response = await widget.api.processImage(
         selected!,
         intensity: intensity,
         consentConfirmed: consentConfirmed,
+        customerId: customerId,
       );
       if (!mounted) return;
       setState(() {
@@ -58,7 +200,7 @@ class _BeautyPageState extends State<BeautyPage> {
       });
     } catch (exception) {
       if (!mounted) return;
-      final message = exception.toString();
+      final message = exception.toString().toLowerCase();
       setState(() {
         error = message.contains('consent')
             ? 'Client consent is required before processing.'
@@ -69,12 +211,31 @@ class _BeautyPageState extends State<BeautyPage> {
     }
   }
 
+  String _customerLabel(String id) {
+    for (final item in customers) {
+      if (item['id'] == id) {
+        return '${item['first_name']} ${item['last_name']}';
+      }
+    }
+    return 'Selected client';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final canProcess = selected != null &&
+        consentConfirmed &&
+        !loading &&
+        (customerId == null || customerConsentActive == true);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Beauty Studio'),
         actions: [
+          IconButton(
+            onPressed: loading ? null : _loadCustomers,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh clients',
+          ),
           IconButton(
             onPressed: loading ? null : widget.onLogout,
             icon: const Icon(Icons.logout),
@@ -85,6 +246,94 @@ class _BeautyPageState extends State<BeautyPage> {
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Client',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: customerId ?? 'walk-in',
+                          decoration: const InputDecoration(
+                            labelText: 'Client profile',
+                            prefixIcon: Icon(Icons.person_outline),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: 'walk-in',
+                              child: Text('Walk-in / no profile'),
+                            ),
+                            ...customers.map(
+                              (item) => DropdownMenuItem<String>(
+                                value: item['id'] as String,
+                                child: Text(
+                                  '${item['first_name']} ${item['last_name']}',
+                                ),
+                              ),
+                            ),
+                          ],
+                          onChanged: loading || loadingCustomers
+                              ? null
+                              : (value) {
+                                  if (value != null) _selectCustomer(value);
+                                },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      IconButton.filledTonal(
+                        onPressed: loading ? null : _addCustomer,
+                        icon: const Icon(Icons.person_add_alt_1),
+                        tooltip: 'Add client',
+                      ),
+                    ],
+                  ),
+                  if (customerId != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Selected: ${_customerLabel(customerId!)}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Card(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      child: ListTile(
+                        leading: Icon(
+                          customerConsentActive == true
+                              ? Icons.verified_user_outlined
+                              : Icons.gpp_bad_outlined,
+                        ),
+                        title: Text(
+                          customerConsentActive == true
+                              ? 'AI consent is active'
+                              : 'AI consent is not active',
+                        ),
+                        subtitle: Text(
+                          customerConsentActive == true
+                              ? 'This client can be processed when operator consent is confirmed.'
+                              : 'Grant a stored consent record before processing this client.',
+                        ),
+                        trailing: TextButton(
+                          onPressed: loading ? null : _toggleStoredConsent,
+                          child: Text(
+                            customerConsentActive == true ? 'Revoke' : 'Grant',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -172,9 +421,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                   ),
                   FilledButton.icon(
-                    onPressed: selected == null || loading || !consentConfirmed
-                        ? null
-                        : process,
+                    onPressed: canProcess ? process : null,
                     icon: const Icon(Icons.auto_awesome),
                     label: Text(loading ? 'Processing...' : 'Process with AI'),
                   ),
