@@ -70,9 +70,8 @@ def test_beauty_process_satisfies_identity_threshold(client, monkeypatch, tmp_pa
 
 
 def test_beauty_process_rejects_missing_image(client, monkeypatch, tmp_path):
-    register(client)
-    headers = auth_headers(client, "owner@salon.com")
     registration = register(client)
+    headers = auth_headers(client, "owner@salon.com")
     headers = auth_headers(client, "owner@salon.com")
     salon_id = registration.json()["salon"]["id"]
     media_root = tmp_path / "media"
@@ -114,12 +113,14 @@ def test_identity_guard_does_not_invent_similarity():
 
 
 def test_beauty_upload_persists_and_secures_images(client, monkeypatch, tmp_path):
-    register(client)
+    registration = register(client)
     headers = auth_headers(client, "owner@salon.com")
-    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(tmp_path / "media"))
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
 
     def fake_process(self, image_path, options=None):
-        output = tmp_path / "media" / "generated.png"
+        output = media_root / "salons" / salon_id / "outputs" / "generated.png"
         output.parent.mkdir(parents=True, exist_ok=True)
         assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
         return {
@@ -164,10 +165,13 @@ def test_beauty_upload_rejects_unsupported_type(client):
 
 
 def test_beauty_process_requires_explicit_consent(client, monkeypatch, tmp_path):
-    register(client)
+    registration = register(client)
     headers = auth_headers(client, "owner@salon.com")
+    registration = register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
     media_root = tmp_path / "media"
-    image_path = media_root / "inputs" / "portrait.png"
+    image_path = media_root / "salons" / salon_id / "inputs" / "portrait.png"
     image_path.parent.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
     assert cv2.imwrite(str(image_path), np.full((16, 16, 3), 120, dtype=np.uint8))
