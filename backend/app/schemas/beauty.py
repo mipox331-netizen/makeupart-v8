@@ -10,6 +10,7 @@ class BeautyProcessRequest(BaseModel):
     undertone: str | None = None
     foundation_match: str | None = None
     melanin_index: float = Field(default=2.0, ge=0.0, le=10.0)
+    consent_confirmed: bool = False
 
 
 class BeautyProcessResponse(BaseModel):
