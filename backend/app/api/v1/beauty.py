@@ -130,17 +130,18 @@ def _process_payload(
         similarity = float(base_result["identity_similarity"])
         last_similarity = similarity
         accepted = identity_guard.validate(similarity, attempt_intensity)[1]
+        generated_output = Path(str(base_result.get("output_path", ""))).resolve()
+
         if accepted:
-            generated_output = Path(str(base_result["output_path"])).resolve()
-        if output_dir.resolve() not in generated_output.parents:
-            try:
-                generated_output.unlink(missing_ok=True)
-            except OSError:
-                pass
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Beauty provider generated media outside salon storage",
-            )
+            if output_dir.resolve() not in generated_output.parents:
+                try:
+                    generated_output.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Beauty provider generated media outside salon storage",
+                )
 
             response = BeautyProcessResponse(
                 identity_similarity=round(similarity, 4),
@@ -154,10 +155,9 @@ def _process_payload(
             )
             return response, str(generated_output)
 
-        rejected_output = str(generated_output)
-        if rejected_output:
+        if output_dir.resolve() in generated_output.parents:
             try:
-                Path(rejected_output).unlink(missing_ok=True)
+                generated_output.unlink(missing_ok=True)
             except OSError:
                 pass
 
