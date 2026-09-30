@@ -72,7 +72,6 @@ def test_beauty_process_satisfies_identity_threshold(client, monkeypatch, tmp_pa
 def test_beauty_process_rejects_missing_image(client, monkeypatch, tmp_path):
     registration = register(client)
     headers = auth_headers(client, "owner@salon.com")
-    headers = auth_headers(client, "owner@salon.com")
     salon_id = registration.json()["salon"]["id"]
     media_root = tmp_path / "media"
     monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
@@ -167,8 +166,6 @@ def test_beauty_upload_rejects_unsupported_type(client):
 def test_beauty_process_requires_explicit_consent(client, monkeypatch, tmp_path):
     registration = register(client)
     headers = auth_headers(client, "owner@salon.com")
-    registration = register(client)
-    headers = auth_headers(client, "owner@salon.com")
     salon_id = registration.json()["salon"]["id"]
     media_root = tmp_path / "media"
     image_path = media_root / "salons" / salon_id / "inputs" / "portrait.png"
@@ -188,8 +185,6 @@ def test_beauty_process_cannot_cross_salon_media_roots(client, monkeypatch, tmp_
     registration_a = register(client, email="owner.a@salon.com", salon_name="Salon A")
     register(client, email="owner.b@salon.com", salon_name="Salon B")
     headers_a = auth_headers(client, "owner.a@salon.com")
-    salon_a = registration_a.json()["salon"]["id"]
-
     # Create a file in another salon's storage root.
     media_root = tmp_path / "media"
     monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
