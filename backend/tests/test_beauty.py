@@ -307,3 +307,38 @@ def test_beauty_retries_with_lower_intensity_when_identity_guard_fails(
     assert len(calls) == 2
     assert calls[1] < calls[0]
     assert response.json()["identity_similarity"] == 0.9
+
+
+def test_beauty_process_rejects_multiple_faces(client, monkeypatch, tmp_path):
+    registration = register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    image_path = media_root / "salons" / salon_id / "inputs" / "group.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+    assert cv2.imwrite(str(image_path), np.full((64, 64, 3), 180, dtype=np.uint8))
+
+    landmarks_a = SimpleNamespace(landmark=[SimpleNamespace(x=0.2, y=0.2)])
+    landmarks_b = SimpleNamespace(landmark=[SimpleNamespace(x=0.8, y=0.2)])
+    face_mesh = SimpleNamespace(
+        process=lambda image: SimpleNamespace(
+            multi_face_landmarks=[landmarks_a, landmarks_b]
+        )
+    )
+    monkeypatch.setattr(BeautyProvider, "_face_mesh_available", classmethod(lambda cls: True))
+    monkeypatch.setattr(BeautyProvider, "_get_face_mesh", classmethod(lambda cls: face_mesh))
+
+    response = client.post(
+        f"{API}/beauty/process",
+        headers=headers,
+        json={
+            "image_path": str(image_path),
+            "intensity": 0.7,
+            "melanin_index": 2.0,
+            "consent_confirmed": True,
+        },
+    )
+
+    assert response.status_code == 422
+    assert "exactly one face" in response.json()["detail"]
