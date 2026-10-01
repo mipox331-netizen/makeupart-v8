@@ -51,6 +51,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: makeupart-v8-android-apk
-          path: makeup_art_v8/artifacts/MakeupArt-V8.apk
+          path: artifacts/MakeupArt-V8.apk
           if-no-files-found: error
           retention-days: 30
