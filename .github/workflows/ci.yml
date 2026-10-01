@@ -152,6 +152,9 @@ jobs:
       - name: Test
         run: flutter test
 
+      - name: Verify production API
+        run: curl --fail --silent --show-error https://makeupart-api.onrender.com/health/ready
+
       - name: Build Android debug APK
         run: |
           if [ -d android ]; then
