@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 class ApiClient {
   static const baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api/v1',
+    defaultValue: 'https://makeupart-api.onrender.com/api/v1',
   );
   static const _accessKey = 'makeupart_access_token';
   static const _refreshKey = 'makeupart_refresh_token';
