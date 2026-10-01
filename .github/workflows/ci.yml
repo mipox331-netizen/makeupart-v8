@@ -10,7 +10,7 @@ on:
       api_base_url:
         description: "API base URL for the manually built Android APK"
         required: false
-        default: "http://10.0.2.2:8000/api/v1"
+        default: "https://makeupart-api.onrender.com/api/v1"
 
 concurrency:
   group: makeupart-v8-${{ github.ref }}
@@ -155,7 +155,7 @@ jobs:
       - name: Build Android debug APK
         run: |
           if [ -d android ]; then
-            flutter build apk --debug --dart-define=API_BASE_URL="${{ inputs.api_base_url || 'http://10.0.2.2:8000/api/v1' }}"
+            flutter build apk --debug --dart-define=API_BASE_URL="${{ inputs.api_base_url || 'https://makeupart-api.onrender.com/api/v1' }}"
           else
             echo "Android platform not bootstrapped yet; skipping APK build."
           fi
