@@ -8,13 +8,18 @@ class RecentImageStore {
   static const _directoryName = 'recent_ai_results';
 
   final Directory? rootOverride;
+  final String scope;
 
-  const RecentImageStore({this.rootOverride});
+  const RecentImageStore({
+    this.rootOverride,
+    this.scope = 'default',
+  });
 
   Future<Directory> _directory() async {
     final root = rootOverride ?? await getApplicationDocumentsDirectory();
+    final safeScope = scope.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
     final directory = Directory(
-      '${root.path}${Platform.pathSeparator}$_directoryName',
+      '${root.path}${Platform.pathSeparator}$_directoryName${Platform.pathSeparator}$safeScope',
     );
     if (!await directory.exists()) {
       await directory.create(recursive: true);
