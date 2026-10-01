@@ -148,6 +148,19 @@ class _SessionGateState extends State<SessionGate> {
       );
     }
 
-    return BeautyPage(api: widget.api, onLogout: widget.onLogout);
+    final salonId = user?['salon_id']?.toString();
+    if (salonId == null || salonId.isEmpty) {
+      return const Scaffold(
+        body: Center(
+          child: Text('Account is missing a salon profile.'),
+        ),
+      );
+    }
+
+    return BeautyPage(
+      api: widget.api,
+      onLogout: widget.onLogout,
+      salonId: salonId,
+    );
   }
 }
