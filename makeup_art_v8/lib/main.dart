@@ -88,6 +88,12 @@ class _SessionGateState extends State<SessionGate> {
   }
 
   Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        loading = true;
+        error = null;
+      });
+    }
     try {
       final currentUser = await widget.api.currentUser();
       user = currentUser;
@@ -137,6 +143,8 @@ class _SessionGateState extends State<SessionGate> {
       return SubscriptionPage(
         subscription: subscription ?? const {},
         onLogout: widget.onLogout,
+        onRetry: _load,
+        loading: loading,
       );
     }
 
