@@ -17,6 +17,7 @@ from app.db.session import get_db
 from app.models.beauty_job import BeautyJob, BeautyJobStatus
 from app.models.beauty_result import BeautyResult
 from app.models.customer import Customer
+from app.models.salon import Salon
 from app.models.user import User
 from app.schemas.beauty import (
     BeautyJobOut,
@@ -26,6 +27,7 @@ from app.schemas.beauty import (
 )
 from app.services.beauty import BeautyProvider, IdentityGuard
 from app.services.subscription import release_beauty_job_quota, reserve_beauty_job_quota
+from app.services.watermark import apply_watermark, get_or_create_watermark
 
 router = APIRouter(prefix="/beauty", tags=["beauty"])
 
@@ -269,6 +271,19 @@ def process_beauty_upload(
                 detail="Beauty provider generated media outside salon storage",
             )
 
+        salon = db.get(Salon, current_user.salon_id)
+        if salon is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon not found")
+
+        watermark = get_or_create_watermark(db, salon)
+        try:
+            watermark_applied = apply_watermark(generated_output, salon, watermark)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not apply salon watermark",
+            ) from exc
+
         output_path = output_dir / f"{uuid.uuid4()}.png"
         shutil.move(generated_output, output_path)
 
@@ -299,7 +314,7 @@ def process_beauty_upload(
                 skin_tone=response.skin_tone,
                 undertone=response.undertone,
                 foundation_match=response.foundation_match,
-                watermark_applied=False,
+                watermark_applied=watermark_applied,
             )
         )
         db.commit()
@@ -310,6 +325,7 @@ def process_beauty_upload(
             job_id=job.id,
             before_image_url=job.before_image_url,
             after_image_url=job.after_image_url,
+            watermark_applied=watermark_applied,
         )
     except HTTPException:
         db.rollback()
