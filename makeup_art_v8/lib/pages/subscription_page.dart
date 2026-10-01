@@ -5,10 +5,14 @@ class SubscriptionPage extends StatelessWidget {
     super.key,
     required this.subscription,
     required this.onLogout,
+    required this.onRetry,
+    required this.loading,
   });
 
   final Map<String, dynamic> subscription;
   final VoidCallback onLogout;
+  final Future<void> Function() onRetry;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +69,19 @@ class SubscriptionPage extends StatelessWidget {
                     ],
                     const SizedBox(height: 22),
                     FilledButton.icon(
-                      onPressed: onLogout,
+                      onPressed: loading ? null : onRetry,
+                      icon: loading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.refresh),
+                      label: Text(loading ? 'Checking...' : 'Check subscription again'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: loading ? null : onLogout,
                       icon: const Icon(Icons.logout),
                       label: const Text('Sign out'),
                     ),
