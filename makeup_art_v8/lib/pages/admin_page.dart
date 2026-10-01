@@ -47,7 +47,7 @@ class _AdminPageState extends State<AdminPage> {
           builder: (context, setDialogState) => AlertDialog(
             title: Text('Activate ${row['salon_name']?.toString() ?? 'Salon'}'),
             content: DropdownButtonFormField<String>(
-              value: selected,
+              initialValue: selected,
               items: const [
                 DropdownMenuItem(value: 'free', child: Text('Free')),
                 DropdownMenuItem(value: 'basic', child: Text('Basic')),
