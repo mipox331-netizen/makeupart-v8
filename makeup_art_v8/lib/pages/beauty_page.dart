@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
+import '../services/recent_image_store.dart';
 
 class BeautyPage extends StatefulWidget {
   const BeautyPage({super.key, required this.api, required this.onLogout});
@@ -18,6 +19,7 @@ class BeautyPage extends StatefulWidget {
 
 class _BeautyPageState extends State<BeautyPage> {
   final picker = ImagePicker();
+  final recentImageStore = const RecentImageStore();
 
   XFile? selected;
   Map<String, dynamic>? result;
@@ -30,11 +32,38 @@ class _BeautyPageState extends State<BeautyPage> {
   bool loadingCustomers = true;
   bool consentConfirmed = false;
   String? error;
+  List<File> recentImages = [];
 
   @override
   void initState() {
     super.initState();
     _loadCustomers();
+    _loadRecentImages();
+  }
+
+  Future<void> _loadRecentImages() async {
+    try {
+      final files = await recentImageStore.list();
+      if (!mounted) return;
+      setState(() => recentImages = files);
+    } catch (_) {
+      if (mounted) setState(() => recentImages = []);
+    }
+  }
+
+  Future<void> _showRecentImage(File file) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        child: InteractiveViewer(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Image.file(file, fit: BoxFit.contain),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadCustomers() async {
@@ -191,12 +220,28 @@ class _BeautyPageState extends State<BeautyPage> {
         consentConfirmed: consentConfirmed,
         customerId: customerId,
       );
+
+      Uint8List? afterBytes;
+      final afterUrl = response['after_image_url'] as String?;
+      if (afterUrl != null) {
+        afterBytes = await widget.api.fetchImage(afterUrl);
+
+        try {
+          await recentImageStore.save(
+            afterBytes,
+            jobId: response['job_id']?.toString(),
+          );
+          await _loadRecentImages();
+        } catch (_) {
+          // The server result must remain usable even if local caching fails.
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         result = response;
-        final afterUrl = response['after_image_url'] as String?;
         afterImageFuture =
-            afterUrl == null ? null : widget.api.fetchImage(afterUrl);
+            afterBytes == null ? null : Future<Uint8List>.value(afterBytes);
       });
     } catch (exception) {
       if (!mounted) return;
@@ -333,7 +378,67 @@ class _BeautyPageState extends State<BeautyPage> {
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          if (recentImages.isNotEmpty) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Recent AI results',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        Text(
+                          '${recentImages.length}/10',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'The 10 latest AI results are kept on this phone. Older app copies are removed automatically.',
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 112,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: recentImages.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) {
+                          final file = recentImages[index];
+                          return GestureDetector(
+                            onTap: () => _showRecentImage(file),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: SizedBox(
+                                width: 96,
+                                height: 112,
+                                child: Image.file(
+                                  file,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const ColoredBox(
+                                    color: Colors.black26,
+                                    child: Icon(Icons.broken_image_outlined),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
