@@ -69,6 +69,17 @@ async def request_middleware(request: Request, call_next):
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
+@app.get("/", tags=["health"])
+def root() -> dict[str, str]:
+    return {
+        "service": settings.PROJECT_NAME,
+        "status": "online",
+        "health": "/health",
+        "readiness": "/health/ready",
+        "api": settings.API_V1_STR,
+    }
+
+
 @app.get("/health", tags=["health"])
 def health_check() -> dict[str, str]:
     return {"status": "ok", "service": settings.PROJECT_NAME}
