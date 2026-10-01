@@ -1,20 +1,23 @@
+from datetime import datetime, timedelta, timezone
+
 from app.models.salon import SubscriptionPlan
 from app.models.subscription import Subscription
 from app.services import subscription as subscription_service
 from tests.utils import API, auth_headers, register
 
 
-def test_subscription_usage_defaults_to_free_plan(client):
+def test_subscription_usage_defaults_to_trial(client):
     register(client)
     response = client.get(f"{API}/subscriptions/me", headers=auth_headers(client, "owner@salon.com"))
 
     assert response.status_code == 200
     body = response.json()
     assert body["plan"] == "free"
-    assert body["status"] == "active"
+    assert body["status"] == "trialing"
     assert body["monthly_limit"] == 25
     assert body["used"] == 0
     assert body["remaining"] == 25
+    assert body["current_period_end"] is not None
 
 
 def test_beauty_quota_blocks_processing_after_limit(client, monkeypatch, tmp_path):
@@ -63,3 +66,33 @@ def test_beauty_quota_blocks_processing_after_limit(client, monkeypatch, tmp_pat
     usage = client.get(f"{API}/subscriptions/me", headers=headers)
     assert usage.status_code == 200
     assert usage.json()["used"] == 1
+
+
+def test_subscription_service_expires_due_subscription():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from sqlalchemy.pool import StaticPool
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    from app.db.base import Base
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as session:
+        from app.models.salon import Salon
+        salon = Salon(name="Expiry Salon", email="expiry@example.com")
+        session.add(salon)
+        session.flush()
+        subscription = Subscription(
+            salon_id=salon.id,
+            plan="basic",
+            status="active",
+            current_period_end=datetime.now(timezone.utc) - timedelta(minutes=1),
+        )
+        session.add(subscription)
+        session.commit()
+
+        subscription_service._expire_if_due(subscription)
+        assert subscription.status == "suspended"
+
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()

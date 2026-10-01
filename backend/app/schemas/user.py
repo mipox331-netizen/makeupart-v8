@@ -28,3 +28,4 @@ class UserOut(UserBase):
     is_active: bool
     is_verified: bool
     salon_id: uuid.UUID
+    is_platform_admin: bool = False

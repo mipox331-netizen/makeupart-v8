@@ -47,6 +47,10 @@ services:
         value: "30"
       - key: REFRESH_SESSION_RETENTION_DAYS
         value: "7"
+      - key: SUBSCRIPTION_TRIAL_DAYS
+        value: "30"
+      - key: PLATFORM_ADMIN_EMAILS
+        sync: false
       - key: INSIGHTFACE_ROOT
         value: /app/media/.insightface
       - key: PORT

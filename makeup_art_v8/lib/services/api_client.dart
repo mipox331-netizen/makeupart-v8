@@ -76,6 +76,39 @@ class ApiClient {
   Future<bool> hasSession() async =>
       (await storage.read(key: _accessKey))?.isNotEmpty == true;
 
+  Future<Map<String, dynamic>> currentUser() async {
+    final response = await dio.get('/auth/me');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> getSubscription() async {
+    final response = await dio.get('/subscriptions/me');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> getAdminSubscriptions() async {
+    final response = await dio.get('/admin/subscriptions');
+    final rows = (response.data as List<dynamic>? ?? const <dynamic>[]);
+    return rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+  }
+
+  Future<Map<String, dynamic>> activateAdminSubscription({
+    required String salonId,
+    required String plan,
+    int days = 30,
+  }) async {
+    final response = await dio.post(
+      '/admin/subscriptions/$salonId/activate',
+      data: {'plan': plan, 'days': days},
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> suspendAdminSubscription(String salonId) async {
+    final response = await dio.post('/admin/subscriptions/$salonId/suspend');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<void> register({
     required String salonName,
     required String ownerFullName,

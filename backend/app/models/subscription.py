@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, ForeignKey, Integer, String, Uuid
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, TimestampMixin
@@ -15,10 +15,11 @@ class Subscription(TimestampMixin, Base):
         Uuid(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False, index=True
     )
     plan: Mapped[str] = mapped_column(String(50), default="free", nullable=False)
-    status: Mapped[str] = mapped_column(String(50), default="active", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="trialing", nullable=False)
     usage_period_start: Mapped[date] = mapped_column(
-        Date, default=lambda: datetime.now(timezone.utc).date(), nullable=False
+        Date, default=lambda: datetime.now(timezone.utc).date().replace(day=1), nullable=False
     )
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     beauty_jobs_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     salon: Mapped["Salon"] = relationship("Salon", back_populates="subscription")

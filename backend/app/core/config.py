@@ -26,12 +26,22 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     MEDIA_RETENTION_DAYS: int = 30
     REFRESH_SESSION_RETENTION_DAYS: int = 7
+    SUBSCRIPTION_TRIAL_DAYS: int = 30
+    PLATFORM_ADMIN_EMAILS: str = ""
 
     @property
     def cors_origins_list(self) -> List[str]:
         if self.CORS_ORIGINS.strip() == "*":
             return ["*"]
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def platform_admin_emails(self) -> set[str]:
+        return {
+            email.strip().lower()
+            for email in self.PLATFORM_ADMIN_EMAILS.split(",")
+            if email.strip()
+        }
 
     @property
     def media_root_path(self) -> Path:
@@ -49,6 +59,8 @@ class Settings(BaseSettings):
                 raise RuntimeError("CORS_ORIGINS still contains an example domain")
             if self.MAX_UPLOAD_BYTES <= 0 or self.MAX_IMAGE_PIXELS <= 0:
                 raise RuntimeError("Production upload limits must be positive")
+            if self.SUBSCRIPTION_TRIAL_DAYS < 0:
+                raise RuntimeError("SUBSCRIPTION_TRIAL_DAYS cannot be negative")
 
 
 @lru_cache
