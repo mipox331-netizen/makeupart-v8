@@ -23,6 +23,7 @@ class BeautyUploadResponse(BeautyProcessResponse):
     job_id: uuid.UUID
     before_image_url: str
     after_image_url: str
+    watermark_applied: bool
 
 
 class BeautyJobOut(BaseModel):
