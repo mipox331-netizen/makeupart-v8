@@ -28,7 +28,7 @@ def update_watermark(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.ADMIN)),
 ) -> WatermarkOut:
     watermark = get_or_create_watermark(db, current_user.salon)
-    for field, value in watermark_in.model_dump().items():
+    for field, value in watermark_in.model_dump(exclude_unset=True).items():
         setattr(watermark, field, value)
     db.commit()
     db.refresh(watermark)
