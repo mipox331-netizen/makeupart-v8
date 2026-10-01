@@ -1,0 +1,107 @@
+name: MakeupArt V8 Google Play Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "Google Play track"
+        required: true
+        type: choice
+        options:
+          - internal
+          - closed
+          - production
+        default: internal
+      api_base_url:
+        description: "Backend API base URL"
+        required: true
+        default: "https://makeupart-api.onrender.com/api/v1"
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.0"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: makeup_art_v8
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: makeup_art_v8
+        run: flutter analyze
+
+      - name: Test
+        working-directory: makeup_art_v8
+        run: flutter test
+
+      - name: Validate release secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "Missing GitHub secret ANDROID_KEYSTORE_BASE64"; exit 1; }
+          test -n "$ANDROID_STORE_PASSWORD" || { echo "Missing GitHub secret ANDROID_STORE_PASSWORD"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "Missing GitHub secret ANDROID_KEY_PASSWORD"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "Missing GitHub secret ANDROID_KEY_ALIAS"; exit 1; }
+
+      - name: Configure Android upload signing
+        working-directory: makeup_art_v8/android
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > upload-keystore.jks
+          cat > key.properties <<EOF
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build signed Android App Bundle
+        working-directory: makeup_art_v8
+        run: |
+          flutter build appbundle --release             --dart-define=API_BASE_URL="${{ inputs.api_base_url || 'https://makeupart-api.onrender.com/api/v1' }}"
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: makeupart-v8-release-aab
+          path: makeup_art_v8/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload to Google Play
+        if: ${{ env.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ env.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.makeupart.makeup_art_v8
+          releaseFiles: makeup_art_v8/build/app/outputs/bundle/release/app-release.aab
+          tracks: ${{ inputs.track || 'internal' }}
+          status: completed
+          changesNotSentForReview: true
