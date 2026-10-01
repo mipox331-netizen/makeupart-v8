@@ -1,0 +1,56 @@
+name: MakeupArt V8 Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "Backend API base URL"
+        required: false
+        default: "https://makeupart-api.onrender.com/api/v1"
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: makeup_art_v8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze Flutter app
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: |
+          flutter build apk --debug \
+            --dart-define=API_BASE_URL="${{ inputs.api_base_url || 'https://makeupart-api.onrender.com/api/v1' }}"
+
+      - name: Prepare APK
+        run: |
+          mkdir -p ../artifacts
+          cp build/app/outputs/flutter-apk/app-debug.apk ../artifacts/MakeupArt-V8.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: makeupart-v8-android-apk
+          path: makeup_art_v8/artifacts/MakeupArt-V8.apk
+          if-no-files-found: error
+          retention-days: 30
