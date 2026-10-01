@@ -7,7 +7,7 @@ import '../lib/services/recent_image_store.dart';
 void main() {
   test('keeps only the ten newest AI results', () async {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_');
-    final store = RecentImageStore(rootOverride: root);
+    final store = RecentImageStore(rootOverride: root, scope: 'test-salon');
 
     try {
       for (var index = 0; index < 12; index++) {
@@ -20,7 +20,7 @@ void main() {
 
       final recent = await store.list();
       final allFiles = await Directory(
-        '${root.path}${Platform.pathSeparator}recent_ai_results',
+        '${root.path}${Platform.pathSeparator}recent_ai_results${Platform.pathSeparator}test-salon',
       ).list().whereType<File>().toList();
 
       expect(recent.length, 10);
