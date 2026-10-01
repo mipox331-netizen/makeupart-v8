@@ -1,7 +1,7 @@
 """add subscription lifecycle end date
 
-Revision ID: 0003_subscription_lifecycle
-Revises: 0002_application_tables
+Revision ID: 0005_subscription_lifecycle
+Revises: 0004_subscription_usage
 Create Date: 2026-10-01
 """
 from typing import Sequence, Union
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0003_subscription_lifecycle"
-down_revision: Union[str, None] = "0002_application_tables"
+revision: str = "0005_subscription_lifecycle"
+down_revision: Union[str, None] = "0004_subscription_usage"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
