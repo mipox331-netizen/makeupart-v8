@@ -1,4 +1,5 @@
 name: MakeupArt V8 CI
+# Force a PR validation run for the production Android build.
 
 on:
   push:
