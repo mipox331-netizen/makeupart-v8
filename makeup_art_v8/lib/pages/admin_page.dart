@@ -45,7 +45,7 @@ class _AdminPageState extends State<AdminPage> {
         var selected = row['plan']?.toString() ?? 'basic';
         return StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: Text('Activate ' + (row['salon_name']?.toString() ?? 'Salon')),
+            title: Text('Activate ${row['salon_name']?.toString() ?? 'Salon'}'),
             content: DropdownButtonFormField<String>(
               value: selected,
               items: const [
@@ -159,14 +159,11 @@ class _AdminPageState extends State<AdminPage> {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Text('Owner: ' + (row['owner_email']?.toString() ?? '—')),
-                              Text('Plan: ' + (row['plan']?.toString() ?? '—')),
+                              Text('Owner: ${row['owner_email']?.toString() ?? '—'}'),
+                              Text('Plan: ${row['plan']?.toString() ?? '—'}'),
                               Text(
-                                'Ends: ' +
-                                    (row['current_period_end']?.toString() ?? '—') +
-                                    ' (' +
-                                    (row['days_remaining']?.toString() ?? '—') +
-                                    ' days)',
+                                'Ends: ${row['current_period_end']?.toString() ?? '—'} ' +
+                                    '(${row['days_remaining']?.toString() ?? '—'} days)',
                               ),
                               const SizedBox(height: 12),
                               Row(
