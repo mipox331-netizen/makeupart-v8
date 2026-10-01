@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     DATABASE_URL: str
-    CORS_ORIGINS: str = "*"
+    CORS_ORIGINS: str = ""
     MEDIA_ROOT: str = "./media"
     MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
     MAX_IMAGE_PIXELS: int = 40_000_000

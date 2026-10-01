@@ -65,3 +65,13 @@ http://192.168.1.20:8000/api/v1
 In GitHub Actions, use **Run workflow** and set the `api_base_url` input to build a debug APK for that device/network without changing source code.
 
 The phone and backend machine must be on a network that allows the phone to reach the API.
+
+
+## Cloud deployment
+
+The backend can run independently of a personal computer using Render. The repository includes a `render.yaml` Blueprint that provisions the Docker API service and managed PostgreSQL, with persistent media storage.
+
+The production mobile build should point `API_BASE_URL` at the deployed Render HTTPS API URL, for example:
+`https://<your-render-service>.onrender.com/api/v1`.
+
+Render production requires a paid web service for the attached persistent disk used by uploaded and generated images. Render's managed PostgreSQL connection is wired privately through `fromDatabase`.

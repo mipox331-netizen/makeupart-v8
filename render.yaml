@@ -1,0 +1,64 @@
+services:
+  - type: web
+    name: makeupart-api
+    runtime: docker
+    plan: 1c-2g
+    rootDir: backend
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    region: singapore
+    healthCheckPath: /health/ready
+    preDeployCommand: alembic upgrade head
+    disk:
+      name: makeupart-media
+      mountPath: /app/media
+      sizeGB: 10
+    envVars:
+      - key: PROJECT_NAME
+        value: MakeupArt V8
+      - key: API_V1_STR
+        value: /api/v1
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "30"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "30"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: makeupart-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: ""
+      - key: MEDIA_ROOT
+        value: /app/media
+      - key: MAX_UPLOAD_BYTES
+        value: "10485760"
+      - key: MAX_IMAGE_PIXELS
+        value: "40000000"
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: DB_MAX_OVERFLOW
+        value: "10"
+      - key: DB_POOL_RECYCLE_SECONDS
+        value: "1800"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: MEDIA_RETENTION_DAYS
+        value: "30"
+      - key: REFRESH_SESSION_RETENTION_DAYS
+        value: "7"
+      - key: INSIGHTFACE_ROOT
+        value: /app/media/.insightface
+      - key: PORT
+        value: "10000"
+
+databases:
+  - name: makeupart-db
+    plan: 0.5c-1g
+    region: singapore
+    diskSizeGB: 15

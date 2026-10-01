@@ -130,7 +130,8 @@ class BeautyProvider:
         if FaceAnalysis is None:
             raise RuntimeError("insightface is not installed")
         if cls._face_app is None:
-            app = FaceAnalysis(name="buffalo_l", root=os.path.expanduser("~/.insightface"))
+            insightface_root = os.environ.get("INSIGHTFACE_ROOT", os.path.expanduser("~/.insightface"))
+            app = FaceAnalysis(name="buffalo_l", root=insightface_root)
             app.prepare(ctx_id=-1, det_size=(640, 640))
             cls._face_app = app
         return cls._face_app
