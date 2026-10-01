@@ -2,8 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-
-import '../lib/services/recent_image_store.dart';
+import 'package:makeup_art_v8/services/recent_image_store.dart';
 
 void main() {
   test('keeps only the ten newest AI results', () async {
@@ -22,7 +21,11 @@ void main() {
       final recent = await store.list();
       final allFiles = await Directory(
         '${root.path}${Platform.pathSeparator}recent_ai_results${Platform.pathSeparator}test-salon',
-      ).list().whereType<File>().toList();
+      )
+          .list()
+          .where((entity) => entity is File)
+          .cast<File>()
+          .toList();
 
       expect(recent.length, 10);
       expect(allFiles.length, 10);
