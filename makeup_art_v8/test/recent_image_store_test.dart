@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,7 +13,7 @@ void main() {
     try {
       for (var index = 0; index < 12; index++) {
         await store.save(
-          List<int>.filled(16, index),
+          Uint8List.fromList(List<int>.filled(16, index)),
           jobId: 'job-$index',
         );
         await Future<void>.delayed(const Duration(microseconds: 10));
