@@ -162,8 +162,8 @@ class _AdminPageState extends State<AdminPage> {
                               Text('Owner: ${row['owner_email']?.toString() ?? '—'}'),
                               Text('Plan: ${row['plan']?.toString() ?? '—'}'),
                               Text(
-                                'Ends: ${row['current_period_end']?.toString() ?? '—'} ' +
-                                    '(${row['days_remaining']?.toString() ?? '—'} days)',
+                                'Ends: ${row['current_period_end']?.toString() ?? '—'} '
+                                '(${row['days_remaining']?.toString() ?? '—'} days)',
                               ),
                               const SizedBox(height: 12),
                               Row(
