@@ -57,13 +57,13 @@ class SubscriptionPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 18),
                     Text(
-                      'Plan: ' + plan.toUpperCase(),
+                      'Plan: ${plan.toUpperCase()}',
                       textAlign: TextAlign.center,
                     ),
                     if (end != null) ...[
                       const SizedBox(height: 6),
                       Text(
-                        'Period ended: ' + end.toString(),
+                        'Period ended: $end',
                         textAlign: TextAlign.center,
                       ),
                     ],
