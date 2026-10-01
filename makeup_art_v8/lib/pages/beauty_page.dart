@@ -8,10 +8,16 @@ import '../services/api_client.dart';
 import '../services/recent_image_store.dart';
 
 class BeautyPage extends StatefulWidget {
-  const BeautyPage({super.key, required this.api, required this.onLogout});
+  const BeautyPage({
+    super.key,
+    required this.api,
+    required this.onLogout,
+    required this.salonId,
+  });
 
   final ApiClient api;
   final VoidCallback onLogout;
+  final String salonId;
 
   @override
   State<BeautyPage> createState() => _BeautyPageState();
@@ -19,7 +25,9 @@ class BeautyPage extends StatefulWidget {
 
 class _BeautyPageState extends State<BeautyPage> {
   final picker = ImagePicker();
-  final recentImageStore = const RecentImageStore();
+
+  RecentImageStore get recentImageStore =>
+      RecentImageStore(scope: widget.salonId);
 
   XFile? selected;
   Map<String, dynamic>? result;
