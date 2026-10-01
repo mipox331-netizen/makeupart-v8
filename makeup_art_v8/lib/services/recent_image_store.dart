@@ -14,7 +14,7 @@ class RecentImageStore {
   Future<Directory> _directory() async {
     final root = rootOverride ?? await getApplicationDocumentsDirectory();
     final directory = Directory(
-      '\${root.path}\${Platform.pathSeparator}\$_directoryName',
+      '${root.path}${Platform.pathSeparator}$_directoryName',
     );
     if (!await directory.exists()) {
       await directory.create(recursive: true);
@@ -45,9 +45,9 @@ class RecentImageStore {
     final safeJobId = (jobId ?? 'result')
         .replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '');
     final filename =
-        'ai_\${DateTime.now().microsecondsSinceEpoch}_\$safeJobId.png';
+        'ai_${DateTime.now().microsecondsSinceEpoch}_$safeJobId.png';
     final file = File(
-      '\${directory.path}\${Platform.pathSeparator}\$filename',
+      '${directory.path}${Platform.pathSeparator}$filename',
     );
 
     await file.writeAsBytes(bytes, flush: true);
