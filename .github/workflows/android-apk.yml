@@ -1,5 +1,8 @@
 name: MakeupArt V8 Android APK
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [main]
@@ -54,3 +57,12 @@ jobs:
           path: artifacts/MakeupArt-V8.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish public GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v8.0.${{ github.run_number }}"
+          gh release create "$TAG" ../artifacts/MakeupArt-V8.apk \
+            --title "MakeupArt V8 Android APK $TAG" \
+            --notes "Installable MakeupArt V8 Android APK built from commit $GITHUB_SHA."
