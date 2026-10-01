@@ -2,17 +2,13 @@ services:
   - type: web
     name: makeupart-api
     runtime: docker
-    plan: 1c-2g
+    plan: free
     rootDir: backend
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     region: singapore
     healthCheckPath: /health/ready
     preDeployCommand: alembic upgrade head
-    disk:
-      name: makeupart-media
-      mountPath: /app/media
-      sizeGB: 10
     envVars:
       - key: PROJECT_NAME
         value: MakeupArt V8
@@ -59,6 +55,6 @@ services:
 
 databases:
   - name: makeupart-db
-    plan: 0.5c-1g
+    plan: free
     region: singapore
-    diskSizeGB: 15
+    diskSizeGB: 1
