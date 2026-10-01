@@ -314,7 +314,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: customerId ?? 'walk-in',
+                          initialValue: customerId ?? 'walk-in',
                           decoration: const InputDecoration(
                             labelText: 'Client profile',
                             prefixIcon: Icon(Icons.person_outline),
