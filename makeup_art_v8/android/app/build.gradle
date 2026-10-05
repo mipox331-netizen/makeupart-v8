@@ -47,7 +47,12 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            // Use the configured upload key when available. For the public CI APK,
+            // fall back to Flutter's debug signing key so CI can always produce an
+            // installable release-mode APK when Play signing secrets are unavailable.
+            signingConfig keystorePropertiesFile.exists()
+                ? signingConfigs.release
+                : signingConfigs.debug
         }
     }
 }
