@@ -40,20 +40,34 @@ jobs:
       - name: Run Flutter tests
         run: flutter test
 
-      - name: Build Android debug APK
+      - name: Build Android release APK
         run: |
-          flutter build apk --debug \
+          flutter build apk --release \
+            --split-debug-info=build/symbols \
             --dart-define=API_BASE_URL="${{ inputs.api_base_url || 'https://makeupart-api.onrender.com/api/v1' }}"
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$APK"
+          echo "APK path: $APK"
+          echo "APK size bytes: $(stat -c%s "$APK")"
+          echo "APK size MB: $(du -m "$APK" | cut -f1)"
+          sha256sum "$APK"
+          unzip -p "$APK" AndroidManifest.xml >/dev/null || true
+          ls -lh "$APK"
 
       - name: Prepare APK
         run: |
           mkdir -p ../artifacts
-          cp build/app/outputs/flutter-apk/app-debug.apk ../artifacts/MakeupArt-V8.apk
+          cp build/app/outputs/flutter-apk/app-release.apk ../artifacts/MakeupArt-V8.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: makeupart-v8-android-apk
+          name: makeupart-v8-android-apk-release
           path: artifacts/MakeupArt-V8.apk
           if-no-files-found: error
           retention-days: 30
@@ -65,4 +79,4 @@ jobs:
           TAG="v8.0.${{ github.run_number }}"
           gh release create "$TAG" ../artifacts/MakeupArt-V8.apk \
             --title "MakeupArt V8 Android APK $TAG" \
-            --notes "Installable MakeupArt V8 Android APK built from commit $GITHUB_SHA."
+            --notes "Installable MakeupArt V8 Android release APK built from commit $GITHUB_SHA."
