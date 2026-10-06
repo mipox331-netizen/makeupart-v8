@@ -15,7 +15,7 @@ on:
       api_base_url:
         description: "Backend API base URL"
         required: true
-        default: "https://makeupart-api.onrender.com/api/v1"
+        default: ""
   push:
     tags:
       - "v*"
@@ -85,7 +85,7 @@ jobs:
       - name: Build signed Android App Bundle
         working-directory: makeup_art_v8
         run: |
-          flutter build appbundle --release             --dart-define=API_BASE_URL="${{ inputs.api_base_url || 'https://makeupart-api.onrender.com/api/v1' }}"
+          flutter build appbundle --release             --dart-define=API_BASE_URL="${{ inputs.api_base_url || secrets.MAKEUPART_API_BASE_URL }}"
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
