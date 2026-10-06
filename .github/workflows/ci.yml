@@ -11,7 +11,7 @@ on:
       api_base_url:
         description: "API base URL for the manually built Android APK"
         required: false
-        default: "https://makeupart-api.onrender.com/api/v1"
+        default: ""
 
 concurrency:
   group: makeupart-v8-${{ github.ref }}
@@ -154,12 +154,12 @@ jobs:
         run: flutter test
 
       - name: Verify production API
-        run: curl --fail --silent --show-error https://makeupart-api.onrender.com/health/ready
+        run: if [ -n "$MAKEUPART_API_BASE_URL" ]; then curl --fail --silent --show-error "$MAKEUPART_API_BASE_URL/health/ready"; else echo "MAKEUPART_API_BASE_URL not configured; skipping remote API check."; fi
 
       - name: Build Android debug APK
         run: |
           if [ -d android ]; then
-            flutter build apk --debug --dart-define=API_BASE_URL="${{ inputs.api_base_url || 'https://makeupart-api.onrender.com/api/v1' }}"
+            flutter build apk --debug --dart-define=API_BASE_URL="${{ inputs.api_base_url || secrets.MAKEUPART_API_BASE_URL }}"
           else
             echo "Android platform not bootstrapped yet; skipping APK build."
           fi
