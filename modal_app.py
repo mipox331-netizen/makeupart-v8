@@ -9,7 +9,7 @@ import modal
 APP_NAME = "makeupart-v8-api"
 
 image = modal.Image.from_dockerfile(
-    "Dockerfile",
+    "backend/Dockerfile",
     context_dir="backend",
 )
 
