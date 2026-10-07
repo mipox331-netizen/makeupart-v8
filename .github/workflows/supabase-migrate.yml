@@ -1,0 +1,45 @@
+name: MakeupArt V8 Supabase Database Migration
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: makeupart-v8-supabase-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SECRET_KEY: ${{ secrets.SUPABASE_MIGRATION_SECRET_KEY }}
+      CORS_ORIGINS: https://example.invalid
+      ENVIRONMENT: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install migration dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install             alembic==1.13.3             sqlalchemy==2.0.35             psycopg2-binary==2.9.9             pydantic==2.9.2             pydantic-settings==2.5.2
+
+      - name: Validate Supabase database secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${DATABASE_URL:-}" || { echo "SUPABASE_DB_URL secret is missing."; exit 1; }
+
+      - name: Run Alembic migrations
+        run: alembic upgrade head
+
+      - name: Confirm migration head
+        run: alembic current
