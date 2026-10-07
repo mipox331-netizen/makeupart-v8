@@ -45,7 +45,7 @@ def migrate():
     secrets=[production_secret],
     volumes={
         "/app/media": media_volume,
-        "/home/app/.insightface": insightface_volume,
+        "/app/.insightface": insightface_volume,
     },
     cpu=2.0,
     memory=4096,
