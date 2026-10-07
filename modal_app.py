@@ -23,7 +23,7 @@ insightface_volume = modal.Volume.from_name(
     create_if_missing=True,
 )
 
-modal_app = modal.App(APP_NAME)
+app = modal.App(APP_NAME)
 
 production_secret = modal.Secret.from_name("makeupart-v8-production")
 
