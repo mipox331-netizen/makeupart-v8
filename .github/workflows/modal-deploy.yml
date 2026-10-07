@@ -17,7 +17,7 @@ jobs:
 
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
-      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
 
     steps:
       - name: Checkout
