@@ -28,7 +28,7 @@ app = modal.App(APP_NAME)
 production_secret = modal.Secret.from_name("makeupart-v8-production")
 
 
-@modal_app.function(
+@app.function(
     image=image,
     secrets=[production_secret],
     timeout=900,
@@ -40,7 +40,7 @@ def migrate():
     command.upgrade(Config("/app/alembic.ini"), "head")
 
 
-@modal_app.function(
+@app.function(
     image=image,
     secrets=[production_secret],
     volumes={
