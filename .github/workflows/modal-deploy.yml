@@ -1,0 +1,43 @@
+name: MakeupArt V8 Modal Production Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: makeupart-v8-modal-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Modal
+        run: |
+          python -m pip install --upgrade pip
+          pip install modal
+
+      - name: Validate Modal credentials
+        run: modal token info
+
+      - name: Deploy FastAPI
+        run: modal deploy modal_app.py
+
+      - name: Show deployed app
+        run: modal app info makeupart-v8-api
