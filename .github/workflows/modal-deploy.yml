@@ -75,5 +75,8 @@ jobs:
       - name: Deploy FastAPI
         run: modal deploy modal_app.py
 
+      - name: Run Supabase migrations
+        run: modal run modal_app.py::migrate
+
       - name: Show deployed app
         run: modal app info makeupart-v8-api
