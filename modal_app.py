@@ -25,10 +25,24 @@ insightface_volume = modal.Volume.from_name(
 
 modal_app = modal.App(APP_NAME)
 
+production_secret = modal.Secret.from_name("makeupart-v8-production")
+
 
 @modal_app.function(
     image=image,
-    secrets=[modal.Secret.from_name("makeupart-v8-production")],
+    secrets=[production_secret],
+    timeout=900,
+)
+def migrate():
+    from alembic import command
+    from alembic.config import Config
+
+    command.upgrade(Config("/app/alembic.ini"), "head")
+
+
+@modal_app.function(
+    image=image,
+    secrets=[production_secret],
     volumes={
         "/app/media": media_volume,
         "/home/app/.insightface": insightface_volume,
