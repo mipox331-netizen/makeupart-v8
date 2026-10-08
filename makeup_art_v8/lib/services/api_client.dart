@@ -86,6 +86,23 @@ class ApiClient {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  Future<List<Map<String, dynamic>>> getAdminUsers() async {
+    final response = await dio.get('/admin/users');
+    final rows = (response.data as List<dynamic>? ?? const <dynamic>[]);
+    return rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+  }
+
+  Future<Map<String, dynamic>> setAdminUserStatus({
+    required String userId,
+    required bool active,
+  }) async {
+    final response = await dio.patch(
+      '/admin/users/$userId/status',
+      data: {'is_active': active},
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<List<Map<String, dynamic>>> getAdminSubscriptions() async {
     final response = await dio.get('/admin/subscriptions');
     final rows = (response.data as List<dynamic>? ?? const <dynamic>[]);
