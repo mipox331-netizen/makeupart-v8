@@ -65,15 +65,15 @@ jobs:
           data = base64.b64decode(compact, validate=False)
           if len(data) < 1024:
               raise SystemExit("Decoded keystore is unexpectedly small")
-          with open("upload-keystore.jks", "wb") as fh:
+          with open("app/upload-keystore.jks", "wb") as fh:
               fh.write(data)
           PY
-          keytool -list             -keystore upload-keystore.jks             -storepass "$ANDROID_STORE_PASSWORD"             -alias "$ANDROID_KEY_ALIAS" >/dev/null
+          keytool -list             -keystore app/upload-keystore.jks             -storepass "$ANDROID_STORE_PASSWORD"             -alias "$ANDROID_KEY_ALIAS" >/dev/null
           cat > key.properties <<EOF
           storePassword=$ANDROID_STORE_PASSWORD
           keyPassword=$ANDROID_KEY_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
-          storeFile=upload-keystore.jks
+          storeFile=app/upload-keystore.jks
           EOF
 
       - name: Analyze Flutter app
@@ -122,7 +122,7 @@ jobs:
       - name: Cleanup signing files
         if: always()
         working-directory: makeup_art_v8/android
-        run: rm -f key.properties upload-keystore.jks
+        run: rm -f key.properties app/upload-keystore.jks
 
       - name: Publish public GitHub Release
         env:
