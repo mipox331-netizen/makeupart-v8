@@ -103,3 +103,46 @@ def test_owner_delete_protection_remains_enforced(client):
     owner = client.get(f"{API}/users/me", headers=headers).json()
     response = client.delete(f"{API}/users/{owner['id']}", headers=headers)
     assert response.status_code == 400
+
+
+def test_platform_admin_can_list_and_block_users(client, monkeypatch):
+    monkeypatch.setattr("app.core.config.settings.PLATFORM_ADMIN_EMAILS", "owner@salon.com")
+    register(client)
+    other = register(client, email="other@salon.com", salon_name="Other Salon")
+    admin_headers = auth_headers(client, "owner@salon.com")
+    other_headers = auth_headers(client, "other@salon.com")
+    other_id = other.json()["user"]["id"]
+
+    listing = client.get(f"{API}/admin/users", headers=admin_headers)
+    assert listing.status_code == 200
+    listed = {row["email"]: row for row in listing.json()}
+    assert set(listed) == {"owner@salon.com", "other@salon.com"}
+    assert listed["other@salon.com"]["is_active"] is True
+
+    blocked = client.patch(
+        f"{API}/admin/users/{other_id}/status",
+        headers=admin_headers,
+        json={"is_active": False},
+    )
+    assert blocked.status_code == 200
+    assert blocked.json()["is_active"] is False
+
+    assert client.get(f"{API}/users/me", headers=other_headers).status_code == 403
+    assert login(client, "other@salon.com").status_code == 403
+
+    unblocked = client.patch(
+        f"{API}/admin/users/{other_id}/status",
+        headers=admin_headers,
+        json={"is_active": True},
+    )
+    assert unblocked.status_code == 200
+    assert unblocked.json()["is_active"] is True
+    assert login(client, "other@salon.com").status_code == 200
+
+
+def test_non_platform_admin_cannot_manage_platform_users(client, monkeypatch):
+    monkeypatch.setattr("app.core.config.settings.PLATFORM_ADMIN_EMAILS", "owner@salon.com")
+    register(client)
+    register(client, email="other@salon.com", salon_name="Other Salon")
+    headers = auth_headers(client, "other@salon.com")
+    assert client.get(f"{API}/admin/users", headers=headers).status_code == 403
