@@ -10,6 +10,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  diagnose-db-secret-scope:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      REPOSITORY_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - name: Diagnose repository secret scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${REPOSITORY_DB_URL:-}" ]; then
+            echo "SUPABASE_DB_URL is available at repository scope."
+          else
+            echo "SUPABASE_DB_URL is NOT available at repository scope."
+          fi
+
+  diagnose-production-secret-scope:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    env:
+      PRODUCTION_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - name: Diagnose production environment secret scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${PRODUCTION_DB_URL:-}" ]; then
+            echo "SUPABASE_DB_URL is available in production environment."
+          else
+            echo "SUPABASE_DB_URL is NOT available in production environment."
+          fi
+
   deploy:
     runs-on: ubuntu-latest
     environment: production
