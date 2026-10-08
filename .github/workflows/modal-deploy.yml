@@ -22,7 +22,9 @@ jobs:
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_URL_SECRET: ${{ secrets.SUPABASE_DB_URL_SECRET }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
@@ -48,161 +50,135 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${SUPABASE_DB_URL:-}" || { echo "SUPABASE_DB_URL secret is missing or empty."; exit 1; }
           python -m pip install --quiet 'psycopg2-binary==2.9.9'
           python - <<'PY'
           import os
           from urllib.parse import parse_qsl, quote, unquote
-
-          raw_url = os.environ["SUPABASE_DB_URL"].strip()
-          scheme, sep, remainder = raw_url.partition("://")
-          authority_for_log = remainder.split("/", 1)[0]
-          username_for_log = (
-              authority_for_log.rsplit("@", 1)[0].split(":", 1)[0]
-              if "@" in authority_for_log
-              else "<missing>"
-          )
-          print("Supabase DB secret username:", username_for_log)
-          if not sep or scheme not in {"postgresql", "postgresql+psycopg2", "postgres"}:
-              raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
-
-          authority, slash, path_and_query = remainder.partition("/")
-          user = password = None
-          if "@" in authority:
-              userinfo, hostport = authority.rsplit("@", 1)
-              if ":" in userinfo:
-                  user, password = userinfo.rsplit(":", 1)
-              else:
-                  user = userinfo
-          else:
-              hostport = authority
-
-          # Supabase pooler URLs may contain brackets around a DNS hostname.
-          # Parse host/port ourselves so urllib.parse cannot misclassify that
-          # hostname as an IPv6 literal.
-          host = hostport
-          port = None
-          if hostport.startswith("["):
-              closing = hostport.find("]")
-              if closing < 0:
-                  raise SystemExit("SUPABASE_DB_URL has an unmatched '[' in the host.")
-              host = hostport[1:closing]
-              remainder_hostport = hostport[closing + 1:]
-              if remainder_hostport:
-                  if not remainder_hostport.startswith(":"):
-                      raise SystemExit("SUPABASE_DB_URL has an invalid bracketed host/port.")
-                  port = remainder_hostport[1:]
-          elif ":" in hostport:
-              host, port = hostport.rsplit(":", 1)
-
-          host = host.strip()
-          if not host:
-              raise SystemExit("SUPABASE_DB_URL is missing a database host.")
-          if port is not None and not port.isdigit():
-              raise SystemExit("SUPABASE_DB_URL has an invalid database port.")
-
-          query = ""
-          database = ""
-          if slash:
-              database, _, query = path_and_query.partition("?")
-              database = unquote(database)
-
-          connect_kwargs = {
-              "host": host,
-              "connect_timeout": 10,
-          }
-          if port:
-              connect_kwargs["port"] = int(port)
-          if user is not None:
-              user = unquote(user)
-              # Supabase shared pooler requires the project ref in the username.
-              # Accept a legacy "postgres" secret and normalize it automatically.
-              if host.endswith(".pooler.supabase.com") and user == "postgres":
-                  user = "postgres.riakbjcxcaqjaqagncmu"
-              connect_kwargs["user"] = user
-          if password is not None:
-              connect_kwargs["password"] = unquote(password)
-          if database:
-              connect_kwargs["dbname"] = database
-
-          # Apply connection-string query options first. URL user/password
-          # must win over any stale user/password query parameters.
-          for key, value in parse_qsl(query, keep_blank_values=True):
-              if key in {"user", "username", "password", "dbname", "database", "host", "port"}:
-                  continue
-              connect_kwargs[key] = value
-
-          import time
           import psycopg2
 
-          last_error = None
-          connection = None
+          candidates = [
+              ('SUPABASE_DB_URL', os.environ.get('SUPABASE_DB_URL', '').strip()),
+              ('SUPABASE_DB_URL_SECRET', os.environ.get('SUPABASE_DB_URL_SECRET', '').strip()),
+              ('DATABASE_URL', os.environ.get('DATABASE_URL', '').strip()),
+          ]
 
-          # First try the Supabase shared session pooler exactly as supplied.
-          try:
-              connection = psycopg2.connect(**connect_kwargs)
-              with connection.cursor() as cursor:
-                  cursor.execute("SELECT 1")
-                  cursor.fetchone()
-              print("Supabase database connection: OK (pooler)")
-          except psycopg2.OperationalError as pooler_error:
-              last_error = pooler_error
-              if connection is not None:
-                  connection.close()
-                  connection = None
+          def parse_url(raw_url):
+              scheme, sep, remainder = raw_url.partition('://')
+              if not sep or scheme not in {'postgresql', 'postgresql+psycopg2', 'postgres'}:
+                  raise ValueError('not a PostgreSQL URL')
 
-              # Fallback: connect directly to the project's Postgres endpoint.
-              # This bypasses Supavisor and is useful when pooler auth state
-              # lags behind a freshly rotated database password.
-              project_ref = None
-              if user and user.startswith("postgres.") and "." in user:
-                  project_ref = user.split(".", 1)[1]
-              if project_ref and host.endswith(".pooler.supabase.com"):
-                  direct_kwargs = dict(connect_kwargs)
-                  direct_kwargs["host"] = f"db.{project_ref}.supabase.co"
-                  direct_kwargs["port"] = 5432
-                  direct_kwargs["user"] = "postgres"
-                  print("Pooler connection failed; trying direct Supabase Postgres endpoint.")
-                  connection = psycopg2.connect(**direct_kwargs)
-                  with connection.cursor() as cursor:
-                      cursor.execute("SELECT 1")
-                      cursor.fetchone()
-                  print("Supabase database connection: OK (direct)")
-                  host = direct_kwargs["host"]
-                  port = 5432
-                  user = "postgres"
+              authority, slash, path_and_query = remainder.partition('/')
+              user = password = None
+              if '@' in authority:
+                  userinfo, hostport = authority.rsplit('@', 1)
+                  if ':' in userinfo:
+                      user, password = userinfo.rsplit(':', 1)
+                  else:
+                      user = userinfo
               else:
-                  raise
-          finally:
-              if connection is not None:
-                  connection.close()
+                  hostport = authority
 
-          normalized_scheme = "postgresql"
-          encoded_userinfo = ""
-          if user is not None:
-              encoded_userinfo = quote(unquote(user), safe="")
+              host = hostport
+              port = None
+              if hostport.startswith('['):
+                  closing = hostport.find(']')
+                  if closing < 0:
+                      raise ValueError("unmatched '[' in host")
+                  host = hostport[1:closing]
+                  tail = hostport[closing + 1:]
+                  if tail:
+                      if not tail.startswith(':'):
+                          raise ValueError('invalid bracketed host/port')
+                      port = tail[1:]
+              elif ':' in hostport:
+                  host, port = hostport.rsplit(':', 1)
+
+              host = host.strip()
+              if not host:
+                  raise ValueError('missing host')
+              if port is not None and not port.isdigit():
+                  raise ValueError('invalid port')
+
+              query = ''
+              database = ''
+              if slash:
+                  database, _, query = path_and_query.partition('?')
+                  database = unquote(database)
+
+              user = unquote(user) if user is not None else None
+              password = unquote(password) if password is not None else None
+
+              kwargs = {'host': host, 'connect_timeout': 10}
+              if port:
+                  kwargs['port'] = int(port)
+              if user is not None:
+                  if host.endswith('.pooler.supabase.com') and user == 'postgres':
+                      user = 'postgres.riakbjcxcaqjaqagncmu'
+                  kwargs['user'] = user
               if password is not None:
-                  encoded_userinfo += ":" + quote(unquote(password), safe="")
-              encoded_userinfo += "@"
+                  kwargs['password'] = password
+              if database:
+                  kwargs['dbname'] = database
 
-          normalized_host = f"[{host}]" if ":" in host and not host.startswith("[") else host
-          normalized_hostport = normalized_host + (f":{int(port)}" if port else "")
-          normalized_url = f"{normalized_scheme}://{encoded_userinfo}{normalized_hostport}"
-          if slash:
-              normalized_url += "/" + quote(database, safe="") 
+              for key, value in parse_qsl(query, keep_blank_values=True):
+                  if key in {'user', 'username', 'password', 'dbname', 'database', 'host', 'port'}:
+                      continue
+                  kwargs[key] = value
+
+              return {'scheme': 'postgresql', 'user': user, 'password': password, 'host': host,
+                      'port': int(port) if port else 5432, 'database': database, 'query': query, 'kwargs': kwargs}
+
+          working = None
+          failures = []
+          for source, raw_url in candidates:
+              if not raw_url:
+                  continue
+              try:
+                  parsed = parse_url(raw_url)
+                  print(f"Testing Supabase DB candidate: {source} ({parsed['host']}:{parsed['port']}/{parsed['database'] or '<default>'})")
+                  conn = psycopg2.connect(**parsed['kwargs'])
+                  try:
+                      with conn.cursor() as cursor:
+                          cursor.execute('SELECT 1')
+                          cursor.fetchone()
+                  finally:
+                      conn.close()
+                  print(f'Supabase database connection: OK ({source})')
+                  working = parsed
+                  break
+              except Exception as exc:
+                  failures.append((source, str(exc).splitlines()[0]))
+                  print(f'Supabase DB candidate failed: {source}')
+
+          if working is None:
+              print('No Supabase database candidate connected successfully.')
+              for source, error in failures:
+                  print(f'{source}: {error}')
+              raise SystemExit(1)
+
+          encoded_userinfo = ''
+          if working['user'] is not None:
+              encoded_userinfo = quote(unquote(working['user']), safe='')
+              if working['password'] is not None:
+                  encoded_userinfo += ':' + quote(unquote(working['password']), safe='')
+              encoded_userinfo += '@'
+
+          host = working['host']
+          port = working['port']
+          database = working['database']
+          query = working['query']
+          normalized_host = f'[{host}]' if ':' in host and not host.startswith('[') else host
+          normalized_url = f'postgresql://{encoded_userinfo}{normalized_host}:{port}'
+          if database:
+              normalized_url += '/' + quote(database, safe='')
               if query:
-                  normalized_url += "?" + query
+                  normalized_url += '?' + query
 
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
-              env_file.write("SUPABASE_DB_URL=" + normalized_url + "\n")
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env_file:
+              env_file.write('SUPABASE_DB_URL=' + normalized_url + '\n')
 
-          print("Supabase database connection: OK")
-          print(
-              f"Supabase database target: "
-              f"{host}:{int(port) if port else 5432}/{database or '<default>'}"
-          )
+          print(f"Using working Supabase DB target: {host}:{port}/{database or '<default>'}")
           PY
-
       - name: Provision production secret
         shell: bash
         run: |
