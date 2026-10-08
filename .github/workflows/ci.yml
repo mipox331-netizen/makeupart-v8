@@ -163,6 +163,8 @@ jobs:
     defaults:
       run:
         working-directory: makeup_art_v8
+    env:
+      PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -187,18 +189,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          API_ROOT="${{ inputs.api_base_url || secrets.MAKEUPART_API_BASE_URL }}"
-          if [ -n "$API_ROOT" ]; then
-            curl --fail --silent --show-error "$API_ROOT/health/ready"
-            echo
-          else
-            echo "MAKEUPART_API_BASE_URL not configured; skipping remote API check."
-          fi
+          curl --fail --silent --show-error "$PRODUCTION_API_BASE_URL/../health/ready"
+          echo
 
       - name: Build Android debug APK
         run: |
           if [ -d android ]; then
-            flutter build apk --debug --dart-define=API_BASE_URL="${{ inputs.api_base_url || secrets.MAKEUPART_API_BASE_URL }}"
+            flutter build apk --debug --dart-define=API_BASE_URL="$PRODUCTION_API_BASE_URL"
           else
             echo "Android platform not bootstrapped yet; skipping APK build."
           fi

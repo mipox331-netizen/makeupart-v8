@@ -29,6 +29,7 @@ jobs:
       ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
 
     steps:
       - name: Checkout
@@ -85,7 +86,7 @@ jobs:
       - name: Build signed Android App Bundle
         working-directory: makeup_art_v8
         run: |
-          flutter build appbundle --release             --dart-define=API_BASE_URL="${{ inputs.api_base_url || secrets.MAKEUPART_API_BASE_URL }}"
+          flutter build appbundle --release --dart-define=API_BASE_URL="$PRODUCTION_API_BASE_URL"
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4

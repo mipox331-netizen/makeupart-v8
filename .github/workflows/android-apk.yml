@@ -7,11 +7,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      api_base_url:
-        description: "Backend API base URL (required; use MAKEUPART_API_BASE_URL secret or manual input)"
-        required: false
-        default: ""
 
 jobs:
   build-android-apk:
@@ -46,7 +41,7 @@ jobs:
         run: |
           flutter build apk --release \
             --split-debug-info=build/symbols \
-            --dart-define=API_BASE_URL="${{ inputs.api_base_url || secrets.MAKEUPART_API_BASE_URL || env.PRODUCTION_API_BASE_URL }}"
+            --dart-define=API_BASE_URL="$PRODUCTION_API_BASE_URL"
 
       - name: Verify APK
         shell: bash

@@ -54,6 +54,52 @@ def migrate():
 
     print(f'Migration head confirmed: {current}')
 
+@app.function(
+    image=image,
+    secrets=[production_secret],
+    timeout=300,
+)
+def verify_migration_head():
+    from alembic.config import Config
+    from alembic.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    from app.db.session import engine
+
+    alembic_config = Config("/app/alembic.ini")
+    script = ScriptDirectory.from_config(alembic_config)
+    heads = script.get_heads()
+    with engine.connect() as connection:
+        current = MigrationContext.configure(connection).get_current_revision()
+
+    if len(heads) != 1 or current != heads[0]:
+        raise RuntimeError(f"Migration head mismatch: expected {heads}, current {current!r}")
+
+    print(f"Migration head confirmed: {current}")
+
+
+@app.function(
+    image=image,
+    secrets=[production_secret],
+    volumes={
+        "/home/app/.insightface": insightface_volume,
+    },
+    cpu=2.0,
+    memory=4096,
+    timeout=1200,
+)
+def verify_runtime():
+    from app.services.beauty import BeautyProvider
+
+    provider = BeautyProvider()
+    provider._get_face_mesh()
+    provider._get_face_app()
+    insightface_volume.commit()
+    print("MediaPipe runtime: OK")
+    print("InsightFace buffalo_l runtime: OK")
+    print("InsightFace model volume committed: OK")
+
+
 
 @app.function(
     image=image,
