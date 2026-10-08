@@ -13,8 +13,10 @@ except ImportError:  # pragma: no cover
 
 try:
     from insightface.app import FaceAnalysis
-except ImportError:  # pragma: no cover
+    INSIGHTFACE_IMPORT_ERROR: Exception | None = None
+except Exception as exc:  # pragma: no cover
     FaceAnalysis = None
+    INSIGHTFACE_IMPORT_ERROR = exc
 
 
 class SkinToneMatcher:
@@ -128,7 +130,8 @@ class BeautyProvider:
     @classmethod
     def _get_face_app(cls):
         if FaceAnalysis is None:
-            raise RuntimeError("insightface is not installed")
+            detail = f": {INSIGHTFACE_IMPORT_ERROR!r}" if INSIGHTFACE_IMPORT_ERROR else ""
+            raise RuntimeError(f"insightface import failed{detail}")
         if cls._face_app is None:
             insightface_root = os.environ.get("INSIGHTFACE_ROOT", os.path.expanduser("~/.insightface"))
             app = FaceAnalysis(name="buffalo_l", root=insightface_root)
