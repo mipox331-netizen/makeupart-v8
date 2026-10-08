@@ -49,19 +49,31 @@ jobs:
           python -m pip install --quiet 'sqlalchemy==2.0.35' 'psycopg2-binary==2.9.9'
           python - <<'PY'
           import os
-          import re
           from urllib.parse import urlparse
           from sqlalchemy import create_engine, text
 
           raw_url = os.environ["SUPABASE_DB_URL"].strip()
-          # Supabase connection strings are sometimes copied with a DNS host
-          # wrapped in brackets. Brackets are valid for IPv6 literals but not
-          # for a normal DNS hostname, so normalize only the DNS-host form.
-          normalized_url = re.sub(
-              r"(@)\\[([A-Za-z0-9.-]+)\\](?=:\\d+(?:/|$)|/|$)",
-              r"\\1\\2",
-              raw_url,
-          )
+
+          # Supabase DNS pooler hosts are sometimes copied as [hostname].
+          # Normalize that representation without touching the credentials.
+          scheme_sep = "://"
+          if scheme_sep not in raw_url:
+              raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
+          prefix, remainder = raw_url.split(scheme_sep, 1)
+          slash = remainder.find("/")
+          authority = remainder if slash == -1 else remainder[:slash]
+          path = "" if slash == -1 else remainder[slash:]
+          if "@" in authority:
+              userinfo, hostport = authority.rsplit("@", 1)
+              at = "@"
+          else:
+              userinfo, hostport, at = "", authority, ""
+          if hostport.startswith("[") and "]" in hostport:
+              closing = hostport.find("]")
+              bracket_host = hostport[1:closing]
+              if ":" not in bracket_host:
+                  hostport = bracket_host + hostport[closing + 1:]
+          normalized_url = prefix + scheme_sep + (userinfo + at if at else "") + hostport + path
 
           parsed = urlparse(
               normalized_url.replace("postgresql+psycopg2://", "postgresql://", 1)
