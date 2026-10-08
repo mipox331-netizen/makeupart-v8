@@ -49,37 +49,72 @@ jobs:
           python -m pip install --quiet 'psycopg2-binary==2.9.9'
           python - <<'PY'
           import os
-          from urllib.parse import urlparse
+          from urllib.parse import parse_qsl, quote, unquote
 
           raw_url = os.environ["SUPABASE_DB_URL"].strip()
           scheme, sep, remainder = raw_url.partition("://")
           if not sep or scheme not in {"postgresql", "postgresql+psycopg2", "postgres"}:
               raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
 
-          authority, slash, path = remainder.partition("/")
+          authority, slash, path_and_query = remainder.partition("/")
+          user = password = None
           if "@" in authority:
               userinfo, hostport = authority.rsplit("@", 1)
-              prefix = scheme + "://" + userinfo + "@"
+              if ":" in userinfo:
+                  user, password = userinfo.rsplit(":", 1)
+              else:
+                  user = userinfo
           else:
               hostport = authority
-              prefix = scheme + "://"
 
-          # This Supabase URL is a DNS hostname, not an IPv6 literal.
-          # Remove only bracket characters from the host portion.
-          hostport = hostport.replace("[", "").replace("]", "")
-          normalized_url = prefix + hostport + (("/" + path) if slash else "")
+          # Supabase pooler URLs may contain brackets around a DNS hostname.
+          # Parse host/port ourselves so urllib.parse cannot misclassify that
+          # hostname as an IPv6 literal.
+          host = hostport
+          port = None
+          if hostport.startswith("["):
+              closing = hostport.find("]")
+              if closing < 0:
+                  raise SystemExit("SUPABASE_DB_URL has an unmatched '[' in the host.")
+              host = hostport[1:closing]
+              remainder_hostport = hostport[closing + 1:]
+              if remainder_hostport:
+                  if not remainder_hostport.startswith(":"):
+                      raise SystemExit("SUPABASE_DB_URL has an invalid bracketed host/port.")
+                  port = remainder_hostport[1:]
+          elif ":" in hostport:
+              host, port = hostport.rsplit(":", 1)
 
-          parsed = urlparse(
-              normalized_url.replace("postgresql+psycopg2://", "postgresql://", 1)
-          )
-          if parsed.scheme not in {"postgresql", "postgres"} or not parsed.hostname:
-              raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
+          host = host.strip()
+          if not host:
+              raise SystemExit("SUPABASE_DB_URL is missing a database host.")
+          if port is not None and not port.isdigit():
+              raise SystemExit("SUPABASE_DB_URL has an invalid database port.")
+
+          query = ""
+          database = ""
+          if slash:
+              database, _, query = path_and_query.partition("?")
+              database = unquote(database)
+
+          connect_kwargs = {
+              "host": host,
+              "connect_timeout": 10,
+          }
+          if port:
+              connect_kwargs["port"] = int(port)
+          if user is not None:
+              connect_kwargs["user"] = unquote(user)
+          if password is not None:
+              connect_kwargs["password"] = unquote(password)
+          if database:
+              connect_kwargs["dbname"] = database
+
+          for key, value in parse_qsl(query, keep_blank_values=True):
+              connect_kwargs[key] = value
 
           import psycopg2
-          connection = psycopg2.connect(
-              normalized_url.replace("postgresql+psycopg2://", "postgresql://", 1),
-              connect_timeout=10,
-          )
+          connection = psycopg2.connect(**connect_kwargs)
           try:
               with connection.cursor() as cursor:
                   cursor.execute("SELECT 1")
@@ -87,13 +122,29 @@ jobs:
           finally:
               connection.close()
 
+          normalized_scheme = "postgresql"
+          encoded_userinfo = ""
+          if user is not None:
+              encoded_userinfo = quote(unquote(user), safe="")
+              if password is not None:
+                  encoded_userinfo += ":" + quote(unquote(password), safe="")
+              encoded_userinfo += "@"
+
+          normalized_host = f"[{host}]" if ":" in host and not host.startswith("[") else host
+          normalized_hostport = normalized_host + (f":{int(port)}" if port else "")
+          normalized_url = f"{normalized_scheme}://{encoded_userinfo}{normalized_hostport}"
+          if slash:
+              normalized_url += "/" + quote(database, safe="") 
+              if query:
+                  normalized_url += "?" + query
+
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
               env_file.write("SUPABASE_DB_URL=" + normalized_url + "\n")
 
           print("Supabase database connection: OK")
           print(
               f"Supabase database target: "
-              f"{parsed.hostname}:{parsed.port or 5432}/{parsed.path.lstrip('/')}"
+              f"{host}:{int(port) if port else 5432}/{database or '<default>'}"
           )
           PY
 
