@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
     defaults:
       run:
         working-directory: makeup_art_v8
@@ -30,6 +34,35 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Validate release signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "Missing GitHub secret ANDROID_KEYSTORE_BASE64"; exit 1; }
+          test -n "$ANDROID_STORE_PASSWORD" || { echo "Missing GitHub secret ANDROID_STORE_PASSWORD"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "Missing GitHub secret ANDROID_KEY_PASSWORD"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "Missing GitHub secret ANDROID_KEY_ALIAS"; exit 1; }
+
+      - name: Configure Android signing
+        working-directory: makeup_art_v8/android
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > upload-keystore.jks
+          cat > key.properties <<EOF
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
 
       - name: Analyze Flutter app
         run: flutter analyze
@@ -53,7 +86,10 @@ jobs:
           echo "APK size bytes: $(stat -c%s "$APK")"
           echo "APK size MB: $(du -m "$APK" | cut -f1)"
           sha256sum "$APK"
-          unzip -p "$APK" AndroidManifest.xml >/dev/null || true
+          unzip -p "$APK" AndroidManifest.xml >/dev/null
+          SDK_BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$SDK_BUILD_TOOLS/apksigner" verify "$APK"
+          "$SDK_BUILD_TOOLS/apksigner" verify --print-certs "$APK"
           ls -lh "$APK"
 
       - name: Prepare APK
@@ -68,6 +104,11 @@ jobs:
           path: artifacts/MakeupArt-V8.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Cleanup signing files
+        if: always()
+        working-directory: makeup_art_v8/android
+        run: rm -f key.properties upload-keystore.jks
 
       - name: Publish public GitHub Release
         env:
