@@ -46,16 +46,12 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${SUPABASE_DB_URL:-}" || { echo "SUPABASE_DB_URL secret is missing or empty."; exit 1; }
-          python -m pip install --quiet 'sqlalchemy==2.0.35' 'psycopg2-binary==2.9.9'
+          python -m pip install --quiet 'psycopg2-binary==2.9.9'
           python - <<'PY'
           import os
           from urllib.parse import urlparse
-          from sqlalchemy import create_engine, text
 
           raw_url = os.environ["SUPABASE_DB_URL"].strip()
-
-          # Parse and normalize only the URL authority. This safely removes
-          # brackets around a DNS hostname while preserving username/password.
           scheme, sep, remainder = raw_url.partition("://")
           if not sep or scheme not in {"postgresql", "postgresql+psycopg2", "postgres"}:
               raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
@@ -63,19 +59,15 @@ jobs:
           authority, slash, path = remainder.partition("/")
           if "@" in authority:
               userinfo, hostport = authority.rsplit("@", 1)
-              at = "@"
+              prefix = scheme + "://" + userinfo + "@"
           else:
-              userinfo, hostport, at = "", authority, ""
+              hostport = authority
+              prefix = scheme + "://"
 
-          if hostport.startswith("[") and "]" in hostport:
-              close = hostport.find("]")
-              bracket_host = hostport[1:close]
-              if bracket_host and ".supabase.com" in bracket_host:
-                  hostport = bracket_host + hostport[close + 1:]
-
-          normalized_url = scheme + "://" + userinfo + at + hostport
-          if slash:
-              normalized_url += "/" + path
+          # This Supabase URL is a DNS hostname, not an IPv6 literal.
+          # Remove only bracket characters from the host portion.
+          hostport = hostport.replace("[", "").replace("]", "")
+          normalized_url = prefix + hostport + (("/" + path) if slash else "")
 
           parsed = urlparse(
               normalized_url.replace("postgresql+psycopg2://", "postgresql://", 1)
@@ -83,13 +75,17 @@ jobs:
           if parsed.scheme not in {"postgresql", "postgres"} or not parsed.hostname:
               raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
 
-          engine = create_engine(
-              normalized_url,
-              pool_pre_ping=True,
-              connect_args={"connect_timeout": 10},
+          import psycopg2
+          connection = psycopg2.connect(
+              normalized_url.replace("postgresql+psycopg2://", "postgresql://", 1),
+              connect_timeout=10,
           )
-          with engine.connect() as connection:
-              connection.execute(text("SELECT 1"))
+          try:
+              with connection.cursor() as cursor:
+                  cursor.execute("SELECT 1")
+                  cursor.fetchone()
+          finally:
+              connection.close()
 
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
               env_file.write("SUPABASE_DB_URL=" + normalized_url + "\n")
