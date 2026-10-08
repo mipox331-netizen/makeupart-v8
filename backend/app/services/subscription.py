@@ -50,9 +50,13 @@ def _get_subscription(db: Session, salon_id, *, lock: bool = False) -> Subscript
     subscription = Subscription(
         salon_id=salon_id,
         plan=salon.subscription_plan.value,
-        status="trialing",
+        status="active" if salon.subscription_plan == SubscriptionPlan.FREE else "trialing",
         usage_period_start=_today().replace(day=1),
-        current_period_end=_now() + timedelta(days=settings.SUBSCRIPTION_TRIAL_DAYS),
+        current_period_end=(
+            None
+            if salon.subscription_plan == SubscriptionPlan.FREE
+            else _now() + timedelta(days=settings.SUBSCRIPTION_TRIAL_DAYS)
+        ),
         beauty_jobs_used=0,
     )
     db.add(subscription)
@@ -70,6 +74,16 @@ def _reset_usage_period(subscription: Subscription) -> bool:
 
 
 def _expire_if_due(subscription: Subscription) -> bool:
+    if subscription.plan.lower() == SubscriptionPlan.FREE.value:
+        changed = False
+        if subscription.status.lower() == "trialing":
+            subscription.status = "active"
+            changed = True
+        if subscription.current_period_end is not None:
+            subscription.current_period_end = None
+            changed = True
+        return changed
+
     period_end = _normalise_dt(subscription.current_period_end)
     if (
         period_end is not None
@@ -176,7 +190,7 @@ def activate_subscription(db: Session, salon_id, *, plan: SubscriptionPlan, days
     now = _now()
     subscription.plan = plan.value
     subscription.status = "active"
-    subscription.current_period_end = now + timedelta(days=days)
+    subscription.current_period_end = None if plan == SubscriptionPlan.FREE else now + timedelta(days=days)
     subscription.usage_period_start = now.date().replace(day=1)
     subscription.beauty_jobs_used = 0
     salon.subscription_plan = plan
