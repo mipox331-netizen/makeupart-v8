@@ -6,18 +6,18 @@ from app.services import subscription as subscription_service
 from tests.utils import API, auth_headers, register
 
 
-def test_subscription_usage_defaults_to_trial(client):
+def test_subscription_usage_defaults_to_permanent_free(client):
     register(client)
     response = client.get(f"{API}/subscriptions/me", headers=auth_headers(client, "owner@salon.com"))
 
     assert response.status_code == 200
     body = response.json()
     assert body["plan"] == "free"
-    assert body["status"] == "trialing"
+    assert body["status"] == "active"
     assert body["monthly_limit"] == 25
     assert body["used"] == 0
     assert body["remaining"] == 25
-    assert body["current_period_end"] is not None
+    assert body["current_period_end"] is None
 
 
 def test_beauty_quota_blocks_processing_after_limit(client, monkeypatch, tmp_path):
@@ -93,6 +93,43 @@ def test_subscription_service_expires_due_subscription():
 
         subscription_service._expire_if_due(subscription)
         assert subscription.status == "suspended"
+
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+
+def test_expired_free_trial_is_normalised_to_active():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from sqlalchemy.pool import StaticPool
+    from app.db.base import Base
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as session:
+        from app.models.salon import Salon
+
+        salon = Salon(name="Legacy Free Salon")
+        session.add(salon)
+        session.flush()
+        subscription = Subscription(
+            salon_id=salon.id,
+            plan="free",
+            status="trialing",
+            current_period_end=datetime.now(timezone.utc) - timedelta(days=10),
+        )
+        session.add(subscription)
+        session.commit()
+
+        changed = subscription_service._expire_if_due(subscription)
+        assert changed is True
+        assert subscription.status == "active"
+        assert subscription.current_period_end is None
 
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
