@@ -31,9 +31,12 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1
 Use the computer's LAN address instead of `10.0.2.2` on a physical device.
 
 ## Production
-Production deployment is packaged in `backend/docker-compose.production.yml` with PostgreSQL, private media volume, daily cleanup, and Caddy HTTPS termination.
+The live production backend runs on Modal with Supabase PostgreSQL. The production API is:
+`https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run`
 
-See `docs/PRODUCTION_RUNBOOK.md` before deploying.
+GitHub Actions deploys the backend, runs Alembic migrations, verifies the migration head, verifies MediaPipe + InsightFace runtime, and checks `/health/ready`.
+
+The checked-in Docker Compose + Caddy stack remains available as a self-hosted deployment option. See `docs/PRODUCTION_RUNBOOK.md`.
 
 ## Security
 - Never commit environment files.
@@ -69,9 +72,8 @@ The phone and backend machine must be on a network that allows the phone to reac
 
 ## Cloud deployment
 
-The backend can run independently of a personal computer using Render. The repository includes a `render.yaml` Blueprint that provisions the Docker API service and managed PostgreSQL, with persistent media storage.
+The primary cloud deployment is Modal + Supabase. Android production builds use the Modal API URL through `API_BASE_URL`.
 
-The production mobile build should point `API_BASE_URL` at the deployed Render HTTPS API URL, for example:
-`https://<your-render-service>.onrender.com/api/v1`.
+Project administration is controlled by the production secret `PLATFORM_ADMIN_EMAILS` (comma-separated e-mail addresses). Platform admins can view users, see blocked accounts, block/unblock users, and manage salon subscriptions.
 
-Render production requires a paid web service for the attached persistent disk used by uploaded and generated images. Render's managed PostgreSQL connection is wired privately through `fromDatabase`.
+All newly registered salons start on a permanent Free plan with a monthly AI-processing quota; no payment is required to start using the app.
