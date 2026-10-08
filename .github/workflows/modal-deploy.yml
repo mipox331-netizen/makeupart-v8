@@ -130,12 +130,12 @@ jobs:
       contents: read
 
     env:
-      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}}
-      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}}
-      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}}
-      SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
 
     steps:
       - name: Checkout
