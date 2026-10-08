@@ -54,12 +54,21 @@ jobs:
 
           raw_url = os.environ["SUPABASE_DB_URL"].strip()
 
-          # Supabase pooler DNS host can be copied as [hostname].
-          # Normalize only that host; credentials remain untouched.
-          normalized_url = raw_url.replace(
-              "[aws-0-eu-west-1.pooler.supabase.com]",
-              "aws-0-eu-west-1.pooler.supabase.com",
-          )
+          # Normalize a bracketed Supabase DNS pooler hostname without touching
+          # username, password, port, or database name.
+          normalized_url = raw_url
+          marker = ".pooler.supabase.com"
+          marker_pos = normalized_url.find(marker)
+          if marker_pos >= 0:
+              host_start = normalized_url.rfind("@", 0, marker_pos) + 1
+              host_end = marker_pos + len(marker)
+              if host_start > 0 and normalized_url[host_start:host_start + 1] == "[":
+                  if normalized_url[host_end:host_end + 1] == "]":
+                      normalized_url = (
+                          normalized_url[:host_start]
+                          + normalized_url[host_start + 1:host_end]
+                          + normalized_url[host_end + 1:]
+                      )
 
           parsed = urlparse(
               normalized_url.replace("postgresql+psycopg2://", "postgresql://", 1)
