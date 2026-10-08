@@ -57,11 +57,12 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import base64, os
+          import base64, os, re
           raw = os.environ["ANDROID_KEYSTORE_BASE64"]
-          compact = "".join(raw.split())
+          compact = re.sub(r"[^A-Za-z0-9+/=]", "", raw)
+          compact = compact.rstrip("=")
           compact += "=" * ((4 - len(compact) % 4) % 4)
-          data = base64.b64decode(compact, validate=True)
+          data = base64.b64decode(compact, validate=False)
           if len(data) < 1024:
               raise SystemExit("Decoded keystore is unexpectedly small")
           with open("upload-keystore.jks", "wb") as fh:
