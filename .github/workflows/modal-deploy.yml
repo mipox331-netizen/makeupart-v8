@@ -54,11 +54,11 @@ jobs:
 
           raw_url = os.environ["SUPABASE_DB_URL"].strip()
 
-          # Normalize the Supabase pooler DNS hostname if copied as
-          # [aws-0-eu-west-1.pooler.supabase.com]. Never alter credentials.
+          # Supabase pooler DNS host can be copied as [hostname].
+          # Normalize only that host; credentials remain untouched.
           normalized_url = raw_url.replace(
-              "@[aws-0-eu-west-1.pooler.supabase.com]",
-              "@aws-0-eu-west-1.pooler.supabase.com",
+              "[aws-0-eu-west-1.pooler.supabase.com]",
+              "aws-0-eu-west-1.pooler.supabase.com",
           )
 
           parsed = urlparse(
