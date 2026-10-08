@@ -137,30 +137,45 @@ jobs:
 
           last_error = None
           connection = None
-          for attempt in range(1, 9):
-              try:
-                  connection = psycopg2.connect(**connect_kwargs)
+
+          # First try the Supabase shared session pooler exactly as supplied.
+          try:
+              connection = psycopg2.connect(**connect_kwargs)
+              with connection.cursor() as cursor:
+                  cursor.execute("SELECT 1")
+                  cursor.fetchone()
+              print("Supabase database connection: OK (pooler)")
+          except psycopg2.OperationalError as pooler_error:
+              last_error = pooler_error
+              if connection is not None:
+                  connection.close()
+                  connection = None
+
+              # Fallback: connect directly to the project's Postgres endpoint.
+              # This bypasses Supavisor and is useful when pooler auth state
+              # lags behind a freshly rotated database password.
+              project_ref = None
+              if user and user.startswith("postgres.") and "." in user:
+                  project_ref = user.split(".", 1)[1]
+              if project_ref and host.endswith(".pooler.supabase.com"):
+                  direct_kwargs = dict(connect_kwargs)
+                  direct_kwargs["host"] = f"db.{project_ref}.supabase.co"
+                  direct_kwargs["port"] = 5432
+                  direct_kwargs["user"] = "postgres"
+                  print("Pooler connection failed; trying direct Supabase Postgres endpoint.")
+                  connection = psycopg2.connect(**direct_kwargs)
                   with connection.cursor() as cursor:
                       cursor.execute("SELECT 1")
                       cursor.fetchone()
-                  print(f"Supabase database connection: OK (attempt {attempt})")
-                  break
-              except psycopg2.OperationalError as exc:
-                  last_error = exc
-                  if attempt == 8:
-                      raise
-                  print(
-                      f"Supabase connection attempt {attempt} failed; "
-                      "retrying in 15s after pooler credential propagation."
-                  )
-                  time.sleep(15)
-              finally:
-                  if connection is not None:
-                      connection.close()
-                      connection = None
-
-          if last_error is not None and connection is None:
-              pass
+                  print("Supabase database connection: OK (direct)")
+                  host = direct_kwargs["host"]
+                  port = 5432
+                  user = "postgres"
+              else:
+                  raise
+          finally:
+              if connection is not None:
+                  connection.close()
 
           normalized_scheme = "postgresql"
           encoded_userinfo = ""
