@@ -5,20 +5,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ApiClient {
-  static const _configuredBaseUrl = String.fromEnvironment(
+  static const baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: '',
   );
-
-  static final baseUrl = _normalizeBaseUrl(_configuredBaseUrl);
-
-  static String _normalizeBaseUrl(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return '';
-    final root = trimmed.replaceFirst(RegExp(r'/+$'), '');
-    if (RegExp(r'/api/v1$').hasMatch(root)) return root;
-    return '$root/api/v1';
-  }
   static const _accessKey = 'makeupart_access_token';
   static const _refreshKey = 'makeupart_refresh_token';
 
