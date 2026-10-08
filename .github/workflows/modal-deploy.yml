@@ -49,18 +49,42 @@ jobs:
           python -m pip install --quiet 'sqlalchemy==2.0.35' 'psycopg2-binary==2.9.9'
           python - <<'PY'
           import os
+          import re
           from urllib.parse import urlparse
           from sqlalchemy import create_engine, text
 
-          url = os.environ['SUPABASE_DB_URL'].strip()
-          parsed = urlparse(url.replace('postgresql+psycopg2://', 'postgresql://', 1))
-          if parsed.scheme not in {'postgresql', 'postgres'} or not parsed.hostname:
-              raise SystemExit('SUPABASE_DB_URL is not a valid PostgreSQL URL.')
-          engine = create_engine(url, pool_pre_ping=True, connect_args={'connect_timeout': 10})
+          raw_url = os.environ["SUPABASE_DB_URL"].strip()
+          # Supabase connection strings are sometimes copied with a DNS host
+          # wrapped in brackets. Brackets are valid for IPv6 literals but not
+          # for a normal DNS hostname, so normalize only the DNS-host form.
+          normalized_url = re.sub(
+              r"(@)\\[([A-Za-z0-9.-]+)\\](?=:\\d+(?:/|$)|/|$)",
+              r"\\1\\2",
+              raw_url,
+          )
+
+          parsed = urlparse(
+              normalized_url.replace("postgresql+psycopg2://", "postgresql://", 1)
+          )
+          if parsed.scheme not in {"postgresql", "postgres"} or not parsed.hostname:
+              raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
+
+          engine = create_engine(
+              normalized_url,
+              pool_pre_ping=True,
+              connect_args={"connect_timeout": 10},
+          )
           with engine.connect() as connection:
-              connection.execute(text('SELECT 1'))
-          print('Supabase database connection: OK')
-          print(f'Supabase database target: {parsed.hostname}:{parsed.port or 5432}/{parsed.path.lstrip("/")}')
+              connection.execute(text("SELECT 1"))
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"SUPABASE_DB_URL={normalized_url}\\n")
+
+          print("Supabase database connection: OK")
+          print(
+              f"Supabase database target: "
+              f"{parsed.hostname}:{parsed.port or 5432}/{parsed.path.lstrip('/')}"
+          )
           PY
 
       - name: Provision production secret
