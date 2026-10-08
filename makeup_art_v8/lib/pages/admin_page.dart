@@ -14,6 +14,7 @@ class AdminPage extends StatefulWidget {
 
 class _AdminPageState extends State<AdminPage> {
   List<Map<String, dynamic>> rows = [];
+  List<Map<String, dynamic>> users = [];
   bool loading = true;
   String? error;
 
@@ -29,9 +30,14 @@ class _AdminPageState extends State<AdminPage> {
       error = null;
     });
     try {
-      rows = await widget.api.getAdminSubscriptions();
+      final results = await Future.wait([
+        widget.api.getAdminSubscriptions(),
+        widget.api.getAdminUsers(),
+      ]);
+      rows = results[0] as List<Map<String, dynamic>>;
+      users = results[1] as List<Map<String, dynamic>>;
     } catch (exception) {
-      error = 'Could not load subscriptions: $exception';
+      error = 'Could not load admin data: $exception';
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -66,7 +72,7 @@ class _AdminPageState extends State<AdminPage> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, selected),
-                child: const Text('Activate 30 days'),
+                child: const Text('Activate'),
               ),
             ],
           ),
@@ -96,8 +102,49 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _setUserStatus(Map<String, dynamic> user, bool active) async {
+    final name = user['full_name']?.toString() ?? user['email']?.toString() ?? 'User';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(active ? 'Unblock user?' : 'Block user?'),
+        content: Text(
+          active
+              ? 'Allow $name to use the app again.'
+              : 'Immediately stop $name from signing in and using the app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(active ? 'Unblock' : 'Block'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await widget.api.setAdminUserStatus(
+        userId: user['id'] as String,
+        active: active,
+      );
+      await _load();
+    } catch (exception) {
+      if (mounted) setState(() => error = 'User status update failed: $exception');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final activeUsers = users.where((user) => user['is_active'] == true).length;
+    final blockedUsers = users.where((user) => user['is_active'] != true).length;
+    final freeUsers = users.where((user) => user['plan'] == 'free').length;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('MakeupArt Admin'),
@@ -113,22 +160,109 @@ class _AdminPageState extends State<AdminPage> {
               child: ListView(
                 padding: const EdgeInsets.all(18),
                 children: [
+                  if (error != null) ...[
+                    Text(
+                      error!,
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Text(
+                    'Project overview',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _MetricCard(label: 'Total users', value: '${users.length}'),
+                      _MetricCard(label: 'Active', value: '${activeUsers}'),
+                      _MetricCard(label: 'Blocked', value: '${blockedUsers}'),
+                      _MetricCard(label: 'Free plan', value: '${freeUsers}'),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Users & access',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Block or unblock individual accounts. Blocked users are denied API access immediately.',
+                  ),
+                  const SizedBox(height: 12),
+                  if (users.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text('No users yet.'),
+                      ),
+                    ),
+                  ...users.map((user) {
+                    final active = user['is_active'] == true;
+                    final platformAdmin = user['is_platform_admin'] == true;
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    user['full_name']?.toString() ??
+                                        user['email']?.toString() ??
+                                        'User',
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                ),
+                                Chip(
+                                  label: Text(
+                                    platformAdmin
+                                        ? 'PROJECT ADMIN'
+                                        : active
+                                            ? 'ACTIVE'
+                                            : 'BLOCKED',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(user['email']?.toString() ?? '—'),
+                            Text('Salon: ${user['salon_name']?.toString() ?? '—'}'),
+                            Text('Role: ${user['role']?.toString() ?? '—'}'),
+                            Text(
+                              'Plan: ${user['plan']?.toString() ?? '—'} · '
+                              '${user['subscription_status']?.toString() ?? '—'}',
+                            ),
+                            const SizedBox(height: 10),
+                            if (!platformAdmin)
+                              OutlinedButton.icon(
+                                onPressed: () => _setUserStatus(user, !active),
+                                icon: Icon(
+                                  active
+                                      ? Icons.block_outlined
+                                      : Icons.check_circle_outline,
+                                ),
+                                label: Text(active ? 'Block user' : 'Unblock user'),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 24),
                   Text(
                     'Salon subscriptions',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Expired accounts are suspended automatically. Data is retained so the salon can be reactivated after payment.',
+                    'Free plan is available without a paid renewal. Basic, Pro and Enterprise can still be activated by the project admin.',
                   ),
-                  if (error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      error!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   if (rows.isEmpty)
                     const Card(
                       child: Padding(
@@ -136,64 +270,92 @@ class _AdminPageState extends State<AdminPage> {
                         child: Text('No salon subscriptions yet.'),
                       ),
                     ),
-                  ...rows.map(
-                    (row) {
-                      final status = row['status']?.toString() ?? 'unknown';
-                      final active = status == 'active' || status == 'trialing';
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      row['salon_name']?.toString() ?? 'Salon',
-                                      style: Theme.of(context).textTheme.titleMedium,
-                                    ),
+                  ...rows.map((row) {
+                    final status = row['status']?.toString() ?? 'unknown';
+                    final active = status == 'active' || status == 'trialing';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    row['salon_name']?.toString() ?? 'Salon',
+                                    style: Theme.of(context).textTheme.titleMedium,
                                   ),
-                                  Chip(label: Text(status)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text('Owner: ${row['owner_email']?.toString() ?? '—'}'),
-                              Text('Plan: ${row['plan']?.toString() ?? '—'}'),
-                              Text(
-                                'Ends: ${row['current_period_end']?.toString() ?? '—'} '
-                                '(${row['days_remaining']?.toString() ?? '—'} days)',
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: FilledButton.icon(
-                                      onPressed: () => _activate(row),
-                                      icon: const Icon(Icons.check_circle_outline),
-                                      label: Text(active ? 'Renew 30d' : 'Activate 30d'),
-                                    ),
+                                ),
+                                Chip(label: Text(status)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text('Owner: ${row['owner_email']?.toString() ?? '—'}'),
+                            Text('Plan: ${row['plan']?.toString() ?? '—'}'),
+                            Text(
+                              'Ends: ${row['current_period_end']?.toString() ?? '—'} '
+                              '(${row['days_remaining']?.toString() ?? '—'} days)',
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: () => _activate(row),
+                                    icon: const Icon(Icons.check_circle_outline),
+                                    label: Text(active ? 'Renew / activate' : 'Activate'),
                                   ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: active ? () => _suspend(row) : null,
-                                      icon: const Icon(Icons.pause_circle_outline),
-                                      label: const Text('Suspend'),
-                                    ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: active ? () => _suspend(row) : null,
+                                    icon: const Icon(Icons.pause_circle_outline),
+                                    label: const Text('Suspend'),
                                   ),
-                                ],
-                              ),
-                            ],
-                          ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: SizedBox(
+        width: 145,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
