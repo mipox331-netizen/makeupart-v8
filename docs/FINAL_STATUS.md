@@ -3,6 +3,8 @@
 ## Delivered
 - FastAPI + PostgreSQL 16 + Alembic backend.
 - Salon-scoped authentication and authorization.
+- Project-admin user oversight with block/unblock controls.
+- Permanent Free plan with monthly AI-processing quota enforcement.
 - JWT access tokens with unique `jti` values.
 - Rotating, server-tracked and revocable refresh sessions.
 - Customer records, consultation records and consent history.
@@ -24,7 +26,7 @@
 - CI for backend build/migrations/tests, Flutter analyze/tests, production compose validation and Android debug APK builds.
 
 ## Verification
-GitHub Actions is the source of truth for backend tests, Flutter analysis/tests and Android build verification.
+GitHub Actions is the source of truth for backend tests, Flutter analysis/tests, Android build verification, Modal deployment, Supabase migrations, and production runtime checks.
 
 The latest hardening commits are intentionally treated as unverified until their corresponding GitHub Actions run completes successfully.
 
