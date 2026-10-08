@@ -8,12 +8,14 @@ from app.api.v1.customers import router as customers_router
 from app.api.v1.salons import router as salons_router
 from app.api.v1.subscriptions import admin_router as admin_subscriptions_router
 from app.api.v1.subscriptions import router as subscriptions_router
+from app.api.v1.users import admin_router as admin_users_router
 from app.api.v1.users import router as users_router
 from app.api.v1.watermarks import router as watermarks_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
+api_router.include_router(admin_users_router)
 api_router.include_router(salons_router)
 api_router.include_router(customers_router)
 api_router.include_router(consultations_router)
