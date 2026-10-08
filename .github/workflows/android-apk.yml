@@ -73,6 +73,8 @@ jobs:
       - name: Build Android release APK
         run: |
           flutter build apk --release \
+            --build-name="8.0.${GITHUB_RUN_NUMBER}" \
+            --build-number="$GITHUB_RUN_NUMBER" \
             --split-debug-info=build/symbols \
             --dart-define=API_BASE_URL="$PRODUCTION_API_BASE_URL"
 
