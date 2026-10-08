@@ -1,4 +1,5 @@
 name: MakeupArt V8 Modal Production Deploy
+# Retry after refreshed Supabase database credentials
 # Trigger production validation
 # Production deployment workflow
 
