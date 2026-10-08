@@ -1,53 +1,84 @@
 # MakeupArt V8 Production Runbook
 
-## 1. Prepare production configuration
-From `backend/`, copy `.env.production.example` to `.env.production` and replace every placeholder. Use a strong random `SECRET_KEY`, a strong PostgreSQL password, explicit `CORS_ORIGINS`, and the public API `DOMAIN`.
+## 1. Primary production path
 
-Never commit `.env.production`.
+The live production backend runs on Modal and uses Supabase PostgreSQL.
 
-## 2. Start production stack
-From `backend/`:
+Production API:
+`https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run`
+
+Deploys are driven by GitHub Actions through `.github/workflows/modal-deploy.yml`.
+
+The deployment gate:
+1. Validates Modal credentials.
+2. Validates the Supabase PostgreSQL connection.
+3. Provisions the Modal production secret.
+4. Deploys FastAPI.
+5. Runs Alembic migrations.
+6. Confirms the migration head.
+7. Verifies MediaPipe + InsightFace runtime.
+8. Verifies `/health/ready`.
+
+## 2. Required production secrets
+
+Store these in the GitHub production environment / repository secrets as appropriate:
+
+- `MODAL_TOKEN_ID`
+- `MODAL_TOKEN_SECRET`
+- `SUPABASE_DB_URL` or `SUPABASE_DB_URL_SECRET`
+- `SUPABASE_SECRET_KEY` / supported Supabase secret
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SECRET` / service-role key
+- `PLATFORM_ADMIN_EMAILS`
+
+`PLATFORM_ADMIN_EMAILS` is a comma-separated allow-list of the e-mail addresses that are allowed into the project admin area.
+
+Never commit secret values.
+
+## 3. User access and subscriptions
+
+Every new salon starts on the permanent `free` plan with a monthly AI-processing quota of 25 jobs.
+
+The project admin can:
+- view all registered users across salons;
+- see active vs blocked users;
+- block or unblock an individual user;
+- suspend or reactivate a salon subscription;
+- activate Free, Basic, Pro or Enterprise plans.
+
+Blocking a user sets `is_active=false` and is enforced at the authenticated API boundary, so an already-issued access token stops working immediately.
+
+A suspended paid subscription is prevented from AI processing until reactivated. The user's account data is retained.
+
+## 4. Health verification
+
+Check the public API:
 
 ```bash
-docker compose -f docker-compose.production.yml --env-file .env.production up -d --build
+curl https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/health/ready
 ```
 
-Caddy terminates HTTPS and proxies traffic to the private backend service. PostgreSQL and media volumes are not published to the host network.
+## 5. Mobile production build
 
-## 3. Verify
-Check the API health endpoint through the public domain:
+Android release builds use:
 
-```bash
-curl https://YOUR_API_DOMAIN/health/ready
+```text
+https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
 ```
 
-Then open the Flutter client with:
+The APK workflow runs Flutter dependency resolution, analysis, tests, release build verification, artifact upload, and public GitHub Release publication.
 
-```bash
-flutter run --dart-define=API_BASE_URL=https://YOUR_API_DOMAIN/api/v1
-```
+## 6. Self-hosted alternative
 
-## 4. Backups
-Back up PostgreSQL regularly with `pg_dump` from a trusted host or backup job. The database contains users, customers, consent history, consultations, and job metadata.
+The repository still includes `backend/docker-compose.production.yml` with PostgreSQL, private media, and Caddy HTTPS termination for a self-hosted deployment.
 
-Media in the `media_prod` volume must be backed up separately or moved to private object storage before large-scale production use.
+Use that path only when deliberately hosting outside Modal/Supabase.
 
-## 5. Retention
-The cleanup service runs once per day. It removes media older than `MEDIA_RETENTION_DAYS` and expired/revoked refresh sessions older than `REFRESH_SESSION_RETENTION_DAYS`.
+## 7. Security checklist
 
-Do not shorten image retention without checking customer-consent and business-retention requirements.
-
-## 6. Recovery
-Database restore should be performed into a stopped or isolated PostgreSQL instance before reconnecting the application. Restore media from the corresponding backup set so job records and image files remain aligned.
-
-## 7. Mobile release
-Android and iOS platform projects are bootstrapped by GitHub Actions. Android debug builds are CI-verified when the platform folder exists. Release signing, Play Console/App Store Connect credentials, bundle identifiers, and production API configuration remain deployment-specific secrets.
-
-## 8. Security checklist
 - HTTPS is mandatory in production.
 - Keep `CORS_ORIGINS` explicit.
-- Keep `.env.production` outside Git.
+- Keep production secrets outside Git.
+- Keep media private and serve it only through authenticated API routes.
 - Review InsightFace `buffalo_l` licensing before commercial deployment.
-- Keep media private; expose images through authenticated API routes.
-- Review the image retention period and deletion policy with the business/privacy owner.
-- Add centralized monitoring and alerting before public launch.
+- Review retention/deletion policies before public launch.
