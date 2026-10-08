@@ -213,12 +213,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  dispatch-production:
-    needs: backend
-    if: needs.backend.result == 'success' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Dispatch Modal production deployment
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run .github/workflows/modal-deploy.yml --ref main
