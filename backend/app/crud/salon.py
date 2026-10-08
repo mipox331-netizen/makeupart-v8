@@ -17,8 +17,8 @@ def create_salon(db: Session, salon_in: SalonCreate) -> Salon:
         Subscription(
             salon_id=salon.id,
             plan=salon.subscription_plan.value,
-            status="trialing",
-            current_period_end=datetime.now(timezone.utc) + timedelta(days=settings.SUBSCRIPTION_TRIAL_DAYS),
+            status="active",
+            current_period_end=None,
         )
     )
     db.flush()
