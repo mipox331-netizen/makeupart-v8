@@ -20,7 +20,7 @@ jobs:
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL_SECRET || secrets.SUPABASE_DB_URL || secrets.DATABASE_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL_SECRET }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
@@ -54,6 +54,13 @@ jobs:
 
           raw_url = os.environ["SUPABASE_DB_URL"].strip()
           scheme, sep, remainder = raw_url.partition("://")
+          authority_for_log = remainder.split("/", 1)[0]
+          username_for_log = (
+              authority_for_log.rsplit("@", 1)[0].split(":", 1)[0]
+              if "@" in authority_for_log
+              else "<missing>"
+          )
+          print("Supabase DB secret username:", username_for_log)
           if not sep or scheme not in {"postgresql", "postgresql+psycopg2", "postgres"}:
               raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
 
