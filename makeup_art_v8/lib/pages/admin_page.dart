@@ -34,8 +34,8 @@ class _AdminPageState extends State<AdminPage> {
         widget.api.getAdminSubscriptions(),
         widget.api.getAdminUsers(),
       ]);
-      rows = results[0] as List<Map<String, dynamic>>;
-      users = results[1] as List<Map<String, dynamic>>;
+      rows = results[0];
+      users = results[1];
     } catch (exception) {
       error = 'Could not load admin data: $exception';
     } finally {
@@ -177,9 +177,9 @@ class _AdminPageState extends State<AdminPage> {
                     runSpacing: 10,
                     children: [
                       _MetricCard(label: 'Total users', value: '${users.length}'),
-                      _MetricCard(label: 'Active', value: '${activeUsers}'),
-                      _MetricCard(label: 'Blocked', value: '${blockedUsers}'),
-                      _MetricCard(label: 'Free plan', value: '${freeUsers}'),
+                      _MetricCard(label: 'Active', value: '$activeUsers'),
+                      _MetricCard(label: 'Blocked', value: '$blockedUsers'),
+                      _MetricCard(label: 'Free plan', value: '$freeUsers'),
                     ],
                   ),
                   const SizedBox(height: 24),
