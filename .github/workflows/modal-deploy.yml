@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${SUPABASE_DB_URL:-}" || { echo "SUPABASE_DB_URL secret is missing."; exit 1; }
+          test -n "${SUPABASE_DB_URL:-}" || { echo "SUPABASE_DB_URL secret is missing or empty."; exit 1; }
           python -m pip install --quiet 'sqlalchemy==2.0.35' 'psycopg2-binary==2.9.9'
           python - <<'PY'
           import os

@@ -12,10 +12,6 @@ on:
           - closed
           - production
         default: internal
-      api_base_url:
-        description: "Backend API base URL"
-        required: true
-        default: ""
   push:
     tags:
       - "v*"

@@ -189,7 +189,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "$PRODUCTION_API_BASE_URL/../health/ready"
+          curl --fail --silent --show-error "${PRODUCTION_API_BASE_URL%/api/v1}/health/ready"
           echo
 
       - name: Build Android debug APK
