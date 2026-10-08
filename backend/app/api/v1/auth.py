@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_active_user, get_current_user, is_platform_admin
+from app.api.deps import get_current_user, is_platform_admin
 from app.core.config import settings
 from app.core.security import TOKEN_TYPE_REFRESH, create_access_token, create_refresh_token, decode_token
 from app.crud.salon import create_salon
@@ -129,6 +129,6 @@ def logout(refresh_in: RefreshRequest, db: Session = Depends(get_db)) -> Respons
 
 
 @router.get("/me", response_model=UserOut)
-def read_current_user(current_user: User = Depends(get_current_active_user)) -> UserOut:
+def read_current_user(current_user: User = Depends(get_current_user)) -> UserOut:
     payload = UserOut.model_validate(current_user)
     return payload.model_copy(update={"is_platform_admin": is_platform_admin(current_user)})
