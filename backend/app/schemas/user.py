@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -29,3 +30,25 @@ class UserOut(UserBase):
     is_verified: bool
     salon_id: uuid.UUID
     is_platform_admin: bool = False
+
+
+class AdminUserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    email: EmailStr
+    full_name: str
+    phone: str | None = None
+    role: UserRole
+    is_active: bool
+    is_verified: bool
+    salon_id: uuid.UUID
+    salon_name: str
+    plan: str
+    subscription_status: str
+    current_period_end: datetime | None
+    is_platform_admin: bool = False
+
+
+class AdminUserStatusUpdate(BaseModel):
+    is_active: bool
