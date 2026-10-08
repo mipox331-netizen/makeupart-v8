@@ -116,7 +116,11 @@ jobs:
           if database:
               connect_kwargs["dbname"] = database
 
+          # Apply connection-string query options first. URL user/password
+          # must win over any stale user/password query parameters.
           for key, value in parse_qsl(query, keep_blank_values=True):
+              if key in {"user", "username", "password", "dbname", "database", "host", "port"}:
+                  continue
               connect_kwargs[key] = value
 
           import psycopg2
