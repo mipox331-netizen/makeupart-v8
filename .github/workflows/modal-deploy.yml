@@ -54,33 +54,18 @@ jobs:
 
           raw_url = os.environ["SUPABASE_DB_URL"].strip()
 
-          # Supabase DNS pooler hosts are sometimes copied as [hostname].
-          # Normalize that representation without touching the credentials.
-          scheme_sep = "://"
-          if scheme_sep not in raw_url:
-              raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
-          prefix, remainder = raw_url.split(scheme_sep, 1)
-          slash = remainder.find("/")
-          authority = remainder if slash == -1 else remainder[:slash]
-          path = "" if slash == -1 else remainder[slash:]
-          if "@" in authority:
-              userinfo, hostport = authority.rsplit("@", 1)
-              at = "@"
-          else:
-              userinfo, hostport, at = "", authority, ""
-          if hostport.startswith("[") and "]" in hostport:
-              closing = hostport.find("]")
-              bracket_host = hostport[1:closing]
-              if ":" not in bracket_host:
-                  hostport = bracket_host + hostport[closing + 1:]
-          normalized_url = prefix + scheme_sep + (userinfo + at if at else "") + hostport + path
+          # Normalize the Supabase pooler DNS hostname if copied as
+          # [aws-0-eu-west-1.pooler.supabase.com]. Never alter credentials.
+          normalized_url = raw_url.replace(
+              "@[aws-0-eu-west-1.pooler.supabase.com]",
+              "@aws-0-eu-west-1.pooler.supabase.com",
+          )
 
           parsed = urlparse(
               normalized_url.replace("postgresql+psycopg2://", "postgresql://", 1)
           )
           if parsed.scheme not in {"postgresql", "postgres"} or not parsed.hostname:
               raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
-
           engine = create_engine(
               normalized_url,
               pool_pre_ping=True,
