@@ -9,6 +9,7 @@ concurrency:
 
 jobs:
   migrate:
+    environment: production
     runs-on: ubuntu-latest
     defaults:
       run:

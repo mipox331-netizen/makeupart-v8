@@ -184,7 +184,16 @@ jobs:
         run: flutter test
 
       - name: Verify production API
-        run: if [ -n "$MAKEUPART_API_BASE_URL" ]; then curl --fail --silent --show-error "$MAKEUPART_API_BASE_URL/health/ready"; else echo "MAKEUPART_API_BASE_URL not configured; skipping remote API check."; fi
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_ROOT="${{ inputs.api_base_url || secrets.MAKEUPART_API_BASE_URL }}"
+          if [ -n "$API_ROOT" ]; then
+            curl --fail --silent --show-error "$API_ROOT/health/ready"
+            echo
+          else
+            echo "MAKEUPART_API_BASE_URL not configured; skipping remote API check."
+          fi
 
       - name: Build Android debug APK
         run: |

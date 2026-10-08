@@ -7,10 +7,11 @@ on:
 
 concurrency:
   group: makeupart-v8-modal-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    environment: production
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -18,7 +19,7 @@ jobs:
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || vars.SUPABASE_DB_URL || secrets.SUPABASE_DATABASE_URL || vars.SUPABASE_DATABASE_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
@@ -39,6 +40,28 @@ jobs:
 
       - name: Validate Modal credentials
         run: modal token info
+
+      - name: Validate Supabase database
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_DB_URL:-}" || { echo "SUPABASE_DB_URL secret is missing."; exit 1; }
+          python -m pip install --quiet 'sqlalchemy==2.0.35' 'psycopg2-binary==2.9.9'
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+          from sqlalchemy import create_engine, text
+
+          url = os.environ['SUPABASE_DB_URL'].strip()
+          parsed = urlparse(url.replace('postgresql+psycopg2://', 'postgresql://', 1))
+          if parsed.scheme not in {'postgresql', 'postgres'} or not parsed.hostname:
+              raise SystemExit('SUPABASE_DB_URL is not a valid PostgreSQL URL.')
+          engine = create_engine(url, pool_pre_ping=True, connect_args={'connect_timeout': 10})
+          with engine.connect() as connection:
+              connection.execute(text('SELECT 1'))
+          print('Supabase database connection: OK')
+          print(f'Supabase database target: {parsed.hostname}:{parsed.port or 5432}/{parsed.path.lstrip("/")}')
+          PY
 
       - name: Provision production secret
         shell: bash
@@ -77,6 +100,15 @@ jobs:
 
       - name: Run Supabase migrations
         run: modal run modal_app.py::migrate
+
+      - name: Verify production API
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_ROOT='https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run'
+          curl --fail --silent --show-error --max-time 30 "$API_ROOT/health/ready"
+          echo
+          echo "Production API is ready: $API_ROOT"
 
       - name: Show deployed app
         run: modal app info makeupart-v8-api

@@ -36,8 +36,23 @@ production_secret = modal.Secret.from_name("makeupart-v8-production")
 def migrate():
     from alembic import command
     from alembic.config import Config
+    from alembic.migration import MigrationContext
+    from alembic.script import ScriptDirectory
 
-    command.upgrade(Config("/app/alembic.ini"), "head")
+    from app.db.session import engine
+
+    alembic_config = Config('/app/alembic.ini')
+    command.upgrade(alembic_config, 'head')
+
+    script = ScriptDirectory.from_config(alembic_config)
+    heads = script.get_heads()
+    with engine.connect() as connection:
+        current = MigrationContext.configure(connection).get_current_revision()
+
+    if len(heads) != 1 or current != heads[0]:
+        raise RuntimeError(f'Migration head mismatch: expected {heads}, current {current!r}')
+
+    print(f'Migration head confirmed: {current}')
 
 
 @app.function(

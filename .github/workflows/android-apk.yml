@@ -16,6 +16,8 @@ on:
 jobs:
   build-android-apk:
     runs-on: ubuntu-latest
+    env:
+      PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
     defaults:
       run:
         working-directory: makeup_art_v8
@@ -44,7 +46,7 @@ jobs:
         run: |
           flutter build apk --release \
             --split-debug-info=build/symbols \
-            --dart-define=API_BASE_URL="${{ inputs.api_base_url || secrets.MAKEUPART_API_BASE_URL }}"
+            --dart-define=API_BASE_URL="${{ inputs.api_base_url || secrets.MAKEUPART_API_BASE_URL || env.PRODUCTION_API_BASE_URL }}"
 
       - name: Verify APK
         shell: bash
