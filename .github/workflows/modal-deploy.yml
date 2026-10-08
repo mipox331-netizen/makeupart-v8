@@ -54,27 +54,35 @@ jobs:
 
           raw_url = os.environ["SUPABASE_DB_URL"].strip()
 
-          # Normalize a bracketed Supabase DNS pooler hostname without touching
-          # username, password, port, or database name.
-          normalized_url = raw_url
-          marker = ".pooler.supabase.com"
-          marker_pos = normalized_url.find(marker)
-          if marker_pos >= 0:
-              host_start = normalized_url.rfind("@", 0, marker_pos) + 1
-              host_end = marker_pos + len(marker)
-              if host_start > 0 and normalized_url[host_start:host_start + 1] == "[":
-                  if normalized_url[host_end:host_end + 1] == "]":
-                      normalized_url = (
-                          normalized_url[:host_start]
-                          + normalized_url[host_start + 1:host_end]
-                          + normalized_url[host_end + 1:]
-                      )
+          # Parse and normalize only the URL authority. This safely removes
+          # brackets around a DNS hostname while preserving username/password.
+          scheme, sep, remainder = raw_url.partition("://")
+          if not sep or scheme not in {"postgresql", "postgresql+psycopg2", "postgres"}:
+              raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
+
+          authority, slash, path = remainder.partition("/")
+          if "@" in authority:
+              userinfo, hostport = authority.rsplit("@", 1)
+              at = "@"
+          else:
+              userinfo, hostport, at = "", authority, ""
+
+          if hostport.startswith("[") and "]" in hostport:
+              close = hostport.find("]")
+              bracket_host = hostport[1:close]
+              if bracket_host and ".supabase.com" in bracket_host:
+                  hostport = bracket_host + hostport[close + 1:]
+
+          normalized_url = scheme + "://" + userinfo + at + hostport
+          if slash:
+              normalized_url += "/" + path
 
           parsed = urlparse(
               normalized_url.replace("postgresql+psycopg2://", "postgresql://", 1)
           )
           if parsed.scheme not in {"postgresql", "postgres"} or not parsed.hostname:
               raise SystemExit("SUPABASE_DB_URL is not a valid PostgreSQL URL.")
+
           engine = create_engine(
               normalized_url,
               pool_pre_ping=True,
@@ -84,7 +92,7 @@ jobs:
               connection.execute(text("SELECT 1"))
 
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
-              env_file.write(f"SUPABASE_DB_URL={normalized_url}\\n")
+              env_file.write("SUPABASE_DB_URL=" + normalized_url + "\n")
 
           print("Supabase database connection: OK")
           print(
