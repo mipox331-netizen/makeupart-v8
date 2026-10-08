@@ -1,9 +1,10 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_active_user, require_roles
+from app.api.deps import get_current_active_user, is_platform_admin, require_platform_admin, require_roles
 from app.crud.user import (
     create_staff_user,
     delete_user,
@@ -13,10 +14,13 @@ from app.crud.user import (
     update_user,
 )
 from app.db.session import get_db
+from app.models.salon import Salon
+from app.models.subscription import Subscription
 from app.models.user import User, UserRole
-from app.schemas.user import UserCreateStaff, UserOut, UserUpdate
+from app.schemas.user import AdminUserOut, AdminUserStatusUpdate, UserCreateStaff, UserOut, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
+admin_router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
 
 @router.get("/me", response_model=UserOut)
@@ -84,3 +88,74 @@ def remove_staff(
         )
     delete_user(db, target)
     db.commit()
+
+
+def _admin_user_query():
+    return (
+        select(User, Salon, Subscription)
+        .join(Salon, User.salon_id == Salon.id)
+        .outerjoin(Subscription, Subscription.salon_id == Salon.id)
+        .order_by(User.created_at.desc())
+    )
+
+
+def _to_admin_user(
+    user: User,
+    salon: Salon,
+    subscription: Subscription | None,
+) -> AdminUserOut:
+    return AdminUserOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        phone=user.phone,
+        role=user.role,
+        is_active=user.is_active,
+        is_verified=user.is_verified,
+        salon_id=salon.id,
+        salon_name=salon.name,
+        plan=subscription.plan if subscription is not None else salon.subscription_plan.value,
+        subscription_status=subscription.status if subscription is not None else "missing",
+        current_period_end=subscription.current_period_end if subscription is not None else None,
+        is_platform_admin=is_platform_admin(user),
+    )
+
+
+@admin_router.get("", response_model=list[AdminUserOut])
+def list_platform_users(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_platform_admin),
+) -> list[AdminUserOut]:
+    rows = db.execute(_admin_user_query()).all()
+    return [_to_admin_user(user, salon, subscription) for user, salon, subscription in rows]
+
+
+@admin_router.patch("/{user_id}/status", response_model=AdminUserOut)
+def set_platform_user_status(
+    user_id: uuid.UUID,
+    payload: AdminUserStatusUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_platform_admin),
+) -> AdminUserOut:
+    target = db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if target.id == current_admin.id and not payload.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot disable your own admin account",
+        )
+    if is_platform_admin(target) and target.id != current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin accounts cannot be disabled",
+        )
+
+    target.is_active = payload.is_active
+    db.add(target)
+    db.commit()
+
+    row = db.execute(_admin_user_query().where(User.id == target.id)).first()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return _to_admin_user(*row)
