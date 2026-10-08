@@ -16,16 +16,14 @@ jobs:
       contents: read
     env:
       REPOSITORY_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      REPOSITORY_DB_VAR: ${{ vars.SUPABASE_DB_URL }}
     steps:
       - name: Diagnose repository secret scope
         shell: bash
         run: |
           set -euo pipefail
-          if [ -n "${REPOSITORY_DB_URL:-}" ]; then
-            echo "SUPABASE_DB_URL is available at repository scope."
-          else
-            echo "SUPABASE_DB_URL is NOT available at repository scope."
-          fi
+          if [ -n "${REPOSITORY_DB_URL:-}" ]; then echo "SUPABASE_DB_URL secret: available at repository scope."; else echo "SUPABASE_DB_URL secret: NOT available at repository scope."; fi
+          if [ -n "${REPOSITORY_DB_VAR:-}" ]; then echo "SUPABASE_DB_URL variable: available at repository scope."; else echo "SUPABASE_DB_URL variable: NOT available at repository scope."; fi
 
   diagnose-production-secret-scope:
     runs-on: ubuntu-latest
@@ -34,16 +32,14 @@ jobs:
       contents: read
     env:
       PRODUCTION_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PRODUCTION_DB_VAR: ${{ vars.SUPABASE_DB_URL }}
     steps:
       - name: Diagnose production environment secret scope
         shell: bash
         run: |
           set -euo pipefail
-          if [ -n "${PRODUCTION_DB_URL:-}" ]; then
-            echo "SUPABASE_DB_URL is available in production environment."
-          else
-            echo "SUPABASE_DB_URL is NOT available in production environment."
-          fi
+          if [ -n "${PRODUCTION_DB_URL:-}" ]; then echo "SUPABASE_DB_URL secret: available in production environment."; else echo "SUPABASE_DB_URL secret: NOT available in production environment."; fi
+          if [ -n "${PRODUCTION_DB_VAR:-}" ]; then echo "SUPABASE_DB_URL variable: available in production environment."; else echo "SUPABASE_DB_URL variable: NOT available in production environment."; fi
 
   deploy:
     runs-on: ubuntu-latest
