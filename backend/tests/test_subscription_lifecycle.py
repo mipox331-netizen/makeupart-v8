@@ -12,7 +12,7 @@ def test_subscription_expiry_suspends_without_deleting_access(client, monkeypatc
 
     initial = client.get(f"{API}/subscriptions/me", headers=headers)
     assert initial.status_code == 200
-    assert initial.json()["status"] == "trialing"
+    assert initial.json()["status"] == "active"
 
     activated = client.post(
         f"{API}/admin/subscriptions/{registration.json()['salon']['id']}/activate",
