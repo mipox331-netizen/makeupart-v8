@@ -1,9 +1,6 @@
 import uuid
-from datetime import datetime, timedelta, timezone
-
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.models.salon import Salon
 from app.models.subscription import Subscription
 from app.schemas.salon import SalonCreate, SalonUpdate
