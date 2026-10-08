@@ -8,10 +8,12 @@ class RecentImageStore {
   static const _directoryName = 'recent_ai_results';
 
   final Directory? rootOverride;
+  final Directory? phoneRootOverride;
   final String scope;
 
   const RecentImageStore({
     this.rootOverride,
+    this.phoneRootOverride,
     this.scope = 'default',
   });
 
@@ -26,6 +28,32 @@ class RecentImageStore {
     }
     return directory;
   }
+
+  Future<Directory?> _phoneStorageDirectory() async {
+    final override = phoneRootOverride;
+    if (override != null) {
+      final directory = Directory(
+        '${override.path}${Platform.pathSeparator}MakeupArtV8${Platform.pathSeparator}$_safeScope',
+      );
+      await directory.create(recursive: true);
+      return directory;
+    }
+
+    if (!Platform.isAndroid) return null;
+    final directories = await getExternalStorageDirectories(
+      type: StorageDirectory.pictures,
+    );
+    if (directories == null || directories.isEmpty) return null;
+
+    final directory = Directory(
+      '${directories.first.path}${Platform.pathSeparator}MakeupArtV8',
+    );
+    await directory.create(recursive: true);
+    return directory;
+  }
+
+  String get _safeScope =>
+      scope.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
 
   Future<List<File>> list() async {
     final directory = await _directory();
@@ -75,11 +103,29 @@ class RecentImageStore {
       return bModified.compareTo(aModified);
     });
 
-    for (final file in files.skip(maxImages)) {
+    final overflow = files.skip(maxImages);
+    final phoneDirectory = await _phoneStorageDirectory();
+
+    for (final file in overflow) {
       try {
+        if (phoneDirectory == null) {
+          await file.delete();
+          continue;
+        }
+
+        final target = File(
+          '${phoneDirectory.path}${Platform.pathSeparator}${file.uri.pathSegments.last}',
+        );
+        await file.copy(target.path);
         await file.delete();
       } on FileSystemException {
-        // Another cleanup operation may have removed it already.
+        // If phone storage is unavailable, remove the overflow copy rather
+        // than letting private app storage grow without bounds.
+        try {
+          await file.delete();
+        } on FileSystemException {
+          // Another cleanup operation may have removed it already.
+        }
       }
     }
   }

@@ -409,7 +409,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'The 10 latest AI results are kept on this phone. Older app copies are removed automatically.',
+                      'The 10 latest AI results stay in the app. Older results are moved to phone storage automatically.',
                     ),
                     const SizedBox(height: 12),
                     SizedBox(

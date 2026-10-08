@@ -7,7 +7,13 @@ import 'package:makeup_art_v8/services/recent_image_store.dart';
 void main() {
   test('keeps only the ten newest AI results', () async {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_');
-    final store = RecentImageStore(rootOverride: root, scope: 'test-salon');
+    final phoneRoot =
+        await Directory.systemTemp.createTemp('makeupart_phone_');
+    final store = RecentImageStore(
+      rootOverride: root,
+      phoneRootOverride: phoneRoot,
+      scope: 'test-salon',
+    );
 
     try {
       for (var index = 0; index < 12; index++) {
@@ -33,8 +39,19 @@ void main() {
         recent.every((file) => file.existsSync()),
         isTrue,
       );
+
+      final archived = await Directory(
+        '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8${Platform.pathSeparator}test-salon',
+      )
+          .list()
+          .where((entity) => entity is File)
+          .cast<File>()
+          .toList();
+
+      expect(archived.length, 2);
     } finally {
       await root.delete(recursive: true);
+      await phoneRoot.delete(recursive: true);
     }
   });
 }
