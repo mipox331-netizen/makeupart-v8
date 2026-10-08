@@ -19,7 +19,7 @@ jobs:
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL_SECRET || secrets.SUPABASE_DB_URL || secrets.DATABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
@@ -70,31 +70,7 @@ jobs:
           test -n "${SUPABASE_DB_URL:-}" || { echo "SUPABASE_DB_URL secret is missing."; exit 1; }
           test -n "${SUPABASE_SECRET_KEY:-}" || { echo "SUPABASE_SECRET_KEY/SUPABASE_SECRET secret is missing."; exit 1; }
           APP_SECRET_KEY="$(python -c 'import hashlib, os; print(hashlib.sha256(os.environ["SUPABASE_SECRET_KEY"].encode()).hexdigest())')"
-          modal secret create --force -e main makeupart-v8-production \
-            "SECRET_KEY=${APP_SECRET_KEY}" \
-            "DATABASE_URL=${SUPABASE_DB_URL}" \
-            "ENVIRONMENT=production" \
-            "PROJECT_NAME=MakeupArt V8" \
-            "API_V1_STR=/api/v1" \
-            "ALGORITHM=HS256" \
-            "ACCESS_TOKEN_EXPIRE_MINUTES=30" \
-            "REFRESH_TOKEN_EXPIRE_DAYS=30" \
-            "CORS_ORIGINS=https://riakbjcxcaqjaqagncmu.supabase.co" \
-            "MEDIA_ROOT=/app/media" \
-            "INSIGHTFACE_ROOT=/home/app/.insightface" \
-            "MAX_UPLOAD_BYTES=10485760" \
-            "MAX_IMAGE_PIXELS=40000000" \
-            "DB_POOL_SIZE=5" \
-            "DB_MAX_OVERFLOW=10" \
-            "DB_POOL_RECYCLE_SECONDS=1800" \
-            "LOG_LEVEL=INFO" \
-            "MEDIA_RETENTION_DAYS=30" \
-            "REFRESH_SESSION_RETENTION_DAYS=7" \
-            "SUBSCRIPTION_TRIAL_DAYS=30" \
-            "PLATFORM_ADMIN_EMAILS=" \
-            "SUPABASE_URL=https://riakbjcxcaqjaqagncmu.supabase.co" \
-            "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" \
-            "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SECRET}"
+          modal secret create --force -e main makeupart-v8-production             "SECRET_KEY=${APP_SECRET_KEY}"             "DATABASE_URL=${SUPABASE_DB_URL}"             "ENVIRONMENT=production"             "PROJECT_NAME=MakeupArt V8"             "API_V1_STR=/api/v1"             "ALGORITHM=HS256"             "ACCESS_TOKEN_EXPIRE_MINUTES=30"             "REFRESH_TOKEN_EXPIRE_DAYS=30"             "CORS_ORIGINS=https://riakbjcxcaqjaqagncmu.supabase.co"             "MEDIA_ROOT=/app/media"             "INSIGHTFACE_ROOT=/home/app/.insightface"             "MAX_UPLOAD_BYTES=10485760"             "MAX_IMAGE_PIXELS=40000000"             "DB_POOL_SIZE=5"             "DB_MAX_OVERFLOW=10"             "DB_POOL_RECYCLE_SECONDS=1800"             "LOG_LEVEL=INFO"             "MEDIA_RETENTION_DAYS=30"             "REFRESH_SESSION_RETENTION_DAYS=7"             "SUBSCRIPTION_TRIAL_DAYS=30"             "PLATFORM_ADMIN_EMAILS="             "SUPABASE_URL=https://riakbjcxcaqjaqagncmu.supabase.co"             "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}"             "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SECRET}"
 
       - name: Deploy FastAPI
         run: modal deploy modal_app.py
