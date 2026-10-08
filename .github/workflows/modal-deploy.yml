@@ -104,7 +104,12 @@ jobs:
           if port:
               connect_kwargs["port"] = int(port)
           if user is not None:
-              connect_kwargs["user"] = unquote(user)
+              user = unquote(user)
+              # Supabase shared pooler requires the project ref in the username.
+              # Accept a legacy "postgres" secret and normalize it automatically.
+              if host.endswith(".pooler.supabase.com") and user == "postgres":
+                  user = "postgres.riakbjcxcaqjaqagncmu"
+              connect_kwargs["user"] = user
           if password is not None:
               connect_kwargs["password"] = unquote(password)
           if database:
