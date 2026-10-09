@@ -7,15 +7,159 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      secret_environment:
+        description: "Optional GitHub environment that stores the production deployment secrets"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: makeupart-v8-modal-production
   cancel-in-progress: false
 
 jobs:
+  discover-environments:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      deployments: read
+    outputs:
+      environments: ${{ steps.envs.outputs.environments }}
+    steps:
+      - name: Discover repository environments
+        id: envs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_ENVIRONMENT: ${{ inputs.secret_environment || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$MANUAL_ENVIRONMENT" ]; then
+            names="$MANUAL_ENVIRONMENT"
+            echo "Using manually selected GitHub environment."
+          else
+            names="$(gh api --paginate "repos/$GITHUB_REPOSITORY/environments" --jq '.environments[].name' || true)"
+          fi
+          export ENV_NAMES="$names"
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          names = [line.strip() for line in os.environ.get("ENV_NAMES", "").splitlines() if line.strip()]
+          if "production" not in {name.lower() for name in names}:
+              names.append("production")
+          print("environments=" + json.dumps(sorted(set(names)), separators=(",", ":")))
+          PY
+
+  probe-db-secret:
+    needs: discover-environments
+    if: ${{ needs.discover-environments.outputs.environments != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.discover-environments.outputs.environments) }}
+    environment: ${{ matrix.environment }}
+    permissions:
+      contents: read
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_URL_SECRET: ${{ secrets.SUPABASE_DB_URL_SECRET }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
+      SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
+    steps:
+      - name: Check required secret presence without exposing values
+        shell: bash
+        env:
+          TARGET_ENVIRONMENT: ${{ matrix.environment }}
+          PROBE_INDEX: ${{ strategy.job-index }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          env = os.environ
+          result = {
+              "environment": env["TARGET_ENVIRONMENT"],
+              "database": any(env.get(k, "").strip() for k in ("SUPABASE_DB_URL", "SUPABASE_DB_URL_SECRET", "DATABASE_URL")),
+              "modal_id": bool(env.get("MODAL_TOKEN_ID", "").strip()),
+              "modal_secret": bool(env.get("MODAL_TOKEN_SECRET", "").strip()),
+              "supabase_app_secret": bool(env.get("SUPABASE_SECRET_KEY", "").strip()),
+              "supabase_service_role": bool(env.get("SUPABASE_SECRET", "").strip()),
+          }
+          filename = f"secret-scope-{env['PROBE_INDEX']}.json"
+          with open(filename, "w", encoding="utf-8") as handle:
+              json.dump(result, handle)
+          required = ("database", "modal_id", "modal_secret", "supabase_app_secret", "supabase_service_role")
+          print(f"Environment '{result['environment']}' has required deployment secrets: {all(result[k] for k in required)}")
+          PY
+
+      - name: Upload secret scope result
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-secret-probe-${{ strategy.job-index }}
+          path: secret-scope-${{ strategy.job-index }}.json
+          if-no-files-found: error
+          retention-days: 1
+
+  select-db-environment:
+    needs: probe-db-secret
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      environment: ${{ steps.select.outputs.environment }}
+    steps:
+      - name: Download secret scope results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: db-secret-probe-*
+          path: probes
+          merge-multiple: true
+
+      - name: Select environment containing deployment secrets
+        id: select
+        shell: bash
+        run: |
+          set -euo pipefail
+          selected="$(python - <<'PY'
+          import glob
+          import json
+          candidates = []
+          seen = []
+          required = ("database", "modal_id", "modal_secret", "supabase_app_secret", "supabase_service_role")
+          for path in glob.glob("probes/secret-scope-*.json"):
+              with open(path, encoding="utf-8") as handle:
+                  result = json.load(handle)
+              seen.append(result)
+              if all(result.get(key) for key in required):
+                  candidates.append(result["environment"])
+          candidates = sorted(set(candidates), key=lambda value: (value.lower() != "production", value.lower()))
+          if candidates:
+              print(candidates[0])
+          else:
+              print("No single GitHub environment contains the required deployment secrets.", flush=True)
+              for row in seen:
+                  ready = ",".join(key for key in required if row.get(key))
+                  print(f"Environment '{row.get('environment', '?')}': available={ready or 'none'}", flush=True)
+              raise SystemExit(2)
+          PY
+          )"
+          if [ -z "$selected" ]; then
+            echo "Unable to select a GitHub environment for production deployment."
+            exit 1
+          fi
+          echo "Selected GitHub environment: $selected"
+          echo "environment=$selected" >> "$GITHUB_OUTPUT"
+
   deploy:
     runs-on: ubuntu-latest
-    environment: production
+    needs: select-db-environment
+    environment: ${{ needs.select-db-environment.outputs.environment }}
     permissions:
       contents: read
 

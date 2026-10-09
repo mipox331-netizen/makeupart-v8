@@ -107,24 +107,27 @@ class RecentImageStore {
     final phoneDirectory = await _phoneStorageDirectory();
 
     for (final file in overflow) {
+      File? target;
       try {
         if (phoneDirectory == null) {
-          await file.delete();
+          // Preserve older photos when external phone storage is unavailable.
+          // They may temporarily remain in app storage until archiving succeeds.
           continue;
         }
 
-        final target = File(
+        target = File(
           '${phoneDirectory.path}${Platform.pathSeparator}${file.uri.pathSegments.last}',
         );
         await file.copy(target.path);
         await file.delete();
       } on FileSystemException {
-        // If phone storage is unavailable, remove the overflow copy rather
-        // than letting private app storage grow without bounds.
-        try {
-          await file.delete();
-        } on FileSystemException {
-          // Another cleanup operation may have removed it already.
+        // Never delete the only remaining copy if archiving fails.
+        if (target != null) {
+          try {
+            await target.delete();
+          } on FileSystemException {
+            // The partial archive may already have been removed.
+          }
         }
       }
     }
