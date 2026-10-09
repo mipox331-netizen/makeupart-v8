@@ -42,16 +42,24 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Validate release signing secrets
+      - name: Determine Android signing mode
+        id: signing
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "Missing GitHub secret ANDROID_KEYSTORE_BASE64"; exit 1; }
-          test -n "$ANDROID_STORE_PASSWORD" || { echo "Missing GitHub secret ANDROID_STORE_PASSWORD"; exit 1; }
-          test -n "$ANDROID_KEY_PASSWORD" || { echo "Missing GitHub secret ANDROID_KEY_PASSWORD"; exit 1; }
-          test -n "$ANDROID_KEY_ALIAS" || { echo "Missing GitHub secret ANDROID_KEY_ALIAS"; exit 1; }
+          if [[ -n "${ANDROID_KEYSTORE_BASE64:-}" && -n "${ANDROID_STORE_PASSWORD:-}" && -n "${ANDROID_KEY_PASSWORD:-}" && -n "${ANDROID_KEY_ALIAS:-}" ]]; then
+            echo "use_signing=true" >> "$GITHUB_OUTPUT"
+            echo "Configured Android release signing is available."
+          elif [[ -z "${ANDROID_KEYSTORE_BASE64:-}" && -z "${ANDROID_STORE_PASSWORD:-}" && -z "${ANDROID_KEY_PASSWORD:-}" && -z "${ANDROID_KEY_ALIAS:-}" ]]; then
+            echo "use_signing=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Android release signing secrets are not configured. Building a release-mode APK with Flutter's debug signing key; this supports manual installation, not Play Store publication."
+          else
+            echo "::error::Android signing secrets are incomplete. Configure all four secrets or remove all four to use the installable debug-signing fallback."
+            exit 1
+          fi
 
       - name: Configure Android signing
+        if: steps.signing.outputs.use_signing == 'true'
         working-directory: makeup_art_v8/android
         shell: bash
         run: |
