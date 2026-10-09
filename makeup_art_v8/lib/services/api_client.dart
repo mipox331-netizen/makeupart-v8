@@ -133,19 +133,16 @@ class ApiClient {
     required String password,
     String? phone,
   }) async {
-    final normalizedEmail = email.trim().toLowerCase();
     await dio.post(
       '/auth/register',
       data: {
         'salon_name': salonName,
         'owner_full_name': ownerFullName,
-        'email': normalizedEmail,
+        'email': email,
         'password': password,
         if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
       },
     );
-    // Registration does not issue tokens on the backend; sign in before notifying the UI.
-    await login(normalizedEmail, password);
   }
 
   Future<List<Map<String, dynamic>>> listCustomers() async {
