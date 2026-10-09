@@ -7,6 +7,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      secret_environment:
+        description: "Optional GitHub environment that stores the production deployment secrets"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: makeupart-v8-modal-production
@@ -27,9 +33,15 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          MANUAL_ENVIRONMENT: ${{ inputs.secret_environment || '' }}
         run: |
           set -euo pipefail
-          names="$(gh api --paginate "repos/$GITHUB_REPOSITORY/environments" --jq '.environments[].name' || true)"
+          if [ -n "$MANUAL_ENVIRONMENT" ]; then
+            names="$MANUAL_ENVIRONMENT"
+            echo "Using manually selected GitHub environment."
+          else
+            names="$(gh api --paginate "repos/$GITHUB_REPOSITORY/environments" --jq '.environments[].name' || true)"
+          fi
           export ENV_NAMES="$names"
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json
