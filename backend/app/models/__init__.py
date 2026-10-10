@@ -2,6 +2,7 @@ from app.models.beauty_job import BeautyJob
 from app.models.beauty_result import BeautyResult
 from app.models.consent import ConsentRecord
 from app.models.consultation import Consultation
+from app.models.login_attempt import LoginAttempt
 from app.models.customer import Customer
 from app.models.refresh_session import RefreshSession
 from app.models.salon import Salon
@@ -14,6 +15,7 @@ __all__ = [
     "BeautyResult",
     "ConsentRecord",
     "Consultation",
+    "LoginAttempt",
     "Customer",
     "RefreshSession",
     "Salon",
