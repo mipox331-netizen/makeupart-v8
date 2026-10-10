@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:makeup_art_v8/main.dart';
+import 'package:makeup_art_v8/pages/beauty_page.dart';
 import 'package:makeup_art_v8/pages/register_page.dart';
 import 'package:makeup_art_v8/services/api_client.dart';
 
@@ -28,6 +29,18 @@ class _FakeRegistrationApi extends ApiClient {
   Future<void> login(String email, String password) async {
     if (loginFailure != null) throw loginFailure!;
   }
+}
+
+class _ConsentTestApi extends ApiClient {
+  @override
+  Future<List<Map<String, dynamic>>> listCustomers() async => [
+        {'id': 'customer-a', 'first_name': 'Alice', 'last_name': 'One'},
+        {'id': 'customer-b', 'first_name': 'Bob', 'last_name': 'Two'},
+      ];
+
+  @override
+  Future<Map<String, dynamic>?> getActiveConsent(String customerId) async =>
+      {'id': 'stored-consent', 'customer_id': customerId};
 }
 
 DioException _responseError(int status, Object data) {
@@ -94,4 +107,35 @@ void main() {
     expect(find.text('Back to sign in'), findsWidgets);
     expect(didAuthenticate, isFalse);
   });
+  testWidgets('switching clients clears the previous consent confirmation', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BeautyPage(
+          api: _ConsentTestApi(),
+          onLogout: () {},
+          salonId: 'salon-a',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final consentTile = find.byType(CheckboxListTile);
+    expect(tester.widget<CheckboxListTile>(consentTile).value, isFalse);
+
+    await tester.ensureVisible(consentTile);
+    await tester.tap(consentTile);
+    await tester.pumpAndSettle();
+    expect(tester.widget<CheckboxListTile>(consentTile).value, isTrue);
+
+    final customerDropdown = find.byType(DropdownButtonFormField<String>);
+    await tester.ensureVisible(customerDropdown);
+    await tester.tap(customerDropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alice One').last);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<CheckboxListTile>(consentTile).value, isFalse);
+    expect(find.text('AI consent is active'), findsOneWidget);
+  });
+
 }
