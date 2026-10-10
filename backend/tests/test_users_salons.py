@@ -44,6 +44,21 @@ def test_staff_can_login_but_cannot_manage_users(client):
     ).status_code == 403
 
 
+def test_staff_creation_rejects_password_over_bcrypt_utf8_byte_limit(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    response = client.post(
+        f"{API}/users",
+        headers=headers,
+        json={
+            "email": "long-password-staff@salon.com",
+            "full_name": "Staff Member",
+            "password": "é" * 37,
+        },
+    )
+    assert response.status_code == 422
+
+
 def test_staff_creation_rejects_duplicate_email(client):
     register(client)
     headers = auth_headers(client, "owner@salon.com")
