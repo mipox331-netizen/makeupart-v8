@@ -63,7 +63,9 @@ def verify_migration_head():
     from alembic.config import Config
     from alembic.migration import MigrationContext
     from alembic.script import ScriptDirectory
+    from sqlalchemy import inspect
 
+    from app.db.base import Base
     from app.db.session import engine
 
     alembic_config = Config("/app/alembic.ini")
@@ -71,11 +73,17 @@ def verify_migration_head():
     heads = script.get_heads()
     with engine.connect() as connection:
         current = MigrationContext.configure(connection).get_current_revision()
+        existing_tables = set(inspect(connection).get_table_names())
 
     if len(heads) != 1 or current != heads[0]:
         raise RuntimeError(f"Migration head mismatch: expected {heads}, current {current!r}")
 
-    print(f"Migration head confirmed: {current}")
+    required_tables = set(Base.metadata.tables)
+    missing_tables = sorted(required_tables - existing_tables)
+    if missing_tables:
+        raise RuntimeError(f"Database schema is incomplete; missing tables: {missing_tables}")
+
+    print(f"Migration head confirmed: {current}; required tables verified: {len(required_tables)}")
 
 
 @app.function(
