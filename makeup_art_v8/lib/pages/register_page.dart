@@ -200,8 +200,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     : Text(accountCreated ? 'Back to sign in' : 'Create account'),
               ),
             ),
-            if (error != null &&
-                (accountCreated || error!.contains('already has an account'))) ...[
+            if (error != null && error!.contains('already has an account')) ...[
               const SizedBox(height: 8),
               TextButton(
                 onPressed: loading ? null : () => Navigator.of(context).pop(),
