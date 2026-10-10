@@ -366,30 +366,49 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          modal server logs makeupart-v8-api/fastapi_app -e main --since 30m --tail 1000 --timestamps > /tmp/modal-app-logs.txt 2>&1 || true
           python - <<'PY'
           import os
           import re
+          import subprocess
           from pathlib import Path
 
+          sources = [
+              ("server", ["modal", "server", "logs", "makeupart-v8-api/fastapi_app", "-e", "main", "--since", "1h", "--tail", "1000", "--timestamps"]),
+              ("function", ["modal", "function", "logs", "makeupart-v8-api/fastapi_app", "-e", "main", "--since", "1h", "--tail", "1000", "--timestamps"]),
+              ("app", ["modal", "app", "logs", "makeupart-v8-api", "-e", "main", "--since", "1h", "--tail", "1000", "--timestamps"]),
+          ]
+          chunks = []
+          for name, command in sources:
+              try:
+                  result = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False)
+                  content = (result.stdout or "") + "\\n" + (result.stderr or "")
+                  chunks.append((name, result.returncode, content))
+              except Exception as exc:
+                  chunks.append((name, 99, type(exc).__name__))
           request_id = os.environ.get("PROD_SMOKE_REQUEST_ID", "")
-          lines = Path("/tmp/modal-app-logs.txt").read_text(encoding="utf-8", errors="replace").splitlines()
-          matches = [i for i, line in enumerate(lines) if request_id and request_id in line]
-          if not matches:
-              print("No Modal log line matched the failing request ID; no runtime log details are exposed.")
-          for index in matches[-3:]:
-              print("Matched production request ID:", request_id)
-              block = lines[index:min(index + 60, len(lines))]
-              frame_count = 0
-              for line in block:
-                  frame = re.search(r'File "([^"]+)", line (\d+), in ([^ ]+)', line)
-                  if frame and frame_count < 12:
-                      print(f"Trace frame: {Path(frame.group(1)).name}:{frame.group(2)} in {frame.group(3)}")
-                      frame_count += 1
-                  stripped = line.strip()
-                  error = re.search(r'([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Failure|Violation))(?::|$)', stripped)
-                  if error:
-                      print("Exception class:", error.group(1))
+          found = False
+          for name, code, content in chunks:
+              lines = content.splitlines()
+              matches = [i for i, line in enumerate(lines) if request_id and request_id in line]
+              if matches:
+                  found = True
+                  for index in matches[-3:]:
+                      print(f"Matched production request ID in Modal {name} logs:", request_id)
+                      block = lines[index:min(index + 60, len(lines))]
+                      frame_count = 0
+                      for line in block:
+                          frame = re.search(r'File "([^"]+)", line (\\d+), in ([^ ]+)', line)
+                          if frame and frame_count < 12:
+                              print(f"Trace frame: {Path(frame.group(1)).name}:{frame.group(2)} in {frame.group(3)}")
+                              frame_count += 1
+                          error = re.search(r'([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Failure|Violation))(?::|$)', line.strip())
+                          if error:
+                              print("Exception class:", error.group(1))
+              else:
+                  diagnostic = next((line.strip() for line in lines if re.search(r"Usage:|Error:|not found|not authorized|No such", line, re.I)), "")
+                  print(f"Modal {name} logs: request_id_match=False, exit={code}, lines={len(lines)}, diagnostic={diagnostic[:160]!r}")
+          if not found:
+              print("No Modal log source matched the request ID; only safe command diagnostics were emitted.")
           PY
 
       - name: Show deployed app
