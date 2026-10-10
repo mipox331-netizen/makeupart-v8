@@ -43,6 +43,19 @@ def test_register_rejects_short_password(client):
     assert response.status_code == 422
 
 
+def test_register_rejects_password_over_bcrypt_utf8_byte_limit(client):
+    response = client.post(
+        f"{API}/auth/register",
+        json={
+            "salon_name": "Salon",
+            "owner_full_name": "Owner",
+            "email": "long-password@salon.com",
+            "password": "é" * 37,
+        },
+    )
+    assert response.status_code == 422
+
+
 def test_login_success(client):
     register(client)
     response = login(client, "owner@salon.com")
