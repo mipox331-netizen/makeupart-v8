@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
@@ -23,6 +24,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final phone = TextEditingController();
   final password = TextEditingController();
   bool loading = false;
+  bool accountCreated = false;
   String? error;
 
   @override
@@ -35,12 +37,54 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
   }
 
+  String _registrationError(Object exception) {
+    if (exception is! DioException) {
+      return 'Could not create the account. Please try again.';
+    }
+
+    final statusCode = exception.response?.statusCode;
+    final data = exception.response?.data;
+    final detail = data is Map ? data['detail'] : null;
+
+    if (statusCode == 409) {
+      return 'This email already has an account. Go back and sign in, or use another email.';
+    }
+    if (statusCode == 422 && detail is List) {
+      final messages = detail.whereType<Map>().map((item) {
+        final location = item['loc'];
+        final field = location is List && location.isNotEmpty
+            ? location.last.toString().replaceAll('_', ' ')
+            : 'field';
+        final message = (item['msg'] ?? 'is invalid').toString();
+        return '$field: $message';
+      }).toList();
+      if (messages.isNotEmpty) {
+        return 'Please correct these details: ${messages.join('; ')}';
+      }
+    }
+    if (detail is String && detail.trim().isNotEmpty) {
+      return detail.trim();
+    }
+    if (exception.response == null) {
+      return 'Cannot reach the MakeupArt server. Check your internet connection and try again.';
+    }
+    if (statusCode != null && statusCode >= 500) {
+      return 'The server could not create the account just now. Please try again shortly.';
+    }
+    return 'The account details were rejected. Check the email and password, then try again.';
+  }
+
   Future<void> submit() async {
-    if (salonName.text.trim().isEmpty ||
-        ownerName.text.trim().isEmpty ||
+    if (accountCreated) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    if (salonName.text.trim().length < 2 ||
+        ownerName.text.trim().length < 2 ||
         email.text.trim().isEmpty ||
         password.text.length < 8) {
-      setState(() => error = 'Fill all required fields. Password must be 8+ characters.');
+      setState(() => error = 'Enter a salon name and owner name (at least 2 characters), a valid email, and a password of 8+ characters.');
       return;
     }
 
@@ -50,21 +94,36 @@ class _RegisterPageState extends State<RegisterPage> {
     });
 
     try {
-      await widget.api.register(
-        salonName: salonName.text.trim(),
-        ownerFullName: ownerName.text.trim(),
-        email: email.text.trim(),
-        password: password.text,
-        phone: phone.text,
-      );
-      await widget.api.login(email.text.trim(), password.text);
+      try {
+        await widget.api.register(
+          salonName: salonName.text.trim(),
+          ownerFullName: ownerName.text.trim(),
+          email: email.text.trim(),
+          password: password.text,
+          phone: phone.text,
+        );
+      } catch (exception) {
+        if (mounted) {
+          setState(() => error = _registrationError(exception));
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() => accountCreated = true);
+
+      try {
+        await widget.api.login(email.text.trim(), password.text);
+      } catch (_) {
+        if (mounted) {
+          setState(() => error = 'Your account was created successfully, but automatic sign-in failed. Go back and sign in using this email and password.');
+        }
+        return;
+      }
+
       if (!mounted) return;
       Navigator.of(context).pop();
       widget.onRegistered();
-    } catch (_) {
-      if (mounted) {
-        setState(() => error = 'Registration failed. Check the details and API connection.');
-      }
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -138,9 +197,16 @@ class _RegisterPageState extends State<RegisterPage> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Create account'),
+                    : Text(accountCreated ? 'Back to sign in' : 'Create account'),
               ),
             ),
+            if (error != null && error!.contains('already has an account')) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: loading ? null : () => Navigator.of(context).pop(),
+                child: const Text('Back to sign in'),
+              ),
+            ],
           ],
         ),
       ),
