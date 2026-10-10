@@ -6,6 +6,7 @@ from sqlalchemy import delete, or_
 
 from app.core.config import settings
 from app.db.session import SessionLocal
+from app.models.login_attempt import LoginAttempt
 from app.models.refresh_session import RefreshSession
 
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -49,13 +50,23 @@ def cleanup_refresh_sessions() -> int:
         return int(result.rowcount or 0)
 
 
+def cleanup_login_attempts() -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    with SessionLocal() as db:
+        result = db.execute(delete(LoginAttempt).where(LoginAttempt.window_started_at < cutoff))
+        db.commit()
+        return int(result.rowcount or 0)
+
+
 def main() -> None:
     media_removed = cleanup_media()
     sessions_removed = cleanup_refresh_sessions()
+    attempts_removed = cleanup_login_attempts()
     logger.info(
-        "Cleanup complete: media_removed=%s refresh_sessions_removed=%s",
+        "Cleanup complete: media_removed=%s refresh_sessions_removed=%s login_attempts_removed=%s",
         media_removed,
         sessions_removed,
+        attempts_removed,
     )
 
 
