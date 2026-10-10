@@ -76,4 +76,4 @@ The primary cloud deployment is Modal + Supabase. Android production builds use 
 
 Project administration is controlled by the production secret `PLATFORM_ADMIN_EMAILS` (comma-separated e-mail addresses). Platform admins can view users, see blocked accounts, block/unblock users, and manage salon subscriptions.
 
-All newly registered salons start on a permanent Free plan with a monthly AI-processing quota; no payment is required to start using the app.
+All newly registered salons start on a permanent Free plan with no monthly AI-processing quota and no mandatory payment. Basic and Pro plans have their own quotas; infrastructure capacity and abuse-prevention safeguards may still apply.
