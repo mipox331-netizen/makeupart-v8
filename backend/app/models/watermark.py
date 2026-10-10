@@ -11,7 +11,11 @@ class Watermark(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     salon_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False, index=True
+        Uuid(as_uuid=True),
+        ForeignKey("salons.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
     )
     logo_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     salon_name: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
