@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Uuid
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, TimestampMixin
@@ -8,14 +8,14 @@ from app.db.base_class import Base, TimestampMixin
 
 class Watermark(TimestampMixin, Base):
     __tablename__ = "watermarks"
+    __table_args__ = (
+        UniqueConstraint("salon_id", name="watermarks_salon_id_key"),
+        Index("ix_watermarks_salon_id", "salon_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     salon_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("salons.id", ondelete="CASCADE"),
-        nullable=False,
-        unique=True,
-        index=True,
+        Uuid(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False
     )
     logo_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     salon_name: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
