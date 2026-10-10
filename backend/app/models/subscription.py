@@ -12,7 +12,11 @@ class Subscription(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     salon_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False, index=True
+        Uuid(as_uuid=True),
+        ForeignKey("salons.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
     )
     plan: Mapped[str] = mapped_column(String(50), default="free", nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="trialing", nullable=False)
