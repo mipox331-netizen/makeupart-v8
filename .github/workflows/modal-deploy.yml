@@ -397,10 +397,16 @@ jobs:
                       block = lines[index:min(index + 60, len(lines))]
                       frame_count = 0
                       for line in block:
-                          frame = re.search(r'File "([^"]+)", line (\\d+), in ([^ ]+)', line)
+                          frame = re.search(r'File "([^"]+)", line (\d+), in ([^ ]+)', line)
                           if frame and frame_count < 12:
                               print(f"Trace frame: {Path(frame.group(1)).name}:{frame.group(2)} in {frame.group(3)}")
                               frame_count += 1
+                          not_null = re.search(r'null value in column "([^"]+)" of relation "([^"]+)" violates not-null constraint', line, re.I)
+                          if not_null:
+                              print(f"PostgreSQL NOT NULL violation: table={not_null.group(2)} column={not_null.group(1)}")
+                          constraint = re.search(r'constraint "([^"]+)"', line, re.I)
+                          if constraint and ("violation" in line.lower() or "violates" in line.lower()):
+                              print(f"Database constraint: {constraint.group(1)}")
                           error = re.search(r'([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Failure|Violation))(?::|$)', line.strip())
                           if error:
                               print("Exception class:", error.group(1))
