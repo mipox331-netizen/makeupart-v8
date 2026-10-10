@@ -31,7 +31,7 @@ class RecentImageStore {
 
   Future<Directory> _scopedPhoneStorageDirectory(String parentPath) async {
     final directory = Directory(
-      '${parentPath}${Platform.pathSeparator}MakeupArtV8${Platform.pathSeparator}$_safeScope',
+      '$parentPath${Platform.pathSeparator}MakeupArtV8${Platform.pathSeparator}$_safeScope',
     );
     await directory.create(recursive: true);
     return directory;
