@@ -366,7 +366,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          modal server logs makeupart-v8-api/fastapi_app -e main --since 30m --tail 1000 --timestamps > /tmp/modal-app-logs.txt 2>/dev/null || true
+          modal server logs makeupart-v8-api/fastapi_app -e main --since 30m --tail 1000 --timestamps > /tmp/modal-app-logs.txt 2>&1 || true
           python - <<'PY'
           import os
           import re
