@@ -29,14 +29,18 @@ class RecentImageStore {
     return directory;
   }
 
+  Future<Directory> _scopedPhoneStorageDirectory(String parentPath) async {
+    final directory = Directory(
+      '${parentPath}${Platform.pathSeparator}MakeupArtV8${Platform.pathSeparator}$_safeScope',
+    );
+    await directory.create(recursive: true);
+    return directory;
+  }
+
   Future<Directory?> _phoneStorageDirectory() async {
     final override = phoneRootOverride;
     if (override != null) {
-      final directory = Directory(
-        '${override.path}${Platform.pathSeparator}MakeupArtV8${Platform.pathSeparator}$_safeScope',
-      );
-      await directory.create(recursive: true);
-      return directory;
+      return _scopedPhoneStorageDirectory(override.path);
     }
 
     if (!Platform.isAndroid) return null;
@@ -45,11 +49,8 @@ class RecentImageStore {
     );
     if (directories == null || directories.isEmpty) return null;
 
-    final directory = Directory(
-      '${directories.first.path}${Platform.pathSeparator}MakeupArtV8',
-    );
-    await directory.create(recursive: true);
-    return directory;
+    // Isolate archived client photos by salon on the device as well as in app storage.
+    return _scopedPhoneStorageDirectory(directories.first.path);
   }
 
   String get _safeScope =>
