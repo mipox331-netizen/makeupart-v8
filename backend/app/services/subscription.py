@@ -12,8 +12,7 @@ from app.models.user import User
 from app.schemas.subscription import AdminSubscriptionOut
 
 PLAN_LIMITS: dict[SubscriptionPlan, int | None] = {
-    # Free remains available without a monthly AI-processing quota.
-    SubscriptionPlan.FREE: None,
+    SubscriptionPlan.FREE: 25,
     SubscriptionPlan.BASIC: 250,
     SubscriptionPlan.PRO: 1000,
     SubscriptionPlan.ENTERPRISE: None,

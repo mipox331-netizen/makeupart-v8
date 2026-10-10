@@ -14,24 +14,10 @@ def test_subscription_usage_defaults_to_permanent_free(client):
     body = response.json()
     assert body["plan"] == "free"
     assert body["status"] == "active"
-    assert body["monthly_limit"] is None
+    assert body["monthly_limit"] == 25
     assert body["used"] == 0
-    assert body["remaining"] is None
+    assert body["remaining"] == 25
     assert body["current_period_end"] is None
-
-
-def test_free_plan_has_no_monthly_ai_quota(client):
-    register(client)
-    response = client.get(
-        f"{API}/subscriptions/me",
-        headers=auth_headers(client, "owner@salon.com"),
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["plan"] == "free"
-    assert body["monthly_limit"] is None
-    assert body["remaining"] is None
 
 
 def test_beauty_quota_blocks_processing_after_limit(client, monkeypatch, tmp_path):
