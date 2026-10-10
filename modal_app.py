@@ -111,9 +111,39 @@ def verify_runtime():
     cpu=2.0,
     memory=4096,
     timeout=1200,
+    # The current named media Volume uses snapshot commits; avoid API container
+    # snapshots overwriting one another while a concurrency-safe store is planned.
+    max_containers=1,
 )
 @modal.asgi_app()
 def fastapi_app():
+    from app.services.media_volume import configure_media_volume
+
+    configure_media_volume(commit=media_volume.commit)
     from app.main import app
 
     return app
+
+
+@app.function(
+    image=image,
+    secrets=[production_secret],
+    volumes={"/app/media": media_volume},
+    schedule=modal.Cron("0 2 * * *"),
+    timeout=900,
+    retries=0,
+)
+def scheduled_cleanup():
+    # Refresh the mounted snapshot before deleting expired files, then persist deletions.
+    media_volume.reload()
+    from scripts.cleanup import cleanup_login_attempts, cleanup_media, cleanup_refresh_sessions
+
+    media_removed = cleanup_media()
+    sessions_removed = cleanup_refresh_sessions()
+    attempts_removed = cleanup_login_attempts()
+    media_volume.commit()
+    print(
+        "Scheduled cleanup complete: "
+        f"media_removed={media_removed}, refresh_sessions_removed={sessions_removed}, "
+        f"login_attempts_removed={attempts_removed}"
+    )
