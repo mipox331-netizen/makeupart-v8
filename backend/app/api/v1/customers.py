@@ -15,6 +15,7 @@ from app.models.consultation import Consultation
 from app.models.customer import Customer
 from app.models.user import User, UserRole
 from app.schemas.customer import CustomerCreate, CustomerOut, CustomerUpdate
+from app.services.media_volume import commit_media_volume
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -118,4 +119,6 @@ def delete_customer_record(
         )
     )
     db.delete(customer)
+    # Persist removed media on the mounted production volume as well.
+    commit_media_volume()
     db.commit()
