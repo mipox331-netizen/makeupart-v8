@@ -127,6 +127,9 @@ jobs:
       - name: Run migrations
         run: docker compose run --rm backend alembic upgrade head
 
+      - name: Check for missing Alembic migrations
+        run: docker compose run --rm backend alembic check
+
       - name: Run backend tests
         run: docker compose run --rm backend pytest -q
 

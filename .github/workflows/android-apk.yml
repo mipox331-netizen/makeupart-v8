@@ -67,10 +67,14 @@ jobs:
           python - <<'PY'
           import base64, os, re
           raw = os.environ["ANDROID_KEYSTORE_BASE64"]
-          compact = re.sub(r"[^A-Za-z0-9+/=]", "", raw)
-          compact = compact.rstrip("=")
+          compact = re.sub(r"\s+", "", raw).rstrip("=")
+          if not compact or re.search(r"[^A-Za-z0-9+/]", compact):
+              raise SystemExit("ANDROID_KEYSTORE_BASE64 contains invalid base64 characters")
           compact += "=" * ((4 - len(compact) % 4) % 4)
-          data = base64.b64decode(compact, validate=False)
+          try:
+              data = base64.b64decode(compact, validate=True)
+          except Exception as exc:
+              raise SystemExit("ANDROID_KEYSTORE_BASE64 is not valid base64") from exc
           if len(data) < 1024:
               raise SystemExit("Decoded keystore is unexpectedly small")
           with open("app/upload-keystore.jks", "wb") as fh:

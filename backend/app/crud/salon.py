@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.salon import Salon
@@ -15,6 +16,8 @@ def create_salon(db: Session, salon_in: SalonCreate) -> Salon:
             salon_id=salon.id,
             plan=salon.subscription_plan.value,
             status="active",
+            usage_period_start=datetime.now(timezone.utc).date().replace(day=1),
+            beauty_jobs_used=0,
             current_period_end=None,
         )
     )

@@ -71,7 +71,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > upload-keystore.jks
+          python - <<'PY'
+          import base64
+          import os
+          import re
+
+          raw = os.environ["ANDROID_KEYSTORE_BASE64"]
+          compact = re.sub(r"\s+", "", raw).rstrip("=")
+          if not compact or re.search(r"[^A-Za-z0-9+/]", compact):
+              raise SystemExit("ANDROID_KEYSTORE_BASE64 contains invalid base64 characters")
+          compact += "=" * ((4 - len(compact) % 4) % 4)
+          try:
+              data = base64.b64decode(compact, validate=True)
+          except Exception as exc:
+              raise SystemExit("ANDROID_KEYSTORE_BASE64 is not valid base64") from exc
+          if len(data) < 1024:
+              raise SystemExit("Decoded Android keystore is unexpectedly small")
+          with open("app/upload-keystore.jks", "wb") as fh:
+              fh.write(data)
+          PY
+          keytool -list -keystore app/upload-keystore.jks -storepass "$ANDROID_STORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
           cat > key.properties <<EOF
           storePassword=$ANDROID_STORE_PASSWORD
           keyPassword=$ANDROID_KEY_PASSWORD

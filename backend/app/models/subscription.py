@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Uuid
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, TimestampMixin
@@ -9,10 +9,14 @@ from app.db.base_class import Base, TimestampMixin
 
 class Subscription(TimestampMixin, Base):
     __tablename__ = "subscriptions"
+    __table_args__ = (
+        UniqueConstraint("salon_id", name="subscriptions_salon_id_key"),
+        Index("ix_subscriptions_salon_id", "salon_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     salon_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False, index=True
+        Uuid(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False
     )
     plan: Mapped[str] = mapped_column(String(50), default="free", nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="trialing", nullable=False)
