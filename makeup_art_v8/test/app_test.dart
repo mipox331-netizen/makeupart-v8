@@ -62,6 +62,13 @@ Future<void> _fillForm(WidgetTester tester) async {
   await tester.enterText(find.byType(TextField).at(4), 'SafePassword123');
 }
 
+void _useTallViewport(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 1200);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 void main() {
   testWidgets('MakeupArt V8 app boots', (tester) async {
     await tester.pumpWidget(const MakeupArtApp());
@@ -70,6 +77,7 @@ void main() {
   });
 
   testWidgets('registration explains when email already exists', (tester) async {
+    _useTallViewport(tester);
     final api = _FakeRegistrationApi(
       registerFailure: _responseError(409, {'detail': 'Email already registered'}),
     );
@@ -88,6 +96,7 @@ void main() {
   });
 
   testWidgets('registration success but login failure is not reported as registration failure', (tester) async {
+    _useTallViewport(tester);
     final api = _FakeRegistrationApi(loginFailure: StateError('temporary sign-in failure'));
     var didAuthenticate = false;
     await tester.pumpWidget(
@@ -108,6 +117,7 @@ void main() {
     expect(didAuthenticate, isFalse);
   });
   testWidgets('switching clients clears the previous consent confirmation', (tester) async {
+    _useTallViewport(tester);
     await tester.pumpWidget(
       MaterialApp(
         home: BeautyPage(
