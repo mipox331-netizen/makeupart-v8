@@ -147,3 +147,30 @@ def scheduled_cleanup():
         f"media_removed={media_removed}, refresh_sessions_removed={sessions_removed}, "
         f"login_attempts_removed={attempts_removed}"
     )
+
+
+@app.function(
+    image=image,
+    secrets=[production_secret],
+    volumes={"/app/media": media_volume},
+    timeout=120,
+    retries=0,
+)
+def verify_media_volume():
+    """Smoke-test durable write/read/delete behavior without touching user media."""
+    from pathlib import Path
+    import uuid
+
+    marker = Path("/app/media") / f".makeupart-volume-check-{uuid.uuid4().hex}.txt"
+    payload = f"volume-check-{uuid.uuid4().hex}"
+    try:
+        marker.write_text(payload, encoding="utf-8")
+        media_volume.commit()
+        media_volume.reload()
+        if marker.read_text(encoding="utf-8") != payload:
+            raise RuntimeError("Modal media volume read-after-commit verification failed")
+        print("Media volume persistence: OK")
+    finally:
+        marker.unlink(missing_ok=True)
+        media_volume.commit()
+        print("Media volume smoke-test file removed.")
