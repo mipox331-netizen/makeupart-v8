@@ -40,8 +40,10 @@ async def request_middleware(request: Request, call_next):
         return response
     except Exception:
         logger.exception(
-            "Unhandled request error",
-            extra={"request_id": request_id, "path": request.url.path, "method": request.method},
+            "Unhandled request error request_id=%s method=%s path=%s",
+            request_id,
+            request.method,
+            request.url.path,
         )
         return JSONResponse(
             status_code=500,

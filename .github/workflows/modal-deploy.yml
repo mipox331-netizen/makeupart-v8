@@ -357,5 +357,40 @@ jobs:
           echo
           echo "Production API is ready: $API_ROOT"
 
+      - name: Verify production registration and login
+        shell: bash
+        run: python scripts/production_auth_smoke.py
+
+      - name: Capture sanitized production exception context
+        if: failure() && env.PROD_SMOKE_REQUEST_ID != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal app logs makeupart-v8-api --since 30m --tail 1000 --timestamps > /tmp/modal-app-logs.txt 2>/dev/null || true
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          request_id = os.environ.get("PROD_SMOKE_REQUEST_ID", "")
+          lines = Path("/tmp/modal-app-logs.txt").read_text(encoding="utf-8", errors="replace").splitlines()
+          matches = [i for i, line in enumerate(lines) if request_id and request_id in line]
+          if not matches:
+              print("No Modal log line matched the failing request ID; no runtime log details are exposed.")
+          for index in matches[-3:]:
+              print("Matched production request ID:", request_id)
+              block = lines[index:min(index + 60, len(lines))]
+              frame_count = 0
+              for line in block:
+                  frame = re.search(r'File "([^"]+)", line (\d+), in ([^ ]+)', line)
+                  if frame and frame_count < 12:
+                      print(f"Trace frame: {Path(frame.group(1)).name}:{frame.group(2)} in {frame.group(3)}")
+                      frame_count += 1
+                  stripped = line.strip()
+                  error = re.search(r'([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Failure|Violation))(?::|$)', stripped)
+                  if error:
+                      print("Exception class:", error.group(1))
+          PY
+
       - name: Show deployed app
         run: modal app info makeupart-v8-api
