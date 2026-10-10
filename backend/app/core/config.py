@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     REFRESH_SESSION_RETENTION_DAYS: int = 7
     SUBSCRIPTION_TRIAL_DAYS: int = 30
     PLATFORM_ADMIN_EMAILS: str = ""
+    LOGIN_MAX_FAILED_ATTEMPTS: int = 5
+    LOGIN_WINDOW_MINUTES: int = 15
+    LOGIN_LOCKOUT_MINUTES: int = 15
 
     @property
     def cors_origins_list(self) -> List[str]:

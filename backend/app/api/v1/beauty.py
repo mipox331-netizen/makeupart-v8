@@ -26,6 +26,7 @@ from app.schemas.beauty import (
     BeautyUploadResponse,
 )
 from app.services.beauty import BeautyProvider, IdentityGuard
+from app.services.media_volume import commit_media_volume
 from app.services.subscription import release_beauty_job_quota, reserve_beauty_job_quota
 from app.services.watermark import apply_watermark, get_or_create_watermark
 
@@ -317,6 +318,9 @@ def process_beauty_upload(
                 watermark_applied=watermark_applied,
             )
         )
+        # Persist image files before committing database rows that reference them.
+        # Modal injects this volume hook; local runs and tests leave it as a no-op.
+        commit_media_volume()
         db.commit()
         quota_reserved = False
 
@@ -337,6 +341,10 @@ def process_beauty_upload(
                     path.unlink()
                 except OSError:
                     pass
+        try:
+            commit_media_volume()
+        except Exception:
+            pass
         raise
     except Exception:
         db.rollback()
@@ -348,6 +356,10 @@ def process_beauty_upload(
                     path.unlink()
                 except OSError:
                     pass
+        try:
+            commit_media_volume()
+        except Exception:
+            pass
         raise
 
 

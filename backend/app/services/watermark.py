@@ -41,10 +41,10 @@ def get_or_create_watermark(db: Session, salon: Salon) -> Watermark:
 def _watermark_lines(salon: Salon, watermark: Watermark) -> list[str]:
     lines: list[str] = []
 
-    if watermark.salon_name:
-        name = salon.name.strip()
-        if name:
-            lines.append(name)
+    # Enforce salon branding even if a legacy row stores salon_name=False.
+    name = salon.name.strip()
+    if name:
+        lines.append(name)
 
     if watermark.phone and salon.phone:
         lines.append(salon.phone.strip())

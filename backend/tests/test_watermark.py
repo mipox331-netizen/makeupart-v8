@@ -4,6 +4,9 @@ import numpy as np
 from app.models.salon import Salon
 from app.models.watermark import Watermark
 from app.services.watermark import apply_watermark
+from app.schemas.watermark import WatermarkUpdate
+from pydantic import ValidationError
+import pytest
 
 
 def test_apply_watermark_changes_image(tmp_path):
@@ -13,7 +16,7 @@ def test_apply_watermark_changes_image(tmp_path):
 
     salon = Salon(name="Tony Beauty Studio")
     watermark = Watermark(
-        salon_name=True,
+        salon_name=False,
         phone=False,
         instagram=False,
         tiktok=False,
@@ -28,3 +31,8 @@ def test_apply_watermark_changes_image(tmp_path):
     assert applied is True
     assert result is not None
     assert not np.array_equal(source, result)
+
+
+def test_clients_cannot_disable_required_salon_name():
+    with pytest.raises(ValidationError):
+        WatermarkUpdate(salon_name=False)

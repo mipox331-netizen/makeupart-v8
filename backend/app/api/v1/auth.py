@@ -18,6 +18,7 @@ from app.models.user import User
 from app.schemas.auth import RefreshRequest, RegisterRequest, RegisterResponse, Token
 from app.schemas.salon import SalonCreate, SalonOut
 from app.schemas.user import UserOut
+from app.services.login_rate_limit import clear_login_failures, is_login_locked, record_login_failure
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -61,8 +62,18 @@ def register(register_in: RegisterRequest, db: Session = Depends(get_db)) -> Reg
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> Token:
-    user = authenticate_user(db, form_data.username, form_data.password)
+    normalized_email = form_data.username.strip().lower()
+    if is_login_locked(db, normalized_email):
+        retry_after = settings.LOGIN_LOCKOUT_MINUTES * 60
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    user = authenticate_user(db, normalized_email, form_data.password)
     if user is None:
+        record_login_failure(db, normalized_email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -70,6 +81,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         )
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
+
+    clear_login_failures(db, normalized_email)
     tokens = _issue_tokens(user, db)
     db.commit()
     return tokens

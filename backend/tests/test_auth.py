@@ -62,6 +62,27 @@ def test_login_unknown_user(client):
     assert login(client, "nobody@salon.com").status_code == 401
 
 
+def test_login_locks_email_after_five_failed_attempts(client):
+    register(client, email="locked@salon.com")
+    for _ in range(5):
+        assert login(client, "locked@salon.com", "wrong-password").status_code == 401
+
+    response = login(client, "locked@salon.com", PASSWORD)
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "900"
+    assert "Too many failed login attempts" in response.json()["detail"]
+
+
+def test_successful_login_clears_previous_failures(client):
+    register(client, email="recover@salon.com")
+    for _ in range(3):
+        assert login(client, "recover@salon.com", "wrong-password").status_code == 401
+
+    assert login(client, "recover@salon.com", PASSWORD).status_code == 200
+    for _ in range(4):
+        assert login(client, "recover@salon.com", "wrong-password").status_code == 401
+
+
 def test_me_requires_token(client):
     assert client.get(f"{API}/auth/me").status_code == 401
 

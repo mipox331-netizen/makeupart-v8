@@ -345,6 +345,9 @@ jobs:
       - name: Verify AI runtime
         run: modal run modal_app.py::verify_runtime
 
+      - name: Verify media volume persistence
+        run: modal run modal_app.py::verify_media_volume
+
       - name: Verify deployed app
         shell: bash
         run: |
