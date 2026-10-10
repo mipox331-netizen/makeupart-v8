@@ -224,3 +224,12 @@ backend/backups/
 backend/media/
 makeup_art_v8/.dart_tool/
 makeup_art_v8/build/
+
+# Android signing material and local audit dumps — never commit these files
+*.jks
+*.keystore
+upload-keystore.base64
+**/upload-keystore.base64
+**/key.properties
+makeupart-audit-*.txt
+makeupart-review-dump.txt
