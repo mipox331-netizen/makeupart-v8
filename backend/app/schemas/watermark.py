@@ -24,7 +24,8 @@ class WatermarkOut(BaseModel):
 
 class WatermarkUpdate(BaseModel):
     logo_url: str | None = Field(default=None, max_length=1000)
-    salon_name: bool = True
+    # Salon branding is required for every generated result.
+    salon_name: Literal[True] = True
     phone: bool = False
     instagram: bool = False
     tiktok: bool = False
