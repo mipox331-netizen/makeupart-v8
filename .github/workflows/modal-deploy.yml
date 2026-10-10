@@ -394,22 +394,33 @@ jobs:
                   found = True
                   for index in matches[-3:]:
                       print(f"Matched production request ID in Modal {name} logs:", request_id)
-                      block = lines[index:min(index + 60, len(lines))]
+                      # PostgreSQL errors often occur at the end of a long SQLAlchemy traceback.
+                      # Keep a wider window, but report only schema identifiers and exception types.
+                      block = lines[max(0, index - 10):min(index + 300, len(lines))]
                       frame_count = 0
+                      details = set()
                       for line in block:
                           frame = re.search(r'File "([^"]+)", line (\d+), in ([^ ]+)', line)
-                          if frame and frame_count < 12:
+                          if frame and frame_count < 18:
                               print(f"Trace frame: {Path(frame.group(1)).name}:{frame.group(2)} in {frame.group(3)}")
                               frame_count += 1
                           not_null = re.search(r'null value in column "([^"]+)" of relation "([^"]+)" violates not-null constraint', line, re.I)
                           if not_null:
-                              print(f"PostgreSQL NOT NULL violation: table={not_null.group(2)} column={not_null.group(1)}")
+                              details.add(f"PostgreSQL NOT NULL violation: table={not_null.group(2)} column={not_null.group(1)}")
                           constraint = re.search(r'constraint "([^"]+)"', line, re.I)
                           if constraint and ("violation" in line.lower() or "violates" in line.lower()):
-                              print(f"Database constraint: {constraint.group(1)}")
-                          error = re.search(r'([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Failure|Violation))(?::|$)', line.strip())
-                          if error:
-                              print("Exception class:", error.group(1))
+                              details.add(f"Database constraint: {constraint.group(1)}")
+                          missing_column = re.search(r'column "([^"]+)" does not exist', line, re.I)
+                          if missing_column:
+                              details.add(f"Database missing column: {missing_column.group(1)}")
+                          missing_table = re.search(r'relation "([^"]+)" does not exist', line, re.I)
+                          if missing_table:
+                              details.add(f"Database missing table: {missing_table.group(1)}")
+                          exception = re.search(r'([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Failure|Violation))(?::|$)', line.strip())
+                          if exception:
+                              details.add(f"Exception class: {exception.group(1)}")
+                      for detail in sorted(details):
+                          print(detail)
               else:
                   diagnostic = next((line.strip() for line in lines if re.search(r"Usage:|Error:|not found|not authorized|No such", line, re.I)), "")
                   print(f"Modal {name} logs: request_id_match=False, exit={code}, lines={len(lines)}, diagnostic={diagnostic[:160]!r}")
