@@ -89,18 +89,20 @@ class _BeautyPageState extends State<BeautyPage> {
   }
 
   Future<void> _selectCustomer(String value) async {
-    if (value == 'walk-in') {
-      setState(() {
-        customerId = null;
-        customerConsentActive = null;
-      });
-      return;
-    }
+    final nextCustomerId = value == 'walk-in' ? null : value;
     setState(() {
-      customerId = value;
+      customerId = nextCustomerId;
       customerConsentActive = null;
+      // Consent confirmation applies to the currently selected client and photo only.
+      consentConfirmed = false;
+      selected = null;
+      result = null;
+      afterImageFuture = null;
+      error = null;
     });
-    await _refreshCustomerConsent(value);
+    if (nextCustomerId != null) {
+      await _refreshCustomerConsent(nextCustomerId);
+    }
   }
 
   Future<void> _refreshCustomerConsent(String id) async {
@@ -119,6 +121,14 @@ class _BeautyPageState extends State<BeautyPage> {
     final grant = customerConsentActive != true;
     try {
       await widget.api.setCustomerConsent(customerId: id, granted: grant);
+      if (!mounted) return;
+      setState(() {
+        // A grant/revocation changes the consent state; require a fresh operator confirmation.
+        consentConfirmed = false;
+        result = null;
+        afterImageFuture = null;
+        error = null;
+      });
       await _refreshCustomerConsent(id);
     } catch (_) {
       if (mounted) setState(() => error = 'Could not update client consent.');
@@ -195,6 +205,11 @@ class _BeautyPageState extends State<BeautyPage> {
       setState(() {
         customerId = client['id'] as String;
         customerConsentActive = false;
+        consentConfirmed = false;
+        selected = null;
+        result = null;
+        afterImageFuture = null;
+        error = null;
       });
     } catch (_) {
       if (mounted) setState(() => error = 'Could not create client profile.');
@@ -206,6 +221,8 @@ class _BeautyPageState extends State<BeautyPage> {
     if (image == null || !mounted) return;
     setState(() {
       selected = image;
+      // Every new photo needs its own explicit consent confirmation.
+      consentConfirmed = false;
       result = null;
       afterImageFuture = null;
       error = null;
