@@ -1,13 +1,18 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+
+MakeupStyle = Literal["natural", "soft_glam", "bridal_rose", "evening_glam"]
 
 
 class BeautyProcessRequest(BaseModel):
     image_path: str = Field(..., min_length=1)
     intensity: float = Field(default=0.7, ge=0.0, le=1.0)
     consent_confirmed: bool = False
+    makeup_style: MakeupStyle = "natural"
 
 
 class BeautyProcessResponse(BaseModel):
@@ -17,6 +22,7 @@ class BeautyProcessResponse(BaseModel):
     foundation_match: str
     intensity: float
     processed: bool
+    makeup_style: MakeupStyle = "natural"
 
 
 class BeautyUploadResponse(BeautyProcessResponse):
