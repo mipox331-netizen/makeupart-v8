@@ -37,7 +37,7 @@ The workflow additions in a newer commit must be treated as unverified until the
 ## AI limitations
 
 - The current effect is bounded OpenCV skin smoothing, not text/image-driven makeup generation.
-- The result is validated with a face-similarity guard but that guard is not proof that visual identity is unchanged for all images.
+- The result is checked with an OpenCV structural-image-preservation score. It is not biometric identity verification and does not prove identity preservation for arbitrary generated images.
 - Skin-tone and undertone estimates are heuristic and are not validated cosmetic measurements.
 
 See [AI capabilities and licensing](AI_CAPABILITIES_AND_LICENSES.md) before making product or commercial-readiness claims.
