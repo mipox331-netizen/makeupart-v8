@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
 import '../services/recent_image_store.dart';
+import '../widgets/license_page_button.dart';
 
 class BeautyPage extends StatefulWidget {
   const BeautyPage({
@@ -301,6 +302,7 @@ class _BeautyPageState extends State<BeautyPage> {
       appBar: AppBar(
         title: const Text('Beauty Studio'),
         actions: [
+          const LicensePageButton(),
           IconButton(
             onPressed: loading ? null : _loadCustomers,
             icon: const Icon(Icons.refresh),
