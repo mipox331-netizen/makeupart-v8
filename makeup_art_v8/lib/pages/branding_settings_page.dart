@@ -16,6 +16,10 @@ class BrandingSettingsPage extends StatefulWidget {
 
 class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
   final ImagePicker _picker = ImagePicker();
+  final TextEditingController _salonName = TextEditingController();
+  final TextEditingController _phone = TextEditingController();
+  final TextEditingController _instagram = TextEditingController();
+  final TextEditingController _tiktok = TextEditingController();
   final _positions = const <String, String>{
     'bottom-right': 'Bottom right',
     'bottom-left': 'Bottom left',
@@ -47,6 +51,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
     });
     try {
       final data = await widget.api.getWatermarkSettings();
+      final salon = await widget.api.getSalonProfile();
       Uint8List? logo;
       if (data['logo_url'] != null) {
         try {
@@ -56,6 +61,10 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
         }
       }
       if (!mounted) return;
+      _salonName.text = (salon['name'] ?? '').toString();
+      _phone.text = (salon['phone'] ?? '').toString();
+      _instagram.text = (salon['instagram'] ?? '').toString();
+      _tiktok.text = (salon['tiktok'] ?? '').toString();
       setState(() {
         _position = _positions.containsKey(data['position'])
             ? data['position'] as String
@@ -128,11 +137,21 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
   }
 
   Future<void> _save() async {
+    if (_salonName.text.trim().isEmpty) {
+      setState(() => _error = 'Salon name is required.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
+      await widget.api.updateSalonProfile(
+        name: _salonName.text.trim(),
+        phone: _phone.text,
+        instagram: _instagram.text,
+        tiktok: _tiktok.text,
+      );
       await widget.api.updateWatermarkSettings(
         position: _position,
         opacity: _opacity,
@@ -158,6 +177,15 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  @override
+  void dispose() {
+    _salonName.dispose();
+    _phone.dispose();
+    _instagram.dispose();
+    _tiktok.dispose();
+    super.dispose();
   }
 
   @override
@@ -212,6 +240,62 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 18),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Business identity', style: theme.textTheme.titleLarge),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'These details can appear on your generated images when their watermark switches are enabled.',
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _salonName,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Salon / business name',
+                            prefixIcon: Icon(Icons.storefront_outlined),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _phone,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Business phone (optional)',
+                            prefixIcon: Icon(Icons.phone_outlined),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _instagram,
+                          decoration: const InputDecoration(
+                            labelText: 'Instagram handle (optional)',
+                            prefixIcon: Icon(Icons.camera_alt_outlined),
+                            hintText: '@your-salon',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _tiktok,
+                          decoration: const InputDecoration(
+                            labelText: 'TikTok handle (optional)',
+                            prefixIcon: Icon(Icons.music_note_outlined),
+                            hintText: '@your-salon',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(18),
