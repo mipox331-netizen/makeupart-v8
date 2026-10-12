@@ -143,7 +143,7 @@ def apply_watermark(
         / "branding"
         / "logo.png"
     )
-    if logo_path.is_file():
+    if watermark.logo_url and logo_path.is_file():
         logo = cv2.imread(str(logo_path), cv2.IMREAD_UNCHANGED)
         if logo is not None:
             if logo.ndim == 2:
