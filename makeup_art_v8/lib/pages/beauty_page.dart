@@ -5,8 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
+import '../services/gallery_exporter.dart';
+import '../services/photo_look_service.dart';
 import '../services/recent_image_store.dart';
 import '../widgets/license_page_button.dart';
+import 'branding_settings_page.dart';
 
 class BeautyPage extends StatefulWidget {
   const BeautyPage({
@@ -33,6 +36,11 @@ class _BeautyPageState extends State<BeautyPage> {
   XFile? selected;
   Map<String, dynamic>? result;
   Future<Uint8List>? afterImageFuture;
+  Uint8List? rawAfterBytes;
+  Uint8List? displayedAfterBytes;
+  String selectedLook = 'Natural Finish';
+  bool showOriginal = false;
+  bool savingGallery = false;
   List<Map<String, dynamic>> customers = [];
   String? customerId;
   bool? customerConsentActive;
@@ -99,6 +107,9 @@ class _BeautyPageState extends State<BeautyPage> {
       selected = null;
       result = null;
       afterImageFuture = null;
+      rawAfterBytes = null;
+      displayedAfterBytes = null;
+      showOriginal = false;
       error = null;
     });
     if (nextCustomerId != null) {
@@ -226,6 +237,9 @@ class _BeautyPageState extends State<BeautyPage> {
       consentConfirmed = false;
       result = null;
       afterImageFuture = null;
+      rawAfterBytes = null;
+      displayedAfterBytes = null;
+      showOriginal = false;
       error = null;
     });
   }
@@ -250,7 +264,8 @@ class _BeautyPageState extends State<BeautyPage> {
       Uint8List? afterBytes;
       final afterUrl = response['after_image_url'] as String?;
       if (afterUrl != null) {
-        afterBytes = await widget.api.fetchImage(afterUrl);
+        rawAfterBytes = await widget.api.fetchImage(afterUrl);
+        afterBytes = await PhotoLookService.apply(rawAfterBytes!, selectedLook);
 
         try {
           await recentImageStore.save(
@@ -259,13 +274,15 @@ class _BeautyPageState extends State<BeautyPage> {
           );
           await _loadRecentImages();
         } catch (_) {
-          // The server result must remain usable even if local caching fails.
+          // Keep the current result usable if local history cannot be updated.
         }
       }
 
       if (!mounted) return;
       setState(() {
         result = response;
+        displayedAfterBytes = afterBytes;
+        showOriginal = false;
         afterImageFuture =
             afterBytes == null ? null : Future<Uint8List>.value(afterBytes);
       });
@@ -279,6 +296,72 @@ class _BeautyPageState extends State<BeautyPage> {
       });
     } finally {
       if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _selectLook(String look) async {
+    setState(() {
+      selectedLook = look;
+      error = null;
+    });
+    final raw = rawAfterBytes;
+    if (raw == null) return;
+
+    setState(() => loading = true);
+    try {
+      final styled = await PhotoLookService.apply(raw, look);
+      if (!mounted) return;
+      setState(() {
+        displayedAfterBytes = styled;
+        showOriginal = false;
+        afterImageFuture = Future<Uint8List>.value(styled);
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => error = 'Could not apply this photo finish.');
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _saveResultToGallery() async {
+    final bytes = displayedAfterBytes;
+    if (bytes == null || bytes.isEmpty || savingGallery) return;
+
+    setState(() {
+      savingGallery = true;
+      error = null;
+    });
+    try {
+      final fileName = 'makeupart_${DateTime.now().millisecondsSinceEpoch}.png';
+      await GalleryExporter.savePng(bytes: bytes, fileName: fileName);
+      try {
+        await recentImageStore.save(
+          bytes,
+          jobId: result?['job_id']?.toString(),
+        );
+        await _loadRecentImages();
+      } catch (_) {
+        // Saving to the public gallery succeeds independently of app history.
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Image saved to your phone Gallery / Photos.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not save image. Check photo permissions and try again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => savingGallery = false);
     }
   }
 
@@ -300,8 +383,19 @@ class _BeautyPageState extends State<BeautyPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Beauty Studio'),
+        title: const Text('MakeupArt Studio'),
         actions: [
+          IconButton(
+            tooltip: 'Salon branding and watermark',
+            onPressed: loading
+                ? null
+                : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => BrandingSettingsPage(api: widget.api),
+                      ),
+                    ),
+            icon: const Icon(Icons.tune_rounded),
+          ),
           const LicensePageButton(),
           IconButton(
             onPressed: loading ? null : _loadCustomers,
@@ -318,6 +412,56 @@ class _BeautyPageState extends State<BeautyPage> {
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF44255C), Color(0xFF191B2D), Color(0xFF10131C)],
+              ),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.auto_awesome_rounded, size: 28),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('BEAUTY WORKSPACE',
+                              style: TextStyle(fontSize: 11, letterSpacing: 1.6)),
+                          SizedBox(height: 4),
+                          Text('Create a salon-ready result',
+                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Choose a portrait, apply the skin-polish engine, select a photo finish, then save a branded image.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: .78),
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -532,8 +676,35 @@ class _BeautyPageState extends State<BeautyPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text('Intensity ${(intensity * 100).round()}%'),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Photo finish',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 5),
+                  const Text(
+                    'These finishes adjust the final image tone. Lipstick, eyeshadow, and hairstyle generation require a different AI model and are not provided by the current engine.',
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: PhotoLookService.names.map((look) {
+                      return ChoiceChip(
+                        avatar: Icon(
+                          selectedLook == look
+                              ? Icons.check_circle_rounded
+                              : Icons.auto_awesome_outlined,
+                          size: 17,
+                        ),
+                        label: Text(look),
+                        selected: selectedLook == look,
+                        onSelected: loading ? null : (_) => _selectLook(look),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Skin polish strength ${(intensity * 100).round()}%'),
                   Slider(
                     value: intensity,
                     onChanged: loading
@@ -589,8 +760,30 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     Text('Skin tone: ${result!['skin_tone']}'),
                     Text('Undertone: ${result!['undertone']}'),
-                    Text('Foundation: ${result!['foundation_match']}'),
+                    Text('Foundation match estimate: ${result!['foundation_match']}'),
+                    const SizedBox(height: 14),
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment<bool>(
+                          value: true,
+                          icon: Icon(Icons.image_outlined),
+                          label: Text('Before'),
+                        ),
+                        ButtonSegment<bool>(
+                          value: false,
+                          icon: Icon(Icons.auto_awesome_rounded),
+                          label: Text('After'),
+                        ),
+                      ],
+                      selected: <bool>{showOriginal},
+                      onSelectionChanged: loading
+                          ? null
+                          : (selection) => setState(
+                                () => showOriginal = selection.first,
+                              ),
+                    ),
                     if (afterImageFuture != null) ...[
+
                       const SizedBox(height: 16),
                       FutureBuilder<Uint8List>(
                         future: afterImageFuture,
@@ -617,14 +810,59 @@ class _BeautyPageState extends State<BeautyPage> {
                               ),
                             );
                           }
+                          final imageWidget = showOriginal && selected != null
+                              ? Image.file(
+                                  File(selected!.path),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.broken_image_outlined,
+                                    size: 48,
+                                  ),
+                                )
+                              : Image.memory(
+                                  snapshot.data!,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.broken_image_outlined,
+                                    size: 48,
+                                  ),
+                                );
                           return ClipRRect(
                             borderRadius: BorderRadius.circular(16),
-                            child: Image.memory(
-                              snapshot.data!,
-                              fit: BoxFit.cover,
+                            child: Container(
+                              width: double.infinity,
+                              constraints: const BoxConstraints(minHeight: 180, maxHeight: 460),
+                              alignment: Alignment.center,
+                              color: const Color(0xFF10131D),
+                              padding: const EdgeInsets.all(6),
+                              child: imageWidget,
                             ),
                           );
                         },
+                      ),
+                    ],
+                    if (displayedAfterBytes != null) ...[
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: savingGallery || loading ? null : _saveResultToGallery,
+                        icon: savingGallery
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.download_rounded),
+                        label: Text(
+                          savingGallery ? 'Saving image...' : 'Save result to Gallery',
+                        ),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'The saved PNG includes the selected photo finish and the salon watermark from the latest processing run.',
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ],
