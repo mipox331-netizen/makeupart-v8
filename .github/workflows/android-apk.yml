@@ -3,6 +3,12 @@ name: MakeupArt V8 Android APK
 permissions:
   contents: write
 
+# Keep APK releases in build-number order so overlapping pushes cannot publish
+# a lower build after a higher build and confuse release consumers.
+concurrency:
+  group: makeupart-v8-android-apk-${{ github.ref }}
+  cancel-in-progress: false
+
 on:
   push:
     branches: [main]
