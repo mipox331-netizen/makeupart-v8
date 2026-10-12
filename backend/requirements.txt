@@ -11,8 +11,6 @@ bcrypt==4.0.1
 python-multipart==0.0.12
 email-validator==2.2.0
 mediapipe==0.10.21
-insightface==0.7.3
-onnxruntime==1.23.2
 numpy==1.26.4
 opencv-python==4.11.0.86
 Pillow==12.3.0
