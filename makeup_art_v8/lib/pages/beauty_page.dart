@@ -39,6 +39,7 @@ class _BeautyPageState extends State<BeautyPage> {
   Uint8List? rawAfterBytes;
   Uint8List? displayedAfterBytes;
   String selectedLook = 'Natural Finish';
+  String selectedMakeupStyle = 'natural';
   bool showOriginal = false;
   bool savingGallery = false;
   List<Map<String, dynamic>> customers = [];
@@ -274,6 +275,7 @@ class _BeautyPageState extends State<BeautyPage> {
         intensity: intensity,
         consentConfirmed: consentConfirmed,
         customerId: customerId,
+        makeupStyle: selectedMakeupStyle,
       );
 
       Uint8List? afterBytes;
@@ -693,12 +695,53 @@ class _BeautyPageState extends State<BeautyPage> {
                   ),
                   const SizedBox(height: 18),
                   Text(
+                    'Makeup style',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 5),
+                  const Text(
+                    'Choose the lip tint and cheek-blush finish applied to the detected face.',
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: const <MapEntry<String, String>>[
+                      MapEntry('natural', 'Natural'),
+                      MapEntry('soft_glam', 'Soft Glam'),
+                      MapEntry('bridal_rose', 'Bridal Rose'),
+                      MapEntry('evening_glam', 'Evening Glam'),
+                    ].map((style) {
+                      return ChoiceChip(
+                        avatar: Icon(
+                          Icons.face_retouching_natural_rounded,
+                          size: 17,
+                        ),
+                        label: Text(style.value),
+                        selected: selectedMakeupStyle == style.key,
+                        onSelected: loading
+                            ? null
+                            : (_) => setState(() {
+                                  selectedMakeupStyle = style.key;
+                                  // Never leave a preview that doesn't match the selected treatment.
+                                  result = null;
+                                  rawAfterBytes = null;
+                                  displayedAfterBytes = null;
+                                  afterImageFuture = null;
+                                  showOriginal = false;
+                                  error = null;
+                                }),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
                     'Photo finish',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 5),
                   const Text(
-                    'These finishes adjust the final image tone. Lipstick, eyeshadow, and hairstyle generation require a different AI model and are not provided by the current engine.',
+                    'These are final-image color grades. Eyeliner, eyeshadow, and hairstyle generation are not yet supported by the current AI engine.',
                   ),
                   const SizedBox(height: 10),
                   Wrap(
