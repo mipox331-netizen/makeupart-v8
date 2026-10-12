@@ -180,7 +180,9 @@ def test_platform_admin_can_list_and_block_users(client, monkeypatch):
     register(client)
     other = register(client, email="other@salon.com", salon_name="Other Salon")
     admin_headers = auth_headers(client, "owner@salon.com")
-    other_headers = auth_headers(client, "other@salon.com")
+    other_tokens = login(client, "other@salon.com").json()
+    other_headers = {"Authorization": f"Bearer {other_tokens['access_token']}"}
+    old_refresh_token = other_tokens["refresh_token"]
     other_id = other.json()["user"]["id"]
 
     listing = client.get(f"{API}/admin/users", headers=admin_headers)
@@ -207,6 +209,12 @@ def test_platform_admin_can_list_and_block_users(client, monkeypatch):
     )
     assert unblocked.status_code == 200
     assert unblocked.json()["is_active"] is True
+
+    # Old access and refresh tokens must not become valid again after unblock.
+    assert client.get(f"{API}/users/me", headers=other_headers).status_code == 401
+    assert client.post(
+        f"{API}/auth/refresh", json={"refresh_token": old_refresh_token}
+    ).status_code == 401
     assert login(client, "other@salon.com").status_code == 200
 
 
