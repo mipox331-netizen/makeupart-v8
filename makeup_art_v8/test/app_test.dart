@@ -211,6 +211,9 @@ void main() {
   });
   testWidgets('switching clients clears the previous consent confirmation', (tester) async {
     _useTallViewport(tester);
+    // The redesigned studio adds a hero and history area before the controls.
+    // Keep this behavior test focused on consent state, not viewport scrolling.
+    tester.view.physicalSize = const Size(800, 1800);
     await tester.pumpWidget(
       MaterialApp(
         home: BeautyPage(
