@@ -147,6 +147,44 @@ class ApiClient {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  Future<Map<String, dynamic>> getAdminRevenueSummary({
+    String period = 'month',
+  }) async {
+    final response = await dio.get(
+      '/admin/payments/summary',
+      queryParameters: {'period': period},
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> recordAdminPayment({
+    required String salonId,
+    required String plan,
+    required String amount,
+    required String currency,
+    required String paymentMethod,
+    required int periodDays,
+    String? reference,
+    String? notes,
+  }) async {
+    final response = await dio.post(
+      '/admin/payments/record',
+      data: {
+        'salon_id': salonId,
+        'plan': plan,
+        'amount': amount,
+        'currency': currency,
+        'payment_method': paymentMethod,
+        'period_days': periodDays,
+        if (reference != null && reference.trim().isNotEmpty)
+          'reference': reference.trim(),
+        if (notes != null && notes.trim().isNotEmpty)
+          'notes': notes.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<void> register({
     required String salonName,
     required String ownerFullName,
