@@ -715,7 +715,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     runSpacing: 8,
                     children: _makeupStyles.entries.map((style) {
                       return ChoiceChip(
-                        avatar: Icon(
+                        avatar: const Icon(
                           Icons.face_retouching_natural_rounded,
                           size: 17,
                         ),
