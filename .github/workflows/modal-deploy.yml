@@ -432,5 +432,8 @@ jobs:
               print("No Modal log source matched the request ID; only safe command diagnostics were emitted.")
           PY
 
+      - name: Remove obsolete non-commercial InsightFace model cache
+        run: modal volume delete --yes --allow-missing -e main makeupart-v8-insightface
+
       - name: Show deployed app
         run: modal app info makeupart-v8-api
