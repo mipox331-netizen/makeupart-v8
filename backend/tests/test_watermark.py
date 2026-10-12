@@ -54,6 +54,7 @@ def test_uploaded_transparent_logo_is_composited_onto_result(tmp_path, monkeypat
     assert cv2.imwrite(str(path), source)
     salon = Salon(id=salon_id, name="Tony Beauty Studio")
     watermark = Watermark(
+        logo_url="/api/v1/watermarks/me/logo",
         salon_name=True,
         position="bottom-left",
         opacity=1.0,
