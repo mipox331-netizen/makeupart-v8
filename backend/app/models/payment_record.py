@@ -55,12 +55,12 @@ class PaymentRecord(TimestampMixin, Base):
     )
     plan: Mapped[str] = mapped_column(String(50), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), default="TZS", nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="TZS", server_default="TZS", nullable=False)
     payment_method: Mapped[str] = mapped_column(String(30), nullable=False)
     reference: Mapped[str | None] = mapped_column(String(128), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     period_days: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="confirmed", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="confirmed", server_default="confirmed", nullable=False)
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
