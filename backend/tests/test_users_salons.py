@@ -15,6 +15,28 @@ def test_patch_me_persists(client):
     assert again.json()["phone"] == "0700000000"
 
 
+def test_profile_patch_rejects_null_non_nullable_name(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    before = client.get(f"{API}/users/me", headers=headers).json()
+
+    response = client.patch(f"{API}/users/me", headers=headers, json={"full_name": None})
+    assert response.status_code == 422
+    after = client.get(f"{API}/users/me", headers=headers).json()
+    assert after["full_name"] == before["full_name"]
+
+
+def test_salon_patch_rejects_null_name(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    before = client.get(f"{API}/salons/me", headers=headers).json()
+
+    response = client.patch(f"{API}/salons/me", headers=headers, json={"name": None})
+    assert response.status_code == 422
+    after = client.get(f"{API}/salons/me", headers=headers).json()
+    assert after["name"] == before["name"]
+
+
 def test_owner_can_create_and_list_staff(client):
     register(client)
     headers = auth_headers(client, "owner@salon.com")
@@ -64,6 +86,39 @@ def test_staff_creation_rejects_duplicate_email(client):
     headers = auth_headers(client, "owner@salon.com")
     assert create_staff(client, headers).status_code == 201
     assert create_staff(client, headers).status_code == 409
+
+
+def test_staff_creation_race_returns_conflict_not_500(client, monkeypatch):
+    import app.api.v1.users as users_api
+
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    existing = create_staff(client, headers, email="race@salon.com")
+    assert existing.status_code == 201
+
+    original_lookup = users_api.get_user_by_email
+    calls = 0
+
+    def hide_existing_on_precheck(db, email):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return None
+        return original_lookup(db, email)
+
+    monkeypatch.setattr(users_api, "get_user_by_email", hide_existing_on_precheck)
+    response = client.post(
+        f"{API}/users",
+        headers=headers,
+        json={
+            "email": "race@salon.com",
+            "full_name": "Racing Staff",
+            "password": PASSWORD,
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Email already in use"
 
 
 def test_owner_can_delete_staff_but_not_self(client):
