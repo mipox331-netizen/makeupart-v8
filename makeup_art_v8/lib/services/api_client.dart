@@ -314,6 +314,7 @@ class ApiClient {
     double intensity = 0.7,
     bool consentConfirmed = false,
     String? customerId,
+    required String makeupStyle,
   }) async {
     final data = FormData.fromMap({
       'file': await MultipartFile.fromFile(image.path, filename: image.name),
@@ -322,6 +323,7 @@ class ApiClient {
       '/beauty/process-upload',
       queryParameters: {
         'intensity': intensity,
+        'makeup_style': makeupStyle,
         'consent_confirmed': consentConfirmed,
         if (customerId != null) 'customer_id': customerId,
       },
