@@ -33,8 +33,8 @@ import UIKit
           return
         }
 
-        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
-          guard status == .authorized else {
+        let saveToPhotos: (Bool) -> Void = { allowed in
+          guard allowed else {
             DispatchQueue.main.async {
               result(FlutterError(
                 code: "PHOTO_PERMISSION_DENIED",
@@ -59,6 +59,16 @@ import UIKit
               }
             }
           })
+        }
+
+        if #available(iOS 14.0, *) {
+          PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            saveToPhotos(status == .authorized)
+          }
+        } else {
+          PHPhotoLibrary.requestAuthorization { status in
+            saveToPhotos(status == .authorized)
+          }
         }
       }
     }
