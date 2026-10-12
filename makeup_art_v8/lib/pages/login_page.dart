@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
+import '../widgets/license_page_button.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -160,6 +161,11 @@ class _LoginPageState extends State<LoginPage> {
                             );
                           },
                     child: const Text('Create salon account'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => showMakeupArtLicenses(context),
+                    icon: const Icon(Icons.policy_outlined),
+                    label: const Text('Open-source licenses'),
                   ),
                 ],
               ),
