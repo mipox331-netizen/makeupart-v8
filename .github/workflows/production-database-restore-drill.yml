@@ -1,0 +1,197 @@
+name: MakeupArt V8 Encrypted Database Restore Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_run_id:
+        description: "Successful production-database-backup workflow run ID (artifact must still be retained)"
+        required: true
+        type: string
+        default: "38251453670"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/production-database-restore-drill.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: makeupart-v8-restore-drill
+  cancel-in-progress: false
+
+jobs:
+  restore-drill:
+    name: Restore encrypted backup into isolated temporary PostgreSQL
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: restore_drill
+          POSTGRES_PASSWORD: temporary-restore-drill-only
+          POSTGRES_DB: makeupart_restore_drill
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U restore_drill -d makeupart_restore_drill"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      BACKUP_RUN_ID: ${{ inputs.backup_run_id || '38251453670' }}
+
+    steps:
+      - name: Validate inputs and encryption secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$BACKUP_RUN_ID" =~ ^[0-9]+$ ]] || {
+            echo "::error::backup_run_id must contain only digits."
+            exit 1
+          }
+          test -n "$BACKUP_ENCRYPTION_PASSPHRASE" || {
+            echo "::error::Missing BACKUP_ENCRYPTION_PASSPHRASE in the production environment."
+            exit 1
+          }
+          [[ "${#BACKUP_ENCRYPTION_PASSPHRASE}" -ge 24 ]] || {
+            echo "::error::Backup passphrase must be at least 24 characters."
+            exit 1
+          }
+          echo "Input validated. Production database credentials are not used by this workflow."
+
+      - name: Download the selected encrypted backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: makeupart-db-backup-${{ env.BACKUP_RUN_ID }}
+          run-id: ${{ env.BACKUP_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          path: ${{ runner.temp }}/makeupart-restore-drill
+
+      - name: Verify checksum and decrypt the archive
+        id: decrypt
+        shell: bash
+        run: |
+          set -euo pipefail
+          BACKUP_DIR="$RUNNER_TEMP/makeupart-restore-drill"
+          mkdir -p "$BACKUP_DIR"
+          chmod 700 "$BACKUP_DIR"
+          mapfile -t ARCHIVES < <(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump.gpg' -print)
+          [[ "${#ARCHIVES[@]}" -eq 1 ]] || {
+            echo "::error::Expected exactly one encrypted database dump in the chosen backup artifact."
+            exit 1
+          }
+          ARCHIVE="${ARCHIVES[0]}"
+          CHECKSUM="${ARCHIVE}.sha256"
+          test -f "$CHECKSUM" || {
+            echo "::error::Backup checksum file is missing."
+            exit 1
+          }
+          expected="$(awk 'NR==1 {print $1}' "$CHECKSUM")"
+          actual="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
+          [[ -n "$expected" && "$expected" == "$actual" ]] || {
+            echo "::error::Encrypted backup checksum verification failed."
+            exit 1
+          }
+
+          PASSFILE="$RUNNER_TEMP/makeupart-restore-passphrase"
+          DUMP="$BACKUP_DIR/restored.dump"
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSFILE"
+          chmod 600 "$PASSFILE"
+          trap 'rm -f "$PASSFILE"' EXIT
+          gpg --batch --yes --quiet --pinentry-mode loopback \
+            --passphrase-file "$PASSFILE" --decrypt --output "$DUMP" "$ARCHIVE"
+          chmod 600 "$DUMP"
+          test -s "$DUMP"
+          echo "Encrypted backup checksum and decryption verified. No customer records are printed."
+
+      - name: Restore into isolated temporary PostgreSQL
+        shell: bash
+        env:
+          RESTORE_DB_USER: restore_drill
+          RESTORE_DB_PASSWORD: temporary-restore-drill-only
+          RESTORE_DB_NAME: makeupart_restore_drill
+        run: |
+          set -euo pipefail
+          DUMP="$RUNNER_TEMP/makeupart-restore-drill/restored.dump"
+          test -s "$DUMP"
+          # This container connects only to the temporary PostgreSQL service in this GitHub Actions job.
+          # No production DATABASE_URL/SUPABASE_DB_URL is available to this workflow.
+          docker run --rm --network host \
+            --env PGPASSWORD="$RESTORE_DB_PASSWORD" \
+            --volume "$RUNNER_TEMP/makeupart-restore-drill:/backup:ro" \
+            postgres:17-alpine \
+            pg_restore --host=127.0.0.1 --port=5432 \
+              --username="$RESTORE_DB_USER" --dbname="$RESTORE_DB_NAME" \
+              --schema=public --no-owner --no-acl --exit-on-error /backup/restored.dump
+          echo "PostgreSQL restore completed into the disposable staging database."
+
+      - name: Verify restored schema and migration head
+        shell: bash
+        env:
+          RESTORE_DB_USER: restore_drill
+          RESTORE_DB_PASSWORD: temporary-restore-drill-only
+          RESTORE_DB_NAME: makeupart_restore_drill
+        run: |
+          set -euo pipefail
+          psql_cmd=(
+            docker run --rm --network host
+            --env PGPASSWORD="$RESTORE_DB_PASSWORD"
+            postgres:17-alpine
+            psql --no-psqlrc --host=127.0.0.1 --port=5432
+            --username="$RESTORE_DB_USER" --dbname="$RESTORE_DB_NAME" --tuples-only --no-align
+          )
+
+          revision="$("${psql_cmd[@]}" --command='SELECT version_num FROM public.alembic_version')"
+          [[ "$revision" == "0009_reconcile_refresh_sessions" ]] || {
+            echo "::error::Restored Alembic revision does not match expected migration head."
+            exit 1
+          }
+
+          table_count="$("${psql_cmd[@]}" --command="
+            SELECT count(*)
+            FROM information_schema.tables
+            WHERE table_schema='public'
+              AND table_name = ANY(ARRAY[
+                'alembic_version','users','salons','subscriptions','refresh_sessions',
+                'customers','consents','beauty_jobs','beauty_results','consultations','watermarks'
+              ]);
+          ")"
+          [[ "$table_count" == "11" ]] || {
+            echo "::error::Restore schema check failed: expected 11 required tables."
+            exit 1
+          }
+
+          users_present="$("${psql_cmd[@]}" --command='SELECT (count(*) > 0)::int FROM public.users')"
+          salons_present="$("${psql_cmd[@]}" --command='SELECT (count(*) > 0)::int FROM public.salons')"
+          subscriptions_present="$("${psql_cmd[@]}" --command='SELECT (count(*) > 0)::int FROM public.subscriptions')"
+          [[ "$users_present" == "1" && "$salons_present" == "1" && "$subscriptions_present" == "1" ]] || {
+            echo "::error::Restore integrity check found missing application data in users, salons, or subscriptions."
+            exit 1
+          }
+
+          inconsistent_subscriptions="$("${psql_cmd[@]}" --command='
+            SELECT count(*)
+            FROM public.subscriptions s
+            LEFT JOIN public.salons a ON a.id=s.salon_id
+            WHERE a.id IS NULL
+          ')"
+          [[ "$inconsistent_subscriptions" == "0" ]] || {
+            echo "::error::Restore integrity check found subscriptions without a salon."
+            exit 1
+          }
+
+          echo "Restore drill passed: checksum valid, decryption valid, public-schema PostgreSQL restore valid, required_tables=$table_count, migration_head=$revision, required application data present, orphaned_subscriptions=$inconsistent_subscriptions."
+          echo "The restored temporary database is isolated to this workflow job and is discarded automatically when the job ends."
+
+      - name: Remove decrypted backup material
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/makeupart-restore-passphrase" "$RUNNER_TEMP/makeupart-restore-drill/restored.dump"
+          rm -rf "$RUNNER_TEMP/makeupart-restore-drill"
