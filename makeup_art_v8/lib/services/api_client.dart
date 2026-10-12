@@ -213,6 +213,33 @@ class ApiClient {
     );
   }
 
+  Future<Map<String, dynamic>> getSalonProfile() async {
+    final response = await dio.get('/salons/me');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> updateSalonProfile({
+    required String name,
+    String? phone,
+    String? instagram,
+    String? tiktok,
+  }) async {
+    final response = await dio.patch(
+      '/salons/me',
+      data: {
+        'name': name.trim(),
+        'phone': phone == null || phone.trim().isEmpty ? null : phone.trim(),
+        'instagram': instagram == null || instagram.trim().isEmpty
+            ? null
+            : instagram.trim(),
+        'tiktok': tiktok == null || tiktok.trim().isEmpty
+            ? null
+            : tiktok.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<Map<String, dynamic>> getWatermarkSettings() async {
     final response = await dio.get('/watermarks/me');
     return Map<String, dynamic>.from(response.data as Map);
