@@ -1,0 +1,10 @@
+MakeupArt V8 Flutter application source code is proprietary. All rights reserved.
+
+The original application code and documentation are covered by the repository's
+proprietary notice in ../LICENSE. No general permission to copy, modify,
+redistribute or commercially exploit the original application source is granted.
+
+Third-party packages and Flutter/Dart SDK components are not covered by this
+proprietary notice and remain subject to their own licenses and notice duties.
+See ../docs/THIRD_PARTY_LICENSE_AUDIT.md and the generated dependency license
+inventory in GitHub Actions for third-party license information.
