@@ -1,10 +1,11 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:makeup_art_v8/services/photo_look_service.dart';
 
-Future<List<int>> _solidPng(Color color) async {
+Future<Uint8List> _solidPng(Color color) async {
   final recorder = ui.PictureRecorder();
   final canvas = ui.Canvas(recorder);
   canvas.drawRect(
@@ -15,7 +16,10 @@ Future<List<int>> _solidPng(Color color) async {
   final image = await picture.toImage(8, 8);
   try {
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    return data!.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    if (data == null) throw StateError('PNG encoding failed');
+    return Uint8List.fromList(
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    );
   } finally {
     image.dispose();
     picture.dispose();
@@ -27,20 +31,13 @@ void main() {
 
   test('natural finish preserves the original image bytes', () async {
     final source = await _solidPng(const Color(0xFF8090A0));
-    final result = await PhotoLookService.apply(
-      source is List<int> ? source.toBytes() : source.toBytes(),
-      'Natural Finish',
-    );
-
+    final result = await PhotoLookService.apply(source, 'Natural Finish');
     expect(result, orderedEquals(source));
   });
 
   test('photo finish returns a valid PNG with the original dimensions', () async {
     final source = await _solidPng(const Color(0xFF8090A0));
-    final result = await PhotoLookService.apply(
-      source.toBytes(),
-      'Warm Glow',
-    );
+    final result = await PhotoLookService.apply(source, 'Warm Glow');
     final codec = await ui.instantiateImageCodec(result);
     try {
       final frame = await codec.getNextFrame();
@@ -54,14 +51,9 @@ void main() {
 
   test('unknown finish is rejected instead of silently ignored', () async {
     final source = await _solidPng(const Color(0xFF8090A0));
-    expect(
-      () => PhotoLookService.apply(source.toBytes(), 'AI hairstyle'),
+    await expectLater(
+      PhotoLookService.apply(source, 'AI hairstyle'),
       throwsArgumentError,
     );
   });
-}
-
-extension on List<int> {
-  // Use an explicit byte buffer to match the service's binary API.
-  List<int> toBytes() => List<int>.from(this);
 }
