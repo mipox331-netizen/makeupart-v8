@@ -91,7 +91,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
       _error = null;
     });
     try {
-      final updated = await widget.api.uploadWatermarkLogo(file);
+      await widget.api.uploadWatermarkLogo(file);
       final bytes = await widget.api.fetchImage('/watermarks/me/logo');
       if (!mounted) return;
       setState(() {
@@ -133,7 +133,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
       _error = null;
     });
     try {
-      final updated = await widget.api.updateWatermarkSettings(
+      await widget.api.updateWatermarkSettings(
         position: _position,
         opacity: _opacity,
         size: _size.round(),
