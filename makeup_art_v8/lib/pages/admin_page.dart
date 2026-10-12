@@ -18,6 +18,8 @@ class _AdminPageState extends State<AdminPage> {
   List<Map<String, dynamic>> users = [];
   bool loading = true;
   String? error;
+  String searchQuery = '';
+  String planFilter = 'all';
 
   @override
   void initState() {
@@ -46,25 +48,50 @@ class _AdminPageState extends State<AdminPage> {
 
   Future<void> _activate(Map<String, dynamic> row) async {
     final id = row['salon_id'] as String;
-    final plan = await showDialog<String>(
+    final selection = await showDialog<Map<String, Object>>(
       context: context,
       builder: (context) {
-        var selected = row['plan']?.toString() ?? 'basic';
+        var selectedPlan = row['plan']?.toString() ?? 'basic';
+        var selectedDays = 30;
         return StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
             title: Text('Activate ${row['salon_name']?.toString() ?? 'Salon'}'),
-            content: DropdownButtonFormField<String>(
-              initialValue: selected,
-              items: const [
-                DropdownMenuItem(value: 'free', child: Text('Free')),
-                DropdownMenuItem(value: 'basic', child: Text('Basic')),
-                DropdownMenuItem(value: 'pro', child: Text('Pro')),
-                DropdownMenuItem(value: 'enterprise', child: Text('Enterprise')),
-              ],
-              onChanged: (value) {
-                if (value != null) setDialogState(() => selected = value);
-              },
-              decoration: const InputDecoration(labelText: 'Plan'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedPlan,
+                    items: const [
+                      DropdownMenuItem(value: 'free', child: Text('Free')),
+                      DropdownMenuItem(value: 'basic', child: Text('Basic')),
+                      DropdownMenuItem(value: 'pro', child: Text('Pro')),
+                      DropdownMenuItem(value: 'enterprise', child: Text('Enterprise / Salon')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setDialogState(() => selectedPlan = value);
+                    },
+                    decoration: const InputDecoration(labelText: 'Plan'),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Paid access term'),
+                  const SizedBox(height: 8),
+                  SegmentedButton<int>(
+                    segments: const [
+                      ButtonSegment<int>(value: 30, label: Text('Monthly · 30 days')),
+                      ButtonSegment<int>(value: 365, label: Text('Annual · 365 days')),
+                    ],
+                    selected: {selectedDays},
+                    onSelectionChanged: (values) =>
+                        setDialogState(() => selectedDays = values.first),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'This sets the access period only. Verify payment separately; this admin action does not charge the customer.',
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -72,7 +99,10 @@ class _AdminPageState extends State<AdminPage> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(context, selected),
+                onPressed: () => Navigator.pop(
+                  context,
+                  {'plan': selectedPlan, 'days': selectedDays},
+                ),
                 child: const Text('Activate'),
               ),
             ],
@@ -81,12 +111,12 @@ class _AdminPageState extends State<AdminPage> {
       },
     );
 
-    if (plan == null) return;
+    if (selection == null) return;
     try {
       await widget.api.activateAdminSubscription(
         salonId: id,
-        plan: plan,
-        days: 30,
+        plan: selection['plan'] as String,
+        days: selection['days'] as int,
       );
       await _load();
     } catch (exception) {
@@ -145,6 +175,40 @@ class _AdminPageState extends State<AdminPage> {
     final activeUsers = users.where((user) => user['is_active'] == true).length;
     final blockedUsers = users.where((user) => user['is_active'] != true).length;
     final freeUsers = users.where((user) => user['plan'] == 'free').length;
+    final paidSalons = rows.where((row) =>
+        row['plan'] != 'free' &&
+        (row['status'] == 'active' || row['status'] == 'trialing')).length;
+    final expiringSoon = rows.where((row) {
+      final days = (row['days_remaining'] as num?)?.toInt();
+      return days != null &&
+          days <= 7 &&
+          (row['status'] == 'active' || row['status'] == 'trialing');
+    }).length;
+    final query = searchQuery.trim().toLowerCase();
+    final filteredUsers = users.where((user) {
+      final text = [
+        user['full_name'],
+        user['email'],
+        user['salon_name'],
+        user['role'],
+        user['plan'],
+        user['subscription_status'],
+      ].map((value) => value?.toString().toLowerCase() ?? '').join(' ');
+      final matchesQuery = query.isEmpty || text.contains(query);
+      final matchesPlan = planFilter == 'all' || user['plan'] == planFilter;
+      return matchesQuery && matchesPlan;
+    }).toList();
+    final filteredRows = rows.where((row) {
+      final text = [
+        row['salon_name'],
+        row['owner_email'],
+        row['plan'],
+        row['status'],
+      ].map((value) => value?.toString().toLowerCase() ?? '').join(' ');
+      final matchesQuery = query.isEmpty || text.contains(query);
+      final matchesPlan = planFilter == 'all' || row['plan'] == planFilter;
+      return matchesQuery && matchesPlan;
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -182,6 +246,8 @@ class _AdminPageState extends State<AdminPage> {
                       _MetricCard(label: 'Active', value: '$activeUsers'),
                       _MetricCard(label: 'Blocked', value: '$blockedUsers'),
                       _MetricCard(label: 'Free plan', value: '$freeUsers'),
+                      _MetricCard(label: 'Paid salons', value: '$paidSalons'),
+                      _MetricCard(label: 'Due in 7 days', value: '$expiringSoon'),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -189,19 +255,46 @@ class _AdminPageState extends State<AdminPage> {
                     'Users & access',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search_rounded),
+                      labelText: 'Search users, salons, plans or status',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) => setState(() => searchQuery = value),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: planFilter,
+                    decoration: const InputDecoration(
+                      labelText: 'Filter by plan',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('All plans')),
+                      DropdownMenuItem(value: 'free', child: Text('Free')),
+                      DropdownMenuItem(value: 'basic', child: Text('Basic')),
+                      DropdownMenuItem(value: 'pro', child: Text('Pro')),
+                      DropdownMenuItem(value: 'enterprise', child: Text('Enterprise / Salon')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => planFilter = value);
+                    },
+                  ),
                   const SizedBox(height: 8),
                   const Text(
                     'Block or unblock individual accounts. Blocked users are denied API access immediately.',
                   ),
                   const SizedBox(height: 12),
-                  if (users.isEmpty)
+                  if (filteredUsers.isEmpty)
                     const Card(
                       child: Padding(
                         padding: EdgeInsets.all(20),
-                        child: Text('No users yet.'),
+                        child: Text(users.isEmpty ? 'No users yet.' : 'No users match this filter.'),
                       ),
                     ),
-                  ...users.map((user) {
+                  ...filteredUsers.map((user) {
                     final active = user['is_active'] == true;
                     final platformAdmin = user['is_platform_admin'] == true;
                     return Card(
@@ -262,17 +355,17 @@ class _AdminPageState extends State<AdminPage> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Free plan is available without a paid renewal. Basic, Pro and Enterprise can still be activated by the project admin.',
+                    'Free is available without renewal. Basic, Pro and Enterprise can be activated monthly (30 days) or annually (365 days) by the platform administrator. Payment confirmation remains a separate step until a billing provider is connected.',
                   ),
                   const SizedBox(height: 12),
-                  if (rows.isEmpty)
+                  if (filteredRows.isEmpty)
                     const Card(
                       child: Padding(
                         padding: EdgeInsets.all(20),
-                        child: Text('No salon subscriptions yet.'),
+                        child: Text(rows.isEmpty ? 'No salon subscriptions yet.' : 'No subscriptions match this filter.'),
                       ),
                     ),
-                  ...rows.map((row) {
+                  ...filteredRows.map((row) {
                     final status = row['status']?.toString() ?? 'unknown';
                     final active = status == 'active' || status == 'trialing';
                     return Card(
