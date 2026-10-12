@@ -1,0 +1,62 @@
+name: MakeupArt V8 iOS Compile Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "makeup_art_v8/**"
+      - ".github/workflows/ios-build-check.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "makeup_art_v8/**"
+      - ".github/workflows/ios-build-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios-build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
+    defaults:
+      run:
+        working-directory: makeup_art_v8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.0"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Compile unsigned iOS release
+        run: |
+          flutter build ios --release --no-codesign \
+            --dart-define=API_BASE_URL="$PRODUCTION_API_BASE_URL"
+          test -d build/ios/iphoneos/Runner.app
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/ios/iphoneos/Runner.app "$RUNNER_TEMP/MakeupArt-V8-iOS-unsigned.zip"
+
+      - name: Upload unsigned compile artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: makeupart-v8-ios-unsigned-compile
+          path: ${{ runner.temp }}/MakeupArt-V8-iOS-unsigned.zip
+          if-no-files-found: error
+          retention-days: 7

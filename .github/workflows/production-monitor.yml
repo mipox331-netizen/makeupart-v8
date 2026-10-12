@@ -1,0 +1,50 @@
+name: MakeupArt V8 Production Monitor
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/production-monitor.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: makeupart-v8-production-monitor
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run
+    steps:
+      - name: Check production liveness and readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          check_health() {
+            local endpoint="$1"
+            local expected="$2"
+            local body
+            local actual
+            body="$(curl --fail --silent --show-error \
+              --connect-timeout 10 --max-time 20 \
+              --retry 3 --retry-delay 5 --retry-all-errors \
+              "$API_BASE_URL$endpoint")"
+            actual="$(printf '%s' "$body" | python -c 'import json,sys; print(json.load(sys.stdin).get("status", ""))')"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error::Unexpected health result for $endpoint (expected $expected, got $actual)"
+              printf '%s\n' "$body"
+              return 1
+            fi
+            echo "Production $endpoint check: $actual"
+          }
+
+          check_health "/health/live" "alive"
+          check_health "/health/ready" "ready"

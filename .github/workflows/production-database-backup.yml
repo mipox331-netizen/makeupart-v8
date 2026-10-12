@@ -1,0 +1,111 @@
+name: MakeupArt V8 Encrypted Production Database Backup
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: makeupart-v8-production-db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+    steps:
+      - name: Validate backup secrets without printing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_URL" || {
+            echo "::error::Missing SUPABASE_DB_URL (or SUPABASE_DB_URL_SECRET/DATABASE_URL) in the production GitHub environment."
+            exit 1
+          }
+          test -n "$BACKUP_ENCRYPTION_PASSPHRASE" || {
+            echo "::error::Missing BACKUP_ENCRYPTION_PASSPHRASE in GitHub Actions secrets. Set a strong unique passphrase and store it safely offline."
+            exit 1
+          }
+          if [[ "${#BACKUP_ENCRYPTION_PASSPHRASE}" -lt 24 ]]; then
+            echo "::error::BACKUP_ENCRYPTION_PASSPHRASE must be at least 24 characters."
+            exit 1
+          fi
+          python - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+          raw = os.environ["SUPABASE_DB_URL"].strip()
+          parsed = urlsplit(raw)
+          if parsed.scheme not in {"postgres", "postgresql", "postgresql+psycopg2"}:
+              raise SystemExit("Database backup URL must use a PostgreSQL scheme")
+          if not parsed.hostname or not parsed.path.strip("/"):
+              raise SystemExit("Database backup URL must include a host and database name")
+          PY
+
+      - name: Dump, encrypt and validate backup archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          BACKUP_DIR="$RUNNER_TEMP/makeupart-db-backup"
+          PASSFILE="$RUNNER_TEMP/makeupart-backup-passphrase"
+          URLFILE="$RUNNER_TEMP/makeupart-normalized-db-url"
+          STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          ARCHIVE="$BACKUP_DIR/makeupart-db-$STAMP.dump.gpg"
+          mkdir -p "$BACKUP_DIR"
+          chmod 700 "$BACKUP_DIR"
+          trap 'rm -f "$BACKUP_DIR/makeupart.dump" "$BACKUP_DIR/verify.dump" "$PASSFILE" "$URLFILE"' EXIT
+
+          python - <<'PY' > "$URLFILE"
+          import os
+          from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+          raw = os.environ["SUPABASE_DB_URL"].strip()
+          parsed = urlsplit(raw)
+          if parsed.scheme == "postgresql+psycopg2":
+              parsed = parsed._replace(scheme="postgresql")
+          query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+          query.setdefault("sslmode", "require")
+          print(urlunsplit(parsed._replace(query=urlencode(query))))
+          PY
+          DB_URL_NORMALIZED="$(cat "$URLFILE")"
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSFILE"
+          chmod 600 "$PASSFILE"
+
+          docker run --rm \
+            --env DATABASE_URL="$DB_URL_NORMALIZED" \
+            --volume "$BACKUP_DIR:/backup" \
+            postgres:17-alpine sh -euc '
+              pg_dump --no-owner --no-acl --format=custom \
+                --file=/backup/makeupart.dump "$DATABASE_URL"
+            '
+
+          gpg --batch --yes --quiet --pinentry-mode loopback \
+            --passphrase-file "$PASSFILE" --symmetric --cipher-algo AES256 \
+            --output "$ARCHIVE" "$BACKUP_DIR/makeupart.dump"
+
+          # Decrypt into a temporary file and validate the custom dump header/list.
+          gpg --batch --yes --quiet --pinentry-mode loopback \
+            --passphrase-file "$PASSFILE" --decrypt \
+            --output "$BACKUP_DIR/verify.dump" "$ARCHIVE"
+          docker run --rm --volume "$BACKUP_DIR:/backup" postgres:17-alpine \
+            pg_restore --list "/backup/verify.dump" >/dev/null
+
+          rm -f "$BACKUP_DIR/makeupart.dump" "$BACKUP_DIR/verify.dump"
+          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+          echo "Encrypted PostgreSQL backup created and archive readability verified."
+          echo "::notice::This database backup does not include image/media files stored in the Modal media volume."
+
+      - name: Upload encrypted backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: makeupart-db-backup-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/makeupart-db-backup/*.dump.gpg
+            ${{ runner.temp }}/makeupart-db-backup/*.dump.gpg.sha256
+          if-no-files-found: error
+          retention-days: 14

@@ -77,3 +77,13 @@ The primary cloud deployment is Modal + Supabase. Android production builds use 
 Project administration is controlled by the production secret `PLATFORM_ADMIN_EMAILS` (comma-separated e-mail addresses). Platform admins can view users, see blocked accounts, block/unblock users, and manage salon subscriptions.
 
 All newly registered salons start on a permanent Free plan with a monthly AI-processing quota; no payment is required to start using the app.
+
+
+## Release readiness
+
+- Current Android download: [MakeupArt V8 v8.0.139](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.139/MakeupArt-V8.apk).
+- The app checks GitHub Releases for a newer APK and prompts the user to download it; Android confirmation is still required to install.
+- The current beauty effect uses MediaPipe + OpenCV and is not generative makeup.
+- Google Play, iOS distribution, database/media disaster recovery and commercial InsightFace model licensing have separate release gates.
+
+See [release-readiness dashboard](docs/RELEASE_READINESS.md), [AI and model licensing](docs/AI_CAPABILITIES_AND_LICENSES.md), [mobile release notes](docs/MOBILE_RELEASE.md), and [production runbook](docs/PRODUCTION_RUNBOOK.md).
