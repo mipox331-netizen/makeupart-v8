@@ -2,7 +2,7 @@
 
 ## Android APK
 
-The current public release is [v8.0.139](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.139), with direct download at [MakeupArt-V8.apk](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.139/MakeupArt-V8.apk).
+The current public release is [v8.0.145](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.145), with direct download at [MakeupArt-V8.apk](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.145/MakeupArt-V8.apk).
 
 The release workflow runs dependency resolution, Flutter analysis/tests, a release build, APK signature verification and publication as a GitHub Release. The current APK includes an update checker that reads the latest public GitHub Release and prompts the user when a newer version exists. It opens the browser/download destination; Android still requires the user to confirm installing the downloaded APK. Updates do not download or install silently.
 
