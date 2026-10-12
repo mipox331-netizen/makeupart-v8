@@ -20,6 +20,9 @@ class _AdminPageState extends State<AdminPage> {
   String? error;
   String searchQuery = '';
   String planFilter = 'all';
+  String revenuePeriod = 'month';
+  Map<String, dynamic> revenueSummary = const {};
+  String? revenueError;
 
   @override
   void initState() {
@@ -39,9 +42,254 @@ class _AdminPageState extends State<AdminPage> {
       ]);
       rows = results[0];
       users = results[1];
+      try {
+        revenueSummary = await widget.api.getAdminRevenueSummary(
+          period: revenuePeriod,
+        );
+        revenueError = null;
+      } catch (_) {
+        revenueSummary = const {};
+        revenueError =
+            'Revenue summary is unavailable. Verify the backend is deployed with the payment-ledger migration.';
+      }
     } catch (exception) {
       error = 'Could not load admin data: $exception';
     } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _recordVerifiedPayment() async {
+    if (rows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Create or register a salon before recording a payment.')),
+      );
+      return;
+    }
+
+    final amountController = TextEditingController();
+    final referenceController = TextEditingController();
+    final notesController = TextEditingController();
+    try {
+      final payment = await showDialog<Map<String, Object?>>(
+        context: context,
+        builder: (dialogContext) {
+          var selectedSalon = rows.first['salon_id']?.toString() ?? '';
+          var selectedPlan = 'pro';
+          var selectedCurrency = 'TZS';
+          var selectedMethod = 'mobile_money';
+          var selectedDays = 30;
+          String? formError;
+
+          return StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              title: const Text('Record verified payment'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Use this only after funds have actually been received. It records the receipt and activates the selected salon plan; it does not charge the customer.',
+                    ),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedSalon,
+                      decoration: const InputDecoration(
+                        labelText: 'Salon',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: rows.map((row) {
+                        final id = row['salon_id']?.toString() ?? '';
+                        final name = row['salon_name']?.toString() ?? id;
+                        return DropdownMenuItem<String>(
+                          value: id,
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => selectedSalon = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedPlan,
+                      decoration: const InputDecoration(
+                        labelText: 'Plan to activate',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'basic', child: Text('Basic')),
+                        DropdownMenuItem(value: 'pro', child: Text('Pro')),
+                        DropdownMenuItem(value: 'enterprise', child: Text('Enterprise / Salon')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => selectedPlan = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Amount received',
+                        hintText: 'e.g. 120000',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCurrency,
+                      decoration: const InputDecoration(
+                        labelText: 'Currency',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'TZS', child: Text('TZS — Tanzanian shilling')),
+                        DropdownMenuItem(value: 'USD', child: Text('USD — US dollar')),
+                        DropdownMenuItem(value: 'KES', child: Text('KES — Kenyan shilling')),
+                        DropdownMenuItem(value: 'UGX', child: Text('UGX — Ugandan shilling')),
+                        DropdownMenuItem(value: 'EUR', child: Text('EUR — euro')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => selectedCurrency = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedMethod,
+                      decoration: const InputDecoration(
+                        labelText: 'How was it received?',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'mobile_money', child: Text('Mobile money')),
+                        DropdownMenuItem(value: 'bank_transfer', child: Text('Bank transfer')),
+                        DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                        DropdownMenuItem(value: 'manual', child: Text('Other verified method')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => selectedMethod = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment<int>(value: 30, label: Text('Monthly · 30 days')),
+                        ButtonSegment<int>(value: 365, label: Text('Annual · 365 days')),
+                      ],
+                      selected: {selectedDays},
+                      onSelectionChanged: (values) {
+                        setDialogState(() => selectedDays = values.first);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: referenceController,
+                      decoration: const InputDecoration(
+                        labelText: 'Transaction reference (recommended)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: notesController,
+                      maxLines: 2,
+                      maxLength: 500,
+                      decoration: const InputDecoration(
+                        labelText: 'Internal note (optional)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (formError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        formError!,
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    final amount = amountController.text.trim().replaceAll(',', '');
+                    final parsed = double.tryParse(amount);
+                    if (parsed == null || !parsed.isFinite || parsed <= 0) {
+                      setDialogState(() => formError = 'Enter an amount greater than zero.');
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop({
+                      'salon_id': selectedSalon,
+                      'plan': selectedPlan,
+                      'amount': amount,
+                      'currency': selectedCurrency,
+                      'payment_method': selectedMethod,
+                      'period_days': selectedDays,
+                    });
+                  },
+                  icon: const Icon(Icons.verified_rounded),
+                  label: const Text('Record & activate'),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (payment == null || !mounted) return;
+      setState(() {
+        loading = true;
+        error = null;
+      });
+      await widget.api.recordAdminPayment(
+        salonId: payment['salon_id']! as String,
+        plan: payment['plan']! as String,
+        amount: payment['amount']! as String,
+        currency: payment['currency']! as String,
+        paymentMethod: payment['payment_method']! as String,
+        periodDays: payment['period_days']! as int,
+        reference: referenceController.text,
+        notes: notesController.text,
+      );
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Verified payment recorded and subscription activated.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (exception) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment was not recorded: $exception'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      amountController.dispose();
+      referenceController.dispose();
+      notesController.dispose();
       if (mounted) setState(() => loading = false);
     }
   }
@@ -246,9 +494,114 @@ class _AdminPageState extends State<AdminPage> {
                       _MetricCard(label: 'Active', value: '$activeUsers'),
                       _MetricCard(label: 'Blocked', value: '$blockedUsers'),
                       _MetricCard(label: 'Free plan', value: '$freeUsers'),
-                      _MetricCard(label: 'Paid salons', value: '$paidSalons'),
+                      _MetricCard(label: 'Active paid plans', value: '$paidSalons'),
+                      _MetricCard(label: 'Revenue', value: 'Verified ledger'),
                       _MetricCard(label: 'Due in 7 days', value: '$expiringSoon'),
                     ],
+                  ),
+                  const SizedBox(height: 14),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.account_balance_wallet_outlined, size: 24),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Verified payments & revenue',
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Amounts below are receipts an administrator manually confirmed. Recording a receipt activates the plan but never sends a charge to a payment provider. Automatic renewals are not connected.',
+                          ),
+                          const SizedBox(height: 12),
+                          SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment<String>(value: 'month', label: Text('This month')),
+                              ButtonSegment<String>(value: 'year', label: Text('This year')),
+                            ],
+                            selected: {revenuePeriod},
+                            onSelectionChanged: (values) {
+                              final next = values.first;
+                              if (next != revenuePeriod) {
+                                setState(() {
+                                  revenuePeriod = next;
+                                  loading = true;
+                                });
+                                _load();
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          if (revenueError != null)
+                            Text(
+                              revenueError!,
+                              style: TextStyle(color: Theme.of(context).colorScheme.error),
+                            ),
+                          if (revenueError == null && revenueSummary.isNotEmpty) ...[
+                            Text(
+                              '${revenueSummary['transaction_count'] ?? 0} verified receipts in selected period',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            if ((revenueSummary['totals_by_currency'] as List<dynamic>? ?? const []).isEmpty)
+                              const Text('No verified payments recorded for this period.')
+                            else
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: ((revenueSummary['totals_by_currency'] as List<dynamic>? ?? const [])
+                                    .map((item) => Map<String, dynamic>.from(item as Map)))
+                                    .map((item) {
+                                  final currency = item['currency']?.toString() ?? '';
+                                  final total = (item['collected_total'] as num?)?.toDouble() ?? 0;
+                                  return _MetricCard(
+                                    label: '${currency} collected',
+                                    value: total.toStringAsFixed(2),
+                                  );
+                                }).toList(),
+                              ),
+                            const SizedBox(height: 12),
+                            if ((revenueSummary['recent_payments'] as List<dynamic>? ?? const []).isNotEmpty)
+                              ...((revenueSummary['recent_payments'] as List<dynamic>? ?? const [])
+                                  .take(8)
+                                  .map((item) => Map<String, dynamic>.from(item as Map)))
+                                  .map((payment) => ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        leading: const Icon(Icons.receipt_long_outlined),
+                                        title: Text(
+                                          payment['salon_name']?.toString() ?? 'Salon',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        subtitle: Text(
+                                          '${payment['plan']?.toString().toUpperCase() ?? 'PLAN'} · ${payment['payment_method'] ?? 'manual'} · ${payment['reference'] ?? 'No reference'}',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        trailing: Text(
+                                          '${payment['currency'] ?? ''} ${((payment['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                          textAlign: TextAlign.end,
+                                        ),
+                                      )),
+                          ],
+                          const SizedBox(height: 14),
+                          FilledButton.icon(
+                            onPressed: loading ? null : _recordVerifiedPayment,
+                            icon: const Icon(Icons.add_card_rounded),
+                            label: const Text('Record verified payment & activate plan'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Text(
