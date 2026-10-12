@@ -63,7 +63,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
         _opacity = ((data['opacity'] as num?)?.toDouble() ?? 0.72)
             .clamp(0.0, 1.0).toDouble();
         _size = ((data['size'] as num?)?.toDouble() ?? 20)
-            .clamp(8.0, 72.0).toDouble();
+            .clamp(8.0, 48.0).toDouble();
         _showPhone = data['phone'] == true;
         _showInstagram = data['instagram'] == true;
         _showTikTok = data['tiktok'] == true;
