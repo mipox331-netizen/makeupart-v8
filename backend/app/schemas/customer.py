@@ -29,11 +29,18 @@ class CustomerUpdate(BaseModel):
     notes: str | None = None
     consent_required: bool | None = None
 
-    @field_validator("consent_required")
+    @field_validator("first_name", "last_name", mode="before")
+    @classmethod
+    def names_cannot_be_null(cls, value: str | None) -> str | None:
+        if value is None:
+            raise ValueError("Customer names cannot be null.")
+        return value
+
+    @field_validator("consent_required", mode="before")
     @classmethod
     def consent_cannot_be_disabled(cls, value: bool | None) -> bool | None:
-        if value is False:
-            raise ValueError("Customer consent requirements cannot be disabled.")
+        if value is not True:
+            raise ValueError("Customer consent requirements cannot be disabled or null.")
         return value
 
 
