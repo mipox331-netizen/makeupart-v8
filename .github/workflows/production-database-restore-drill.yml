@@ -99,9 +99,10 @@ jobs:
           DUMP="$BACKUP_DIR/restored.dump"
           printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSFILE"
           chmod 600 "$PASSFILE"
-          trap 'rm -f "$PASSFILE" "$DUMP"' EXIT
+          trap 'rm -f "$PASSFILE"' EXIT
           gpg --batch --yes --quiet --pinentry-mode loopback \
             --passphrase-file "$PASSFILE" --decrypt --output "$DUMP" "$ARCHIVE"
+          chmod 600 "$DUMP"
           test -s "$DUMP"
           echo "Encrypted backup checksum and decryption verified. No customer records are printed."
 
