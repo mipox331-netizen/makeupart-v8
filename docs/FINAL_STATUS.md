@@ -1,6 +1,6 @@
 # Final Status
 
-Status date: 12 October 2026. This status reflects the current `main` source commit `83ac871220e99071072d77aee841c5566a61f0a6`. See [Release Readiness](RELEASE_READINESS.md) and [Third-party license audit](THIRD_PARTY_LICENSE_AUDIT.md) for the remaining launch gates.
+Status date: 12 October 2026. The latest verified application source build is commit `49cab56e66cb8c1228f28d8ebc005fda4d21a414` on `main`. See [Release Readiness](RELEASE_READINESS.md) and [Third-party license audit](THIRD_PARTY_LICENSE_AUDIT.md) for the remaining launch gates.
 
 ## Delivered and verified
 
@@ -18,10 +18,11 @@ Status date: 12 October 2026. This status reflects the current `main` source com
 
 ## Latest verified production evidence
 
-- CI on source commit `83ac871220e99071072d77aee841c5566a61f0a6`: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38257623191).
-- Modal production deployment on the same commit: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38257623154); MediaPipe/OpenCV runtime, persistent media volume, API readiness and registration/login/subscription smoke tests passed.
+- CI on source commit `49cab56e66cb8c1228f28d8ebc005fda4d21a414`: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38264810012); backend tests, Flutter analysis/tests, production API checks and Android debug build passed.
+- Modal production deployment on that same commit: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38264809934); migration head `0009_reconcile_refresh_sessions`, MediaPipe/OpenCV runtime, media-volume persistence, API readiness and registration/login/free-subscription smoke tests passed. The old non-commercial InsightFace cache was removed.
+- Third-party dependency inventory on that commit: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38264809964); manual review of reported license terms remains necessary.
 - Database restore drill: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38257496915); checksum, decryption, PostgreSQL restore, 11 required tables, migration head `0009_reconcile_refresh_sessions`, and orphan checks passed. The selected backup had no rows in `users`, `salons` or `subscriptions`, so the result proves an empty-database/schema restore, not recovery of real customer row data.
-- Android Release `v8.0.139` remains available through the [current public APK link](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.139/MakeupArt-V8.apk). A later mobile-source update must complete its own release workflow before it is in that published APK.
+- Android Release `v8.0.145` is published and its release workflow [passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38264810025). [Download the current APK](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.145/MakeupArt-V8.apk).
 
 ## Remaining release gates
 
