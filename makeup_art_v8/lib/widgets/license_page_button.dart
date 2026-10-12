@@ -5,8 +5,8 @@ const String makeupArtLegalese =
     'Original application source is proprietary. Third-party packages and '
     'platform components remain subject to their own licenses and notices.';
 
-Future<void> showMakeupArtLicenses(BuildContext context) {
-  return showLicensePage(
+void showMakeupArtLicenses(BuildContext context) {
+  showLicensePage(
     context: context,
     applicationName: 'MakeupArt V8',
     applicationLegalese: makeupArtLegalese,
