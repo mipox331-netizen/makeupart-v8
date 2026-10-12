@@ -52,8 +52,9 @@ jobs:
           set -euo pipefail
           BACKUP_DIR="$RUNNER_TEMP/makeupart-media-backup"
           STAGE="$BACKUP_DIR/stage"
-          mkdir -p "$STAGE"
-          chmod 700 "$BACKUP_DIR" "$STAGE"
+          # Create the local target even when the production volume has no files yet.
+          mkdir -p "$STAGE/media"
+          chmod 700 "$BACKUP_DIR" "$STAGE" "$STAGE/media"
           # Suppress CLI output so private file paths are not written to public workflow logs.
           if ! modal volume get --force -e main makeupart-v8-media / "$STAGE/media" >/dev/null 2>&1; then
             echo "::error::Could not download the production media volume. Command output was suppressed to protect private paths."
