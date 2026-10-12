@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
+import '../services/favorite_image_store.dart';
 import '../services/gallery_exporter.dart';
 import '../services/photo_look_service.dart';
 import '../services/recent_image_store.dart';
+import '../services/share_image_service.dart';
 import '../widgets/license_page_button.dart';
-import 'branding_settings_page.dart';
+import 'favorites_page.dart';
 import 'settings_page.dart';
 
 class BeautyPage extends StatefulWidget {
@@ -45,6 +47,9 @@ class _BeautyPageState extends State<BeautyPage> {
   RecentImageStore get recentImageStore =>
       RecentImageStore(scope: widget.salonId);
 
+  FavoriteImageStore get favoriteImageStore =>
+      FavoriteImageStore(scope: widget.salonId);
+
   XFile? selected;
   Map<String, dynamic>? result;
   Future<Uint8List>? afterImageFuture;
@@ -54,6 +59,9 @@ class _BeautyPageState extends State<BeautyPage> {
   String selectedMakeupStyle = 'natural';
   bool showOriginal = false;
   bool savingGallery = false;
+  bool savingFavorite = false;
+  bool sharingResult = false;
+  bool isFavorite = false;
   List<Map<String, dynamic>> customers = [];
   String? customerId;
   bool? customerConsentActive;
@@ -293,6 +301,8 @@ class _BeautyPageState extends State<BeautyPage> {
 
       Uint8List? afterBytes;
       final afterUrl = response['after_image_url'] as String?;
+      final jobId = response['job_id']?.toString();
+      final favorite = jobId == null ? false : await favoriteImageStore.contains(jobId);
       if (afterUrl != null) {
         rawAfterBytes = await widget.api.fetchImage(afterUrl);
         afterBytes = await PhotoLookService.apply(rawAfterBytes!, selectedLook);
@@ -312,6 +322,7 @@ class _BeautyPageState extends State<BeautyPage> {
       setState(() {
         result = response;
         displayedAfterBytes = afterBytes;
+        isFavorite = favorite;
         showOriginal = false;
         afterImageFuture =
             afterBytes == null ? null : Future<Uint8List>.value(afterBytes);
@@ -439,6 +450,147 @@ class _BeautyPageState extends State<BeautyPage> {
     }
   }
 
+  Future<void> _toggleFavorite() async {
+    final bytes = displayedAfterBytes;
+    final jobId = result?['job_id']?.toString();
+    if (bytes == null || bytes.isEmpty || jobId == null || savingFavorite) return;
+
+    setState(() {
+      savingFavorite = true;
+      error = null;
+    });
+    try {
+      if (isFavorite) {
+        await favoriteImageStore.remove(jobId);
+        if (mounted) {
+          setState(() => isFavorite = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Removed from favorites.')),
+          );
+        }
+      } else {
+        await favoriteImageStore.save(bytes, jobId: jobId);
+        if (mounted) {
+          setState(() => isFavorite = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Saved to private on-device favorites.'),
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update favorites on this device.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => savingFavorite = false);
+    }
+  }
+
+  Future<void> _shareResult() async {
+    final bytes = displayedAfterBytes;
+    if (bytes == null || bytes.isEmpty || sharingResult) return;
+
+    final promotionController = TextEditingController();
+    final promotion = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Share beauty result'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Add an optional product, offer, or booking message to promote your salon.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: promotionController,
+              maxLines: 3,
+              maxLength: 240,
+              decoration: const InputDecoration(
+                labelText: 'Product / offer caption (optional)',
+                hintText: 'e.g. Bridal makeover bookings open this week',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(
+              promotionController.text.trim(),
+            ),
+            child: const Text('Continue to share'),
+          ),
+        ],
+      ),
+    );
+    promotionController.dispose();
+    if (promotion == null || !mounted) return;
+
+    setState(() => sharingResult = true);
+    try {
+      Map<String, dynamic> salon = const {};
+      try {
+        salon = await widget.api.getSalonProfile();
+      } catch (_) {
+        // Sharing still works when a profile refresh is temporarily unavailable.
+      }
+      final salonName = salon['name']?.toString().trim().isNotEmpty == true
+          ? salon['name'].toString().trim()
+          : 'our salon';
+      final captionParts = <String>[
+        if (promotion.isNotEmpty) promotion,
+        'Beauty look by $salonName.',
+        if (salon['phone']?.toString().trim().isNotEmpty == true)
+          'Bookings: ${salon['phone']}',
+        if (salon['instagram']?.toString().trim().isNotEmpty == true)
+          'Instagram: ${salon['instagram'].toString().startsWith('@') ? salon['instagram'] : '@${salon['instagram']}'}',
+        if (salon['tiktok']?.toString().trim().isNotEmpty == true)
+          'TikTok: ${salon['tiktok'].toString().startsWith('@') ? salon['tiktok'] : '@${salon['tiktok']}'}',
+        'Made with MakeupArt V8.',
+      ];
+      await ShareImageService.sharePng(
+        bytes: bytes,
+        fileName: 'makeupart_${DateTime.now().millisecondsSinceEpoch}.png',
+        caption: captionParts.join('\n'),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Share sheet opened. Choose a social app to publish the result.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open the share sheet. Try saving the image instead.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => sharingResult = false);
+    }
+  }
+
+  Future<void> _openFavorites() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FavoritesPage(salonId: widget.salonId),
+      ),
+    );
+  }
+
   Future<void> _saveResultToGallery() async {
     final bytes = displayedAfterBytes;
     if (bytes == null || bytes.isEmpty || savingGallery) return;
@@ -514,6 +666,11 @@ class _BeautyPageState extends State<BeautyPage> {
                       ),
                     ),
             icon: const Icon(Icons.settings_outlined),
+          ),
+          IconButton(
+            tooltip: 'Favorite results',
+            onPressed: _openFavorites,
+            icon: const Icon(Icons.favorite_border_rounded),
           ),
           const LicensePageButton(),
           IconButton(
@@ -1008,9 +1165,49 @@ class _BeautyPageState extends State<BeautyPage> {
                           padding: const EdgeInsets.symmetric(vertical: 15),
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: savingFavorite || loading ? null : _toggleFavorite,
+                              icon: savingFavorite
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : Icon(isFavorite
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded),
+                              label: Text(
+                                savingFavorite
+                                    ? 'Saving...'
+                                    : isFavorite
+                                        ? 'Remove favorite'
+                                        : 'Add favorite',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton.tonalIcon(
+                              onPressed: sharingResult || loading ? null : _shareResult,
+                              icon: sharingResult
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.share_rounded),
+                              label: Text(sharingResult ? 'Opening...' : 'Share result'),
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 6),
                       const Text(
-                        'The saved PNG includes the selected photo finish and the salon watermark from the latest processing run.',
+                        'The PNG includes the salon watermark. Sharing opens your phone’s share sheet with an optional promotional caption.',
                         textAlign: TextAlign.center,
                       ),
                     ],
