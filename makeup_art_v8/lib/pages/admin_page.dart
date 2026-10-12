@@ -290,7 +290,7 @@ class _AdminPageState extends State<AdminPage> {
                   if (filteredUsers.isEmpty)
                     Card(
                       child: Padding(
-                        padding: EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(20),
                         child: Text(users.isEmpty ? 'No users yet.' : 'No users match this filter.'),
                       ),
                     ),
@@ -361,7 +361,7 @@ class _AdminPageState extends State<AdminPage> {
                   if (filteredRows.isEmpty)
                     Card(
                       child: Padding(
-                        padding: EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(20),
                         child: Text(rows.isEmpty ? 'No salon subscriptions yet.' : 'No subscriptions match this filter.'),
                       ),
                     ),
