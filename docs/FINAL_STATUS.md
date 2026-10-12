@@ -1,43 +1,40 @@
 # Final Status
 
-Status date: 12 October 2026. See [Release Readiness](RELEASE_READINESS.md) for the current evidence and remaining gates.
+Status date: 12 October 2026. This status reflects the current `main` source commit `83ac871220e99071072d77aee841c5566a61f0a6`. See [Release Readiness](RELEASE_READINESS.md) and [Third-party license audit](THIRD_PARTY_LICENSE_AUDIT.md) for the remaining launch gates.
 
-## Delivered and verified on the last verified source commit
+## Delivered and verified
 
-- FastAPI + PostgreSQL + Alembic backend, salon-scoped auth, user administration and subscription enforcement.
-- Customer records, consultation records, stored consent, job history, privacy deletion and authenticated salon-isolated media.
+- FastAPI + PostgreSQL + Alembic backend, salon-scoped authentication, user administration and subscription enforcement.
+- Customer records, consultations, stored consent, job history, privacy deletion and authenticated salon-isolated media.
 - Image validation, metadata stripping, retention cleanup, request IDs and security headers.
-- Production health/liveness/readiness endpoints and Modal deployment workflow.
 - Flutter registration/login, token refresh, customer controls, consent, camera/gallery processing and authenticated result images.
-- Android APK release pipeline with signing verification and a public GitHub Release.
-- In-app GitHub Release update check: it prompts for a newer APK but does not install it silently.
-- Production health monitor workflow configured to probe liveness/readiness every 15 minutes.
-- Encrypted database-backup workflow configured, subject to the prerequisites in [Release Readiness](RELEASE_READINESS.md).
+- Android APK release pipeline, signing verification, public GitHub Release and in-app update prompt.
+- Production health monitor workflow configured to check liveness/readiness every 15 minutes.
+- Encrypted PostgreSQL backup workflow and an isolated restore-drill workflow.
+- Admin disable/unblock now revokes refresh sessions and rejects stale access tokens via `token_version`.
+- InsightFace pretrained weights/runtime were removed; production uses MediaPipe landmarks + OpenCV structural-preservation guard. The score is not biometric identity recognition.
+- Root [LICENSE](../LICENSE) now records the proprietary rights notice for original project materials.
+- Python and Flutter/Dart third-party license inventory workflow added.
 
-## Verified run IDs
+## Latest verified production evidence
 
-For source commit `5d6e466a1814a2dc42d6fa34e866e88cf4f710b6`:
-- CI #352: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38236716921)
-- Android APK #139: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38236716924)
-- Modal production deploy #104: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38236716922)
-
-The workflow additions in a newer commit must be treated as unverified until their own runs finish.
+- CI on source commit `83ac871220e99071072d77aee841c5566a61f0a6`: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38257623191).
+- Modal production deployment on the same commit: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38257623154); MediaPipe/OpenCV runtime, persistent media volume, API readiness and registration/login/subscription smoke tests passed.
+- Database restore drill: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38257496915); checksum, decryption, PostgreSQL restore, 11 required tables, migration head `0009_reconcile_refresh_sessions`, and orphan checks passed. The selected backup had no rows in `users`, `salons` or `subscriptions`, so the result proves an empty-database/schema restore, not recovery of real customer row data.
+- Android Release `v8.0.139` remains available through the [current public APK link](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.139/MakeupArt-V8.apk). A later mobile-source update must complete its own release workflow before it is in that published APK.
 
 ## Remaining release gates
 
-- **Google Play:** no successful store publication is currently verified. The release workflow now fails instead of silently skipping upload when the required Play service-account secret is missing/invalid.
-- **iOS:** an unsigned build check is configured; there is no signed IPA, TestFlight build or App Store submission evidence.
-- **Database backup:** the scheduled encrypted dump needs a database URL and `BACKUP_ENCRYPTION_PASSPHRASE` in the production environment. A successful artifact and a staging restore drill must be verified.
-- **Media backup:** the Modal media volume is separate from PostgreSQL and needs an independent backup destination.
-- **Monitoring:** basic GitHub Actions health checks are configured; independent incident alerting is not.
-- **Generative AI makeup:** not implemented; current image processing is classical OpenCV enhancement.
-- **Face-model licensing:** the implementation now removes InsightFace `buffalo_l` and uses an OpenCV structural-image-preservation score instead. That score is not biometric identity verification. Confirm the replacement deployment and complete a dependency/model-asset license audit before commercial launch.
-- **Repository license:** no root-level `LICENSE` file currently defines reuse rights.
+- **Third-party licensing:** automated inventories are generated, but the reports must be reviewed for unknown/ambiguous licenses and native Android/iOS, operating-system and container components before a full commercial-clearance claim.
+- **Database disaster recovery:** the current successful restore drill used an empty core dataset. Verify a backup containing actual application rows against an isolated target before claiming row-data recovery.
+- **Media disaster recovery:** image files in the Modal media volume are separate from PostgreSQL and do not yet have an independently verified off-host backup/restore route.
+- **Generative makeup:** not implemented. Current processing is bounded OpenCV skin smoothing and heuristic shade estimation, not generation of a new makeup look.
+- **Google Play:** no successful store publication is verified; requires the Play Console app and service-account permissions.
+- **iOS:** no signed IPA, TestFlight build or App Store submission is verified.
+- **Incident alerts:** GitHub Actions health checks are configured, but independent SMS/pager alerts are not.
 
 ## AI limitations
 
-- The current effect is bounded OpenCV skin smoothing, not text/image-driven makeup generation.
-- The result is checked with an OpenCV structural-image-preservation score. It is not biometric identity verification and does not prove identity preservation for arbitrary generated images.
-- Skin-tone and undertone estimates are heuristic and are not validated cosmetic measurements.
+The current score checks local image-structure preservation after a bounded smoothing edit. It is not biometric identity matching and does not guarantee identity preservation for arbitrary generated images. Skin-tone and undertone estimates are heuristics, not validated cosmetic measurements.
 
-See [AI capabilities and licensing](AI_CAPABILITIES_AND_LICENSES.md) before making product or commercial-readiness claims.
+The status above distinguishes completed engineering checks from external launch evidence; a green CI/deploy does not itself complete store publication, legal review, or disaster recovery.
