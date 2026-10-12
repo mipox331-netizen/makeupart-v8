@@ -14,5 +14,3 @@ mediapipe==0.10.21
 numpy==1.26.4
 opencv-python==4.11.0.86
 Pillow==12.3.0
-pytest==8.3.3
-httpx==0.27.2
