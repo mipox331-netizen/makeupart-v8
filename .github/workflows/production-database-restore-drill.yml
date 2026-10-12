@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       backup_run_id:
-        description: "Successful production-database-backup workflow run ID (artifact must still be retained)"
-        required: true
+        description: "Optional successful backup run ID; leave blank to choose the newest available encrypted backup"
+        required: false
         type: string
-        default: "38251453670"
+        default: ""
   push:
     branches: [main]
     paths:
@@ -43,11 +43,50 @@ jobs:
           --health-retries 20
     env:
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-      BACKUP_RUN_ID: ${{ inputs.backup_run_id || '38251453670' }}
 
     steps:
+      - name: Select available backup artifact
+        id: select-backup
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          requested="$REQUESTED_BACKUP_RUN_ID"
+          if [[ -n "$requested" ]]; then
+            [[ "$requested" =~ ^[0-9]+$ ]] || {
+              echo "::error::backup_run_id must contain digits only."
+              exit 1
+            }
+            candidates="$requested"
+          else
+            candidates="$(gh api --paginate "repos/$repo/actions/workflows/production-database-backup.yml/runs?status=success&per_page=25" --jq '.workflow_runs[].id')"
+          fi
+
+          selected=""
+          for run_id in $candidates; do
+            run_status="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.conclusion // empty' 2>/dev/null || true)"
+            [[ "$run_status" == "success" ]] || continue
+            artifact_count="$(gh api "repos/$repo/actions/runs/$run_id/artifacts" --jq "[.artifacts[] | select(.name == \"makeupart-db-backup-$run_id\" and .expired == false)] | length" 2>/dev/null || echo 0)"
+            if [[ "$artifact_count" =~ ^[0-9]+$ ]] && (( artifact_count > 0 )); then
+              selected="$run_id"
+              break
+            fi
+          done
+
+          [[ -n "$selected" ]] || {
+            echo "::error::No successful backup run with an unexpired expected artifact was found."
+            exit 1
+          }
+          echo "run_id=$selected" >> "$GITHUB_OUTPUT"
+          echo "Selected a successful encrypted backup artifact. Database contents are not exposed."
+
       - name: Validate inputs and encryption secret
         shell: bash
+        env:
+          BACKUP_RUN_ID: ${{ steps.select-backup.outputs.run_id }}
         run: |
           set -euo pipefail
           [[ "$BACKUP_RUN_ID" =~ ^[0-9]+$ ]] || {
@@ -67,8 +106,8 @@ jobs:
       - name: Download the selected encrypted backup artifact
         uses: actions/download-artifact@v4
         with:
-          name: makeupart-db-backup-${{ env.BACKUP_RUN_ID }}
-          run-id: ${{ env.BACKUP_RUN_ID }}
+          name: makeupart-db-backup-${{ steps.select-backup.outputs.run_id }}
+          run-id: ${{ steps.select-backup.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           path: ${{ runner.temp }}/makeupart-restore-drill
