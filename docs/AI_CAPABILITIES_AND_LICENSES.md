@@ -6,24 +6,21 @@ The current backend is not a generative-makeup system. Its image path is:
 
 1. MediaPipe face landmarks locate one face.
 2. OpenCV estimates a skin tone/undertone and applies bounded bilateral-filter skin smoothing.
-3. InsightFace `buffalo_l` embeddings compare the original and processed image for the identity-similarity guard.
+3. An OpenCV SSIM-style metric estimates how much facial image structure changed after smoothing. It is an image-preservation check, not biometric identity recognition.
 4. The backend saves the result and returns a foundation-match label.
 
 This pipeline does not synthesize lipstick, eyeshadow, blush, foundation coverage, or a new photorealistic makeup look from a text prompt. UI/marketing must describe it as an image-enhancement preview until a generative model is integrated and validated.
 
-## InsightFace licensing — commercial release gate
+## Face-model licensing
 
-The repository pins `insightface==0.7.3` and the runtime loads `FaceAnalysis(name="buffalo_l")`.
+The production image-smoothing path does not need face-recognition embeddings: MediaPipe locates facial landmarks, and OpenCV performs the bounded edit and checks structural image preservation. The implementation therefore removes the InsightFace `buffalo_l` pretrained weights and the InsightFace runtime dependency rather than using pretrained models whose published default terms restrict them to non-commercial research.
 
-InsightFace distinguishes the source-code license from its pretrained-model license:
-- The Python library/code is MIT-licensed.
-- The pretrained model packages supplied by InsightFace, including `buffalo_l`, are stated to be for non-commercial research by default. The code's MIT license does not independently grant commercial rights to the weights.
+Official license references:
+- [InsightFace model-zoo terms](https://github.com/deepinsight/insightface/blob/master/python-package/docs/model_zoo.md) — its pretrained model packages are non-commercial research by default.
+- [MediaPipe license](https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE) — Apache License 2.0.
+- [OpenCV license](https://opencv.org/license/) — Apache License 2.0 for OpenCV 4.5.0 and newer.
 
-Official sources:
-- [InsightFace model-zoo documentation](https://github.com/deepinsight/insightface/blob/master/python-package/docs/model_zoo.md)
-- [InsightFace model licensing for commercial use](https://www.insightface.ai/solutions/face-recognition-licensing)
-
-**Do not treat a successful build/deployment as evidence of commercial model permission.** Before charging salons or using this model commercially, obtain written commercial authorization for the exact `buffalo_l` model/version or replace it with a model whose commercial license and training-data terms have been reviewed. Record the applicable license and model checksum before unblocking that release gate.
+The structural-similarity guard deliberately makes a narrower claim than face recognition. It checks that a bounded smoothing edit has not changed the local image structure too much; it does not verify a person's identity and must not be described as biometric identity protection. Because the app does not synthesize a new face or use identity embeddings, this removes the specific `buffalo_l` commercial-model licensing blocker. A complete commercial release still needs a software-bill-of-materials review of all direct/transitive dependencies and any bundled model assets.
 
 ## Generative makeup — implementation gate
 
