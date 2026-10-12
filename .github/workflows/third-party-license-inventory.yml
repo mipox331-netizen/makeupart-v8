@@ -37,6 +37,11 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements*.txt
 
+      - name: Install native build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends gcc libpq-dev
+
       - name: Install backend runtime and development dependencies
         run: |
           python -m pip install --upgrade pip
