@@ -70,9 +70,13 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: makeup_art_v8
         run: |
-          flutter pub get
           test -s pubspec.lock || {
-            echo "::error::Flutter dependency resolution did not produce pubspec.lock."
+            echo "::error::Committed pubspec.lock is required before producing a reproducible license inventory."
+            exit 1
+          }
+          flutter pub get
+          git diff --exit-code -- pubspec.lock || {
+            echo "::error::Flutter dependency resolution changed pubspec.lock. Update and commit the lockfile first."
             exit 1
           }
           cp pubspec.lock "$RUNNER_TEMP/license-reports/pubspec.lock"
