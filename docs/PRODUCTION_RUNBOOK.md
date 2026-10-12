@@ -67,6 +67,6 @@ The repository contains `backend/docker-compose.production.yml` with PostgreSQL,
 - Keep `CORS_ORIGINS` explicit and secrets outside Git.
 - Keep customer media private and serve it only through authenticated API routes.
 - Keep consent, retention and deletion controls in place.
-- The replacement implementation removes InsightFace `buffalo_l` and checks image structure with OpenCV; verify the corresponding production deployment before enabling commercial use. This score is not biometric identity recognition.
+- The InsightFace `buffalo_l` pretrained model/runtime has been removed, and the MediaPipe/OpenCV replacement was verified in production deployment run [38257623154](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38257623154). The OpenCV score measures image-structure preservation, not biometric identity recognition.
 - The current OpenCV filter is not generative makeup. Do not advertise the generative feature as available until it is implemented and validated.
-- Review all dependency licenses and add a root-level repository license before asserting source reuse rights.
+- The root proprietary source notice and automated Python/Flutter dependency license inventory are now in the repository. Review the reports and remaining native, OS, container, and asset/model license terms before claiming full commercial clearance. See [Third-party license audit](THIRD_PARTY_LICENSE_AUDIT.md).
