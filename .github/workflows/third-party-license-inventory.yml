@@ -74,7 +74,7 @@ jobs:
           dart pub global run dart_pubspec_licenses:generate \
             --project-root "$GITHUB_WORKSPACE/makeup_art_v8" \
             --output "$RUNNER_TEMP/license-reports/flutter-dependency-licenses.json" \
-            --json
+            --json --split-sdk-licenses
           test -s "$RUNNER_TEMP/license-reports/flutter-dependency-licenses.json" || {
             echo "::error::Flutter/Dart license inventory was not generated."
             exit 1
