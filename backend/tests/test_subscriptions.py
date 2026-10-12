@@ -18,6 +18,8 @@ def test_subscription_usage_defaults_to_permanent_free(client):
     assert body["used"] == 0
     assert body["remaining"] == 25
     assert body["current_period_end"] is None
+    assert body["available_makeup_styles"] == ["natural"]
+    assert body["available_photo_finishes"] == ["Natural Finish", "Warm Glow"]
 
 
 def test_beauty_quota_blocks_processing_after_limit(client, monkeypatch, tmp_path):
@@ -133,3 +135,40 @@ def test_expired_free_trial_is_normalised_to_active():
 
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
+
+def test_free_plan_cannot_bypass_premium_makeup_style_gate(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+
+    response = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true&makeup_style=soft_glam",
+        headers=headers,
+        files={"file": ("portrait.png", b"not-decoded-because-entitlement-denies-first", "image/png")},
+    )
+
+    assert response.status_code == 403
+    assert response.headers["X-Required-Plan"] == "basic"
+    assert "Basic plan or higher" in response.json()["detail"]
+
+    usage = client.get(f"{API}/subscriptions/me", headers=headers)
+    assert usage.status_code == 200
+    assert usage.json()["used"] == 0
+
+
+def test_free_plan_cannot_bypass_pro_photo_finish_gate(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+
+    response = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true&photo_finish=Studio%20Polish",
+        headers=headers,
+        files={"file": ("portrait.png", b"not-decoded-because-entitlement-denies-first", "image/png")},
+    )
+
+    assert response.status_code == 403
+    assert response.headers["X-Required-Plan"] == "pro"
+    assert "Pro plan or higher" in response.json()["detail"]
+
+    usage = client.get(f"{API}/subscriptions/me", headers=headers)
+    assert usage.status_code == 200
+    assert usage.json()["used"] == 0
