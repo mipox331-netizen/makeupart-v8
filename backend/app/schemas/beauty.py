@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 
 MakeupStyle = Literal["natural", "soft_glam", "bridal_rose", "evening_glam"]
+PhotoFinish = Literal["Natural Finish", "Warm Glow", "Soft Glam", "Studio Polish", "Golden Hour"]
 
 
 class BeautyProcessRequest(BaseModel):
