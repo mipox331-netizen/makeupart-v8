@@ -19,8 +19,8 @@ Every customer, consultation, consent, beauty job, result and media path is chec
 4. Validate upload type, bytes, decoded image and pixel count.
 5. Normalize the stored input image to remove embedded metadata.
 6. Run MediaPipe face landmarks and OpenCV enhancement.
-7. Measure identity similarity with InsightFace.
-8. Retry at lower intensity when the similarity guard fails.
+7. Use OpenCV to estimate how much local image structure is preserved by the bounded smoothing operation; this is not biometric identity recognition.
+8. Retry at lower intensity when the image-structure preservation score falls below the configured threshold.
 9. Persist job/result metadata.
 10. Serve before/after assets only through authenticated endpoints.
 
