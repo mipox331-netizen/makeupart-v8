@@ -37,4 +37,4 @@ No generative inference provider, model license, API credential or validated gen
 ## Other license and distribution checks
 
 - This repository has no root-level `LICENSE` file. The project owner should choose and add a license for this repository before inviting external contributions or asserting reuse rights.
-- Audit transitive Python, Flutter and native dependencies before a commercial release; the InsightFace finding is a concrete blocker, not the whole software bill-of-materials review.
+- Audit transitive Python, Flutter and native dependencies before a commercial release; removal of the restricted InsightFace weights resolves that specific finding, not the entire software bill-of-materials review.
