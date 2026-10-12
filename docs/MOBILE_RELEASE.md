@@ -30,4 +30,4 @@ https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
 
 ## Operational release checks
 
-Before commercial launch, verify encrypted database backups and restore, separately back up media stored in the Modal volume, and resolve InsightFace model licensing. See [Release Readiness](RELEASE_READINESS.md) and [AI capabilities and licensing](AI_CAPABILITIES_AND_LICENSES.md).
+The restricted InsightFace pretrained model/runtime has been removed and the MediaPipe/OpenCV replacement is deployed. Before commercial launch, review the generated third-party dependency license inventories, test database row recovery using a populated backup, and set up a separate off-host backup/restore process for media stored in the Modal volume. See [Release Readiness](RELEASE_READINESS.md), [AI capabilities and licensing](AI_CAPABILITIES_AND_LICENSES.md), and [Third-party license audit](THIRD_PARTY_LICENSE_AUDIT.md).
