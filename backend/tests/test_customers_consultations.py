@@ -106,6 +106,35 @@ def test_privacy_delete_does_not_report_success_when_media_removal_fails(monkeyp
     assert candidate.exists()
 
 
+def test_customer_patch_rejects_null_non_nullable_fields(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    response = client.post(
+        f"{API}/customers",
+        headers=headers,
+        json={"first_name": "Nia", "last_name": "Client"},
+    )
+    assert response.status_code == 201
+    customer_id = response.json()["id"]
+
+    for payload in (
+        {"first_name": None},
+        {"last_name": None},
+        {"consent_required": None},
+    ):
+        invalid = client.patch(
+            f"{API}/customers/{customer_id}",
+            headers=headers,
+            json=payload,
+        )
+        assert invalid.status_code == 422
+
+    unchanged = client.get(f"{API}/customers/{customer_id}", headers=headers).json()
+    assert unchanged["first_name"] == "Nia"
+    assert unchanged["last_name"] == "Client"
+    assert unchanged["consent_required"] is True
+
+
 def test_customer_and_consultation_are_salon_scoped(client):
     register(client, email='owner.a@salon.com', salon_name='Salon A')
     register(client, email='owner.b@salon.com', salon_name='Salon B')
