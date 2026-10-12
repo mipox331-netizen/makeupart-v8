@@ -114,12 +114,9 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
       _error = null;
     });
     try {
-      final updated = await widget.api.deleteWatermarkLogo();
+      await widget.api.deleteWatermarkLogo();
       if (!mounted) return;
-      setState(() {
-        _settings = updated;
-        _logoBytes = null;
-      });
+      setState(() => _logoBytes = null);
       _message('Salon logo removed. The salon name watermark stays required.');
     } catch (_) {
       if (mounted) {
@@ -299,7 +296,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          value: _position,
+                          initialValue: _position,
                           decoration: const InputDecoration(
                             labelText: 'Position on image',
                             prefixIcon: Icon(Icons.layers_outlined),
