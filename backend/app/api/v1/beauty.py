@@ -1,10 +1,13 @@
+import logging
 import os
 import shutil
 import uuid
+import warnings
 from pathlib import Path
 
 import cv2
 import numpy as np
+from PIL import Image
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -74,7 +77,9 @@ def _require_consent(
     customer = db.get(Customer, customer_id)
     if customer is None or customer.salon_id != current_user.salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
-    if customer.consent_required and get_active_consent(db, current_user.salon_id, customer.id) is None:
+    # Older rows may have consent_required=False. Never let a mutable legacy
+    # flag override the customer's actual consent history.
+    if get_active_consent(db, current_user.salon_id, customer.id) is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Active customer consent is required before image processing",
@@ -82,6 +87,34 @@ def _require_consent(
 
 
 def _validate_uploaded_image(path: Path) -> None:
+    # Read image metadata first. Decoding a compressed image before checking
+    # declared dimensions lets tiny uploads allocate enormous pixel buffers.
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+            with Image.open(path) as probe:
+                width, height = probe.size
+
+        if width <= 0 or height <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Uploaded file has invalid image dimensions",
+            )
+        if width * height > settings.MAX_IMAGE_PIXELS:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="Image dimensions are too large",
+            )
+        with Image.open(path) as probe:
+            probe.verify()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Uploaded file is not a valid image",
+        ) from exc
+
     try:
         raw = np.fromfile(path, dtype=np.uint8)
         image = cv2.imdecode(raw, cv2.IMREAD_COLOR)
@@ -95,8 +128,9 @@ def _validate_uploaded_image(path: Path) -> None:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Uploaded file is not a valid image",
         )
+    # Keep a second bound check as defense in depth after decode.
     height, width = image.shape[:2]
-    if height * width > settings.MAX_IMAGE_PIXELS:
+    if width * height > settings.MAX_IMAGE_PIXELS:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="Image dimensions are too large",

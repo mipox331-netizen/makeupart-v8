@@ -1,4 +1,109 @@
+import pytest
+from fastapi import HTTPException
+from pathlib import Path
+from types import SimpleNamespace
+import uuid
+
+from app.api.v1 import consultations as consultations_api
+from app.api.v1 import customers as customers_api
 from tests.utils import API, auth_headers, register
+
+
+def test_customer_consent_cannot_be_disabled_via_api(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+
+    created = client.post(
+        f"{API}/customers",
+        headers=headers,
+        json={"first_name": "Consent", "last_name": "Protected", "consent_required": False},
+    )
+    assert created.status_code == 422
+
+    normal = client.post(
+        f"{API}/customers",
+        headers=headers,
+        json={"first_name": "Consent", "last_name": "Protected"},
+    )
+    assert normal.status_code == 201
+    customer_id = normal.json()["id"]
+
+    patched = client.patch(
+        f"{API}/customers/{customer_id}",
+        headers=headers,
+        json={"consent_required": False},
+    )
+    assert patched.status_code == 422
+    assert client.get(f"{API}/customers/{customer_id}", headers=headers).json()["consent_required"] is True
+
+
+def test_legacy_customer_flag_cannot_bypass_consultation_consent(client, monkeypatch):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    customer = client.post(
+        f"{API}/customers",
+        headers=headers,
+        json={"first_name": "Legacy", "last_name": "Client"},
+    )
+    assert customer.status_code == 201
+    customer_id = customer.json()["id"]
+
+    original_get_customer = consultations_api.get_customer
+
+    def legacy_customer(db, requested_id):
+        row = original_get_customer(db, requested_id)
+        if row is not None:
+            row.consent_required = False
+        return row
+
+    monkeypatch.setattr(consultations_api, "get_customer", legacy_customer)
+    response = client.post(
+        f"{API}/consultations",
+        headers=headers,
+        json={
+            "customer_id": customer_id,
+            "selected_makeup": "Natural Glow",
+            "shade": "Medium Warm",
+            "consent_granted": True,
+        },
+    )
+    assert response.status_code == 403
+    assert "Active customer consent" in response.json()["detail"]
+
+
+def test_privacy_delete_does_not_report_success_when_media_removal_fails(monkeypatch, tmp_path):
+    salon_id = uuid.uuid4()
+    customer_id = uuid.uuid4()
+    media_root = tmp_path / "media"
+    candidate = media_root / "salons" / str(salon_id) / "inputs" / "portrait.png"
+    candidate.parent.mkdir(parents=True, exist_ok=True)
+    candidate.write_bytes(b"private-image")
+    monkeypatch.setattr(customers_api.settings, "MEDIA_ROOT", str(media_root))
+
+    class FakeRows:
+        def scalars(self):
+            return self
+        def all(self):
+            return [SimpleNamespace(input_file_path=str(candidate), output_file_path=None)]
+
+    class FakeDb:
+        def execute(self, _statement):
+            return FakeRows()
+
+    original_unlink = Path.unlink
+
+    def fail_target_unlink(path, *args, **kwargs):
+        if path.resolve() == candidate.resolve():
+            raise PermissionError("simulated filesystem denial")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fail_target_unlink)
+    with pytest.raises(HTTPException) as exc:
+        customers_api._delete_customer_media(FakeDb(), salon_id, customer_id)
+
+    assert exc.value.status_code == 500
+    assert "records were retained" in exc.value.detail
+    assert candidate.exists()
 
 
 def test_customer_and_consultation_are_salon_scoped(client):

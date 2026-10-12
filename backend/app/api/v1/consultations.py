@@ -43,14 +43,15 @@ def create_consultation_record(
     customer = get_customer(db, consultation_in.customer_id)
     if customer is None or customer.salon_id != current_user.salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
-    if customer.consent_required:
-        if not consultation_in.consent_granted or get_active_consent(
-            db, current_user.salon_id, customer.id
-        ) is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Active customer consent is required for this consultation",
-            )
+    # Consent must be both recorded as active and confirmed for this action.
+    # Do not let older customer flags bypass the immutable consent history.
+    if not consultation_in.consent_granted or get_active_consent(
+        db, current_user.salon_id, customer.id
+    ) is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Active customer consent is required for this consultation",
+        )
 
     payload = consultation_in.model_dump(exclude={"customer_id"})
     if consultation_in.beauty_job_id is not None:

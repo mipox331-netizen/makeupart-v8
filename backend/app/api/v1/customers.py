@@ -1,3 +1,4 @@
+import logging
 import uuid
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from app.schemas.customer import CustomerCreate, CustomerOut, CustomerUpdate
 from app.services.media_volume import commit_media_volume
 
 router = APIRouter(prefix="/customers", tags=["customers"])
+logger = logging.getLogger("makeupart.customers")
 
 
 def _delete_customer_media(db: Session, salon_id: uuid.UUID, customer_id: uuid.UUID) -> None:
@@ -29,16 +31,41 @@ def _delete_customer_media(db: Session, salon_id: uuid.UUID, customer_id: uuid.U
         )
     ).scalars().all()
 
+    failed = False
     for job in jobs:
         for stored_path in (job.input_file_path, job.output_file_path):
             if not stored_path:
                 continue
             candidate = Path(stored_path).resolve()
-            if salon_root in candidate.parents and candidate.is_file():
-                try:
-                    candidate.unlink()
-                except OSError:
-                    pass
+            # Never delete outside the salon boundary, and do not silently
+            # erase the database records while a private media file remains.
+            if salon_root not in candidate.parents:
+                failed = True
+                logger.error("Customer media path failed salon-boundary validation")
+                continue
+            if not candidate.exists():
+                continue
+            if not candidate.is_file():
+                failed = True
+                logger.error("Customer media path is not a file")
+                continue
+            try:
+                candidate.unlink()
+            except OSError:
+                failed = True
+                logger.exception("Failed to remove customer media file")
+
+    if failed:
+        # Persist any successful removals while retaining customer/job records;
+        # the caller can retry, and privacy deletion never reports false success.
+        try:
+            commit_media_volume()
+        except Exception:
+            logger.exception("Failed to persist partial customer media deletion")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not securely remove all customer media. Customer records were retained; retry deletion.",
+        )
 
 
 @router.get("", response_model=list[CustomerOut])

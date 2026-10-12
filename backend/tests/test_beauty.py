@@ -1,9 +1,17 @@
 from types import SimpleNamespace
 
+import struct
+import uuid
+import zlib
+from pathlib import Path
+from types import SimpleNamespace
+
 import cv2
 import numpy as np
 import pytest
+from fastapi import HTTPException
 
+from app.api.v1 import beauty as beauty_api
 from app.services.beauty import BeautyProvider, IdentityGuard, SkinToneMatcher
 from tests.utils import API, auth_headers, register
 
@@ -27,6 +35,48 @@ def test_skin_tone_detection_uses_image_pixels():
     assert light_result["tone"] == "very-light"
     assert deep_result["tone"] == "deep"
     assert light_result["tone"] != deep_result["tone"]
+
+
+def test_legacy_customer_flag_cannot_bypass_missing_stored_consent(monkeypatch):
+    customer_id = uuid.uuid4()
+    salon_id = uuid.uuid4()
+    legacy_customer = SimpleNamespace(salon_id=salon_id, consent_required=False)
+    db = SimpleNamespace(get=lambda model, requested_id: legacy_customer)
+    user = SimpleNamespace(salon_id=salon_id)
+    monkeypatch.setattr(beauty_api, "get_active_consent", lambda *_args: None)
+
+    with pytest.raises(HTTPException) as exc:
+        beauty_api._require_consent(
+            db,
+            user,
+            customer_id=customer_id,
+            consent_confirmed=True,
+        )
+
+    assert exc.value.status_code == 403
+    assert "Active customer consent" in exc.value.detail
+
+
+def test_oversized_image_rejected_before_opencv_decode(tmp_path, monkeypatch):
+    width, height = 100_000, 100_000
+    ihdr = b"IHDR" + struct.pack(">II", width, height) + bytes([8, 2, 0, 0, 0])
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        + struct.pack(">I", len(ihdr))
+        + ihdr
+        + struct.pack(">I", zlib.crc32(ihdr) & 0xFFFFFFFF)
+    )
+    image_path = tmp_path / "oversized.png"
+    image_path.write_bytes(png)
+
+    def no_decode(*_args, **_kwargs):
+        pytest.fail("OpenCV must not decode an image whose header exceeds the pixel limit")
+
+    monkeypatch.setattr(beauty_api.cv2, "imdecode", no_decode)
+    with pytest.raises(HTTPException) as exc:
+        beauty_api._validate_uploaded_image(image_path)
+
+    assert exc.value.status_code == 413
 
 
 def test_beauty_process_requires_auth(client):

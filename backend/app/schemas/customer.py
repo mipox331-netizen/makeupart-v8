@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CustomerBase(BaseModel):
@@ -13,7 +13,12 @@ class CustomerBase(BaseModel):
 
 
 class CustomerCreate(CustomerBase):
-    pass
+    @field_validator("consent_required")
+    @classmethod
+    def consent_cannot_be_disabled(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("Customer consent requirements cannot be disabled.")
+        return value
 
 
 class CustomerUpdate(BaseModel):
@@ -23,6 +28,13 @@ class CustomerUpdate(BaseModel):
     phone: str | None = None
     notes: str | None = None
     consent_required: bool | None = None
+
+    @field_validator("consent_required")
+    @classmethod
+    def consent_cannot_be_disabled(cls, value: bool | None) -> bool | None:
+        if value is False:
+            raise ValueError("Customer consent requirements cannot be disabled.")
+        return value
 
 
 class CustomerOut(CustomerBase):
