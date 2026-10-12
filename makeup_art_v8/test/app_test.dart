@@ -211,6 +211,9 @@ void main() {
   });
   testWidgets('switching clients clears the previous consent confirmation', (tester) async {
     _useTallViewport(tester);
+    // The redesigned studio adds a hero and history area before the controls.
+    // Keep this behavior test focused on consent state, not viewport scrolling.
+    tester.view.physicalSize = const Size(800, 1800);
     await tester.pumpWidget(
       MaterialApp(
         home: BeautyPage(
@@ -225,13 +228,21 @@ void main() {
     final consentTile = find.byType(CheckboxListTile);
     expect(tester.widget<CheckboxListTile>(consentTile).value, isFalse);
 
-    await tester.ensureVisible(consentTile);
+    await tester.scrollUntilVisible(
+      consentTile,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(consentTile);
     await tester.pumpAndSettle();
     expect(tester.widget<CheckboxListTile>(consentTile).value, isTrue);
 
     final customerDropdown = find.byType(DropdownButtonFormField<String>);
-    await tester.ensureVisible(customerDropdown);
+    await tester.scrollUntilVisible(
+      customerDropdown,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(customerDropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Alice One').last);

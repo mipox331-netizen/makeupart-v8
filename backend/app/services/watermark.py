@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+
 from app.models.salon import Salon
 from app.models.watermark import Watermark
 
@@ -130,6 +132,64 @@ def apply_watermark(
             thickness,
             cv2.LINE_AA,
         )
+
+    # Compose the salon's uploaded transparent logo onto every generated image.
+    # The actual file path is derived from the authenticated salon id, never from
+    # a client-controlled URL or path stored in the database.
+    logo_path = (
+        settings.media_root_path
+        / "salons"
+        / str(salon.id)
+        / "branding"
+        / "logo.png"
+    )
+    if watermark.logo_url and logo_path.is_file():
+        logo = cv2.imread(str(logo_path), cv2.IMREAD_UNCHANGED)
+        if logo is not None:
+            if logo.ndim == 2:
+                logo = cv2.cvtColor(logo, cv2.COLOR_GRAY2BGRA)
+            elif logo.shape[2] == 3:
+                logo = cv2.cvtColor(logo, cv2.COLOR_BGR2BGRA)
+
+            if logo.shape[2] == 4:
+                logo_height = max(
+                    32,
+                    min(180, int(min(width, height) * float(watermark.size) / 100.0)),
+                )
+                logo_width = max(
+                    1,
+                    int(round(logo.shape[1] * logo_height / logo.shape[0])),
+                )
+                if logo_width > width - 2 * margin:
+                    logo_width = width - 2 * margin
+                    logo_height = max(1, int(round(logo.shape[0] * logo_width / logo.shape[1])))
+                if logo_height > height - 2 * margin:
+                    logo_height = height - 2 * margin
+                    logo_width = max(1, int(round(logo.shape[1] * logo_height / logo.shape[0])))
+
+                if logo_width > 0 and logo_height > 0:
+                    logo = cv2.resize(
+                        logo,
+                        (logo_width, logo_height),
+                        interpolation=cv2.INTER_AREA,
+                    )
+                    logo_x = margin if position.endswith("left") else width - logo_width - margin
+                    if position.startswith("bottom"):
+                        logo_y = max(margin, y1 - logo_height - margin // 2)
+                    else:
+                        logo_y = min(height - logo_height - margin, y1 + box_height + margin // 2)
+                    logo_x = max(0, min(logo_x, width - logo_width))
+                    logo_y = max(0, min(logo_y, height - logo_height))
+
+                    roi = image[logo_y:logo_y + logo_height, logo_x:logo_x + logo_width]
+                    logo_rgb = logo[:, :, :3].astype(np.float32)
+                    logo_alpha = (
+                        logo[:, :, 3].astype(np.float32) / 255.0
+                        * float(np.clip(float(watermark.opacity), 0.0, 1.0))
+                    )[:, :, None]
+                    image[logo_y:logo_y + logo_height, logo_x:logo_x + logo_width] = (
+                        logo_rgb * logo_alpha + roi.astype(np.float32) * (1.0 - logo_alpha)
+                    ).clip(0, 255).astype(np.uint8)
 
     if not cv2.imwrite(str(path), image):
         raise OSError("Could not save watermarked image")

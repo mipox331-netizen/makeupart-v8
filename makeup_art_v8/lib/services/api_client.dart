@@ -213,6 +213,74 @@ class ApiClient {
     );
   }
 
+  Future<Map<String, dynamic>> getSalonProfile() async {
+    final response = await dio.get('/salons/me');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> updateSalonProfile({
+    required String name,
+    String? phone,
+    String? instagram,
+    String? tiktok,
+  }) async {
+    final response = await dio.patch(
+      '/salons/me',
+      data: {
+        'name': name.trim(),
+        'phone': phone == null || phone.trim().isEmpty ? null : phone.trim(),
+        'instagram': instagram == null || instagram.trim().isEmpty
+            ? null
+            : instagram.trim(),
+        'tiktok': tiktok == null || tiktok.trim().isEmpty
+            ? null
+            : tiktok.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> getWatermarkSettings() async {
+    final response = await dio.get('/watermarks/me');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> updateWatermarkSettings({
+    required String position,
+    required double opacity,
+    required int size,
+    required bool showPhone,
+    required bool showInstagram,
+    required bool showTikTok,
+  }) async {
+    final response = await dio.patch(
+      '/watermarks/me',
+      data: {
+        'salon_name': true,
+        'position': position,
+        'opacity': opacity,
+        'size': size,
+        'phone': showPhone,
+        'instagram': showInstagram,
+        'tiktok': showTikTok,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> uploadWatermarkLogo(XFile image) async {
+    final data = FormData.fromMap({
+      'file': await MultipartFile.fromFile(image.path, filename: image.name),
+    });
+    final response = await dio.post('/watermarks/me/logo', data: data);
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> deleteWatermarkLogo() async {
+    final response = await dio.delete('/watermarks/me/logo');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<void> login(String email, String password) async {
     final response = await dio.post(
       '/auth/login',
@@ -273,6 +341,7 @@ class ApiClient {
     double intensity = 0.7,
     bool consentConfirmed = false,
     String? customerId,
+    required String makeupStyle,
   }) async {
     final data = FormData.fromMap({
       'file': await MultipartFile.fromFile(image.path, filename: image.name),
@@ -281,6 +350,7 @@ class ApiClient {
       '/beauty/process-upload',
       queryParameters: {
         'intensity': intensity,
+        'makeup_style': makeupStyle,
         'consent_confirmed': consentConfirmed,
         if (customerId != null) 'customer_id': customerId,
       },

@@ -277,10 +277,14 @@ class _SessionGateState extends State<SessionGate> {
       );
     }
 
+    final role = user?['role']?.toString().toLowerCase();
+    final canManageBranding = role == 'owner' || role == 'admin';
+
     return BeautyPage(
       api: widget.api,
       onLogout: widget.onLogout,
       salonId: salonId,
+      canManageBranding: canManageBranding,
     );
   }
 }
