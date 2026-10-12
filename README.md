@@ -34,7 +34,7 @@ Use the computer's LAN address instead of `10.0.2.2` on a physical device.
 The live production backend runs on Modal with Supabase PostgreSQL. The production API is:
 `https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run`
 
-GitHub Actions deploys the backend, runs Alembic migrations, verifies the migration head, verifies MediaPipe + InsightFace runtime, and checks `/health/ready`.
+GitHub Actions deploys the backend, runs Alembic migrations, verifies the migration head, verifies MediaPipe + OpenCV image-preservation runtime, and checks `/health/ready`.
 
 The checked-in Docker Compose + Caddy stack remains available as a self-hosted deployment option. See `docs/PRODUCTION_RUNBOOK.md`.
 
@@ -84,6 +84,6 @@ All newly registered salons start on a permanent Free plan with a monthly AI-pro
 - Current Android download: [MakeupArt V8 v8.0.139](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.139/MakeupArt-V8.apk).
 - The app checks GitHub Releases for a newer APK and prompts the user to download it; Android confirmation is still required to install.
 - The current beauty effect uses MediaPipe + OpenCV and is not generative makeup.
-- Google Play, iOS distribution, database/media disaster recovery and commercial InsightFace model licensing have separate release gates.
+- Google Play, iOS distribution, database/media disaster recovery and the full third-party dependency/model-asset license audit have separate release gates.
 
 See [release-readiness dashboard](docs/RELEASE_READINESS.md), [AI and model licensing](docs/AI_CAPABILITIES_AND_LICENSES.md), [mobile release notes](docs/MOBILE_RELEASE.md), and [production runbook](docs/PRODUCTION_RUNBOOK.md).

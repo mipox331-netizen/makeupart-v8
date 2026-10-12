@@ -17,7 +17,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY . .
-RUN mkdir -p /app/media /home/app/.insightface \
+RUN mkdir -p /app/media \
     && chown -R appuser:appuser /app /home/app
 
 USER appuser

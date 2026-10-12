@@ -11,14 +11,6 @@ try:
 except ImportError:  # pragma: no cover
     mp = None
 
-try:
-    from insightface.app import FaceAnalysis
-    INSIGHTFACE_IMPORT_ERROR: Exception | None = None
-except Exception as exc:  # pragma: no cover
-    FaceAnalysis = None
-    INSIGHTFACE_IMPORT_ERROR = exc
-
-
 class SkinToneMatcher:
     ToneMap = (
         (190, "very-light"),
@@ -104,7 +96,6 @@ class SkinToneMatcher:
 
 class BeautyProvider:
     _face_mesh: Any | None = None
-    _face_app: Any | None = None
 
     @classmethod
     def _face_mesh_available(cls):
@@ -127,22 +118,9 @@ class BeautyProvider:
             )
         return cls._face_mesh
 
-    @classmethod
-    def _get_face_app(cls):
-        if FaceAnalysis is None:
-            detail = f": {INSIGHTFACE_IMPORT_ERROR!r}" if INSIGHTFACE_IMPORT_ERROR else ""
-            raise RuntimeError(f"insightface import failed{detail}")
-        if cls._face_app is None:
-            insightface_root = os.environ.get("INSIGHTFACE_ROOT", os.path.expanduser("~/.insightface"))
-            app = FaceAnalysis(name="buffalo_l", root=insightface_root)
-            app.prepare(ctx_id=-1, det_size=(640, 640))
-            cls._face_app = app
-        return cls._face_app
-
     def is_ready(self) -> bool:
         try:
             self._get_face_mesh()
-            self._get_face_app()
             return True
         except Exception:
             return False
@@ -189,19 +167,8 @@ class BeautyProvider:
         tone = skin_matcher.detect(image, landmarks[0])
         intensity = float(payload.get("intensity", 0.7))
         processed = self._enhance_skin(image, landmarks[0], intensity)
-        face_app = self._get_face_app()
-        original_faces = face_app.get(image)
-        processed_faces = face_app.get(processed)
-        if not original_faces or not processed_faces:
-            raise ValueError("InsightFace could not detect a face in the image")
-        if len(original_faces) != 1 or len(processed_faces) != 1:
-            raise ValueError("Please upload a photo containing exactly one face")
-
-        original_embedding = original_faces[0].embedding.astype(np.float64)
-        processed_embedding = processed_faces[0].embedding.astype(np.float64)
-        norm_product = float(np.linalg.norm(original_embedding) * np.linalg.norm(processed_embedding))
-        similarity = 0.0 if norm_product == 0 else float(np.dot(original_embedding, processed_embedding) / norm_product)
-        similarity = float(np.clip(similarity, 0.0, 1.0))
+        # Structural preservation of the same image, not biometric identity recognition.
+        similarity = IdentityGuard.measure_similarity(image, processed, landmarks[0])
 
         output_dir = payload.get("output_dir")
         if output_dir:
@@ -229,7 +196,58 @@ class BeautyProvider:
 
 
 class IdentityGuard:
+    """Bounds how much the non-generative skin-smoothing filter changes the face image.
+
+    The score measures structural image preservation, not biometric identity, and is
+    not proof of identity for arbitrary or AI-generated images. The old API field
+    name is retained for mobile-client compatibility.
+    """
+
     min_similarity = 0.85
+
+    @staticmethod
+    def measure_similarity(
+        original: np.ndarray,
+        processed: np.ndarray,
+        landmarks: Any,
+    ) -> float:
+        if (
+            original.ndim != 3
+            or processed.ndim != 3
+            or original.shape != processed.shape
+            or original.size == 0
+        ):
+            return 0.0
+
+        mask = SkinToneMatcher._face_sample_mask(original, landmarks) > 0
+        if int(np.count_nonzero(mask)) < 16:
+            return 0.0
+
+        original_gray = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        processed_gray = cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY).astype(np.float32)
+
+        # SSIM-style local statistics; no pretrained face-recognition model is loaded.
+        mu_original = cv2.GaussianBlur(original_gray, (11, 11), 1.5)
+        mu_processed = cv2.GaussianBlur(processed_gray, (11, 11), 1.5)
+        original_sq = original_gray * original_gray
+        processed_sq = processed_gray * processed_gray
+        cross = original_gray * processed_gray
+        variance_original = cv2.GaussianBlur(original_sq, (11, 11), 1.5) - mu_original * mu_original
+        variance_processed = cv2.GaussianBlur(processed_sq, (11, 11), 1.5) - mu_processed * mu_processed
+        covariance = cv2.GaussianBlur(cross, (11, 11), 1.5) - mu_original * mu_processed
+
+        c1 = (0.01 * 255.0) ** 2
+        c2 = (0.03 * 255.0) ** 2
+        numerator = (2.0 * mu_original * mu_processed + c1) * (2.0 * covariance + c2)
+        denominator = (
+            (mu_original * mu_original + mu_processed * mu_processed + c1)
+            * (variance_original + variance_processed + c2)
+        )
+        score_map = numerator / np.maximum(denominator, 1e-12)
+        scores = score_map[mask]
+        if scores.size == 0 or not np.isfinite(scores).all():
+            return 0.0
+        return float(np.clip(np.mean(scores), 0.0, 1.0))
 
     def validate(self, similarity: float, intensity: float) -> tuple[float, bool]:
         current_intensity = max(0.0, min(1.0, intensity))

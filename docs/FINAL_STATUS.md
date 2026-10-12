@@ -31,13 +31,13 @@ The workflow additions in a newer commit must be treated as unverified until the
 - **Media backup:** the Modal media volume is separate from PostgreSQL and needs an independent backup destination.
 - **Monitoring:** basic GitHub Actions health checks are configured; independent incident alerting is not.
 - **Generative AI makeup:** not implemented; current image processing is classical OpenCV enhancement.
-- **InsightFace:** the deployed `buffalo_l` pretrained weights have non-commercial-research terms by default according to InsightFace's published documentation. Obtain a commercial license or replace the model before commercial use.
+- **Face-model licensing:** the implementation now removes InsightFace `buffalo_l` and uses an OpenCV structural-image-preservation score instead. That score is not biometric identity verification. Confirm the replacement deployment and complete a dependency/model-asset license audit before commercial launch.
 - **Repository license:** no root-level `LICENSE` file currently defines reuse rights.
 
 ## AI limitations
 
 - The current effect is bounded OpenCV skin smoothing, not text/image-driven makeup generation.
-- The result is validated with a face-similarity guard but that guard is not proof that visual identity is unchanged for all images.
+- The result is checked with an OpenCV structural-image-preservation score. It is not biometric identity verification and does not prove identity preservation for arbitrary generated images.
 - Skin-tone and undertone estimates are heuristic and are not validated cosmetic measurements.
 
 See [AI capabilities and licensing](AI_CAPABILITIES_AND_LICENSES.md) before making product or commercial-readiness claims.
