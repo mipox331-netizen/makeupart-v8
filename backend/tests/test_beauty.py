@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import struct
 import uuid
 import zlib
@@ -40,7 +38,11 @@ def test_skin_tone_detection_uses_image_pixels():
 def test_legacy_customer_flag_cannot_bypass_missing_stored_consent(monkeypatch):
     customer_id = uuid.uuid4()
     salon_id = uuid.uuid4()
-    legacy_customer = SimpleNamespace(salon_id=salon_id, consent_required=False)
+    legacy_customer = SimpleNamespace(
+        id=customer_id,
+        salon_id=salon_id,
+        consent_required=False,
+    )
     db = SimpleNamespace(get=lambda model, requested_id: legacy_customer)
     user = SimpleNamespace(salon_id=salon_id)
     monkeypatch.setattr(beauty_api, "get_active_consent", lambda *_args: None)
@@ -59,12 +61,22 @@ def test_legacy_customer_flag_cannot_bypass_missing_stored_consent(monkeypatch):
 
 def test_oversized_image_rejected_before_opencv_decode(tmp_path, monkeypatch):
     width, height = 100_000, 100_000
-    ihdr = b"IHDR" + struct.pack(">II", width, height) + bytes([8, 2, 0, 0, 0])
+    def chunk(kind, data):
+        payload = kind + data
+        return (
+            struct.pack(">I", len(data))
+            + payload
+            + struct.pack(">I", zlib.crc32(payload) & 0xFFFFFFFF)
+        )
+
+    ihdr = struct.pack(">II", width, height) + bytes([8, 2, 0, 0, 0])
+    # Pillow detects the declared dimensions on open; a full set of PNG
+    # chunks ensures the fixture tests a huge image, not a malformed file.
     png = (
         b"\x89PNG\r\n\x1a\n"
-        + struct.pack(">I", len(ihdr))
-        + ihdr
-        + struct.pack(">I", zlib.crc32(ihdr) & 0xFFFFFFFF)
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", b"")
+        + chunk(b"IEND", b"")
     )
     image_path = tmp_path / "oversized.png"
     image_path.write_bytes(png)

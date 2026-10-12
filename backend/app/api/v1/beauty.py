@@ -109,6 +109,13 @@ def _validate_uploaded_image(path: Path) -> None:
             probe.verify()
     except HTTPException:
         raise
+    except Image.DecompressionBombError as exc:
+        # Pillow rejects very large declared dimensions before exposing the
+        # image size. Treat that as an explicit size limit, not corrupt input.
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Image dimensions are too large",
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
