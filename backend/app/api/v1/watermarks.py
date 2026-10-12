@@ -14,6 +14,7 @@ from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.services.watermark import get_or_create_watermark
 from app.schemas.watermark import WatermarkOut, WatermarkUpdate
+from app.services.media_volume import commit_media_volume
 
 router = APIRouter(prefix="/watermarks", tags=["watermarks"])
 
@@ -97,6 +98,7 @@ async def upload_watermark_logo(
     try:
         logo.save(temporary, format="PNG", optimize=True)
         os.replace(temporary, target)
+        commit_media_volume()
     except OSError as exc:
         temporary.unlink(missing_ok=True)
         raise HTTPException(
@@ -133,6 +135,7 @@ def delete_watermark_logo(
     watermark.logo_url = None
     current_user.salon.logo_url = None
     _logo_path(current_user.salon_id).unlink(missing_ok=True)
+    commit_media_volume()
     db.commit()
     db.refresh(watermark)
     return watermark
