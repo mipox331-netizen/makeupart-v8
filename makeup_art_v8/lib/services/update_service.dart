@@ -31,9 +31,10 @@ class UpdateService {
               ),
             );
 
-  static final Uri _latestReleaseUri = Uri.https(
+  static final Uri _releasesUri = Uri.https(
     'api.github.com',
-    '/repos/mipox331-netizen/makeupart-v8/releases/latest',
+    '/repos/mipox331-netizen/makeupart-v8/releases',
+    const {'per_page': '100'},
   );
 
   static const String _expectedAssetName = 'MakeupArt-V8.apk';
@@ -42,75 +43,121 @@ class UpdateService {
 
   /// Returns a newer verified GitHub APK release, or null when current/offline.
   ///
+  /// GitHub's /releases/latest follows publication chronology, not semantic
+  /// version ordering. Concurrent CI runs can therefore publish v8.0.141 and
+  /// v8.0.140 out of order. Select the numerically highest eligible APK release.
+  ///
   /// Errors are intentionally non-fatal: update checks must never prevent
   /// registration, login, or normal app use when GitHub is unavailable.
   Future<AppUpdate?> checkForUpdate() async {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
-      final response = await _dio.getUri(_latestReleaseUri);
+      final response = await _dio.getUri(_releasesUri);
       final payload = response.data;
-      if (payload is! Map) return null;
+      if (payload is! List) return null;
 
-      final rawTag = payload['tag_name'];
-      final rawReleaseUrl = payload['html_url'];
-      final rawAssets = payload['assets'];
-      if (rawTag is! String ||
-          rawReleaseUrl is! String ||
-          rawAssets is! List) {
-        return null;
-      }
+      final release = selectLatestPublishedApkRelease(payload);
+      if (release == null) return null;
 
-      final versionMatch = RegExp(r'^v?(\d+(?:\.\d+){1,3})$')
-          .firstMatch(rawTag.trim());
-      if (versionMatch == null) return null;
-
-      final latestVersion = versionMatch.group(1)!;
-      if (compareVersions(latestVersion, packageInfo.version) <= 0) {
-        return null;
-      }
-
-      String? downloadUrl;
-      for (final asset in rawAssets) {
-        if (asset is Map &&
-            asset['name'] == _expectedAssetName &&
-            asset['browser_download_url'] is String) {
-          downloadUrl = asset['browser_download_url'] as String;
-          break;
-        }
-      }
-      if (downloadUrl == null) return null;
-
-      final downloadUri = Uri.tryParse(downloadUrl);
-      final releaseNotesUri = Uri.tryParse(rawReleaseUrl);
-      if (!_isExpectedGitHubReleaseAsset(downloadUri) ||
-          releaseNotesUri == null ||
-          releaseNotesUri.scheme != 'https' ||
-          releaseNotesUri.host != 'github.com' ||
-          !releaseNotesUri.path.startsWith('/mipox331-netizen/makeupart-v8/releases/')) {
+      final version = release['version'] as String;
+      if (compareVersions(version, packageInfo.version) <= 0) {
         return null;
       }
 
       return AppUpdate(
-        version: latestVersion,
-        downloadUri: downloadUri!,
-        releaseNotesUri: releaseNotesUri,
+        version: version,
+        downloadUri: Uri.parse(release['download_url'] as String),
+        releaseNotesUri: Uri.parse(release['release_url'] as String),
       );
     } catch (_) {
       return null;
     }
   }
 
-  static bool _isExpectedGitHubReleaseAsset(Uri? uri) {
-    return uri != null &&
-        uri.scheme == 'https' &&
-        uri.host == 'github.com' &&
-        uri.path.startsWith(
-          '/mipox331-netizen/makeupart-v8/releases/download/',
-        ) &&
-        uri.path.endsWith('/$_expectedAssetName');
+  /// Selects the highest numeric v8.0.N release with a verified APK asset.
+  ///
+  /// Exposed as a pure helper so release ordering/security checks are covered
+  /// by unit tests without making network calls.
+  static Map<String, dynamic>? selectLatestPublishedApkRelease(
+    List<dynamic> releases,
+  ) {
+    Map<String, dynamic>? best;
+    String? bestVersion;
+
+    for (final value in releases) {
+      if (value is! Map || value['draft'] == true || value['prerelease'] == true) {
+        continue;
+      }
+
+      final tag = value['tag_name'];
+      final releaseUrl = value['html_url'];
+      final assets = value['assets'];
+      if (tag is! String || releaseUrl is! String || assets is! List) continue;
+
+      final match = RegExp(r'^v?(8\.0\.\d+)$').firstMatch(tag.trim());
+      if (match == null) continue;
+      final version = match.group(1)!;
+
+      final releaseUri = Uri.tryParse(releaseUrl);
+      if (releaseUri == null ||
+          releaseUri.scheme != 'https' ||
+          releaseUri.host != 'github.com' ||
+          !releaseUri.path.startsWith(
+            '/mipox331-netizen/makeupart-v8/releases/tag/',
+          ) ||
+          releaseUri.pathSegments.isEmpty ||
+          releaseUri.pathSegments.last != tag) {
+        continue;
+      }
+
+      String? downloadUrl;
+      for (final asset in assets) {
+        if (asset is! Map ||
+            asset['name'] != _expectedAssetName ||
+            asset['browser_download_url'] is! String) {
+          continue;
+        }
+        final assetUri =
+            Uri.tryParse(asset['browser_download_url'] as String);
+        if (_isExpectedGitHubReleaseAsset(assetUri, tag)) {
+          downloadUrl = assetUri!.toString();
+          break;
+        }
+      }
+      if (downloadUrl == null) continue;
+
+      if (bestVersion == null ||
+          compareVersions(version, bestVersion) > 0) {
+        bestVersion = version;
+        best = {
+          'tag_name': tag,
+          'version': version,
+          'release_url': releaseUri.toString(),
+          'download_url': downloadUrl,
+        };
+      }
+    }
+
+    return best;
   }
 
-  /// Numeric dotted-version comparison (for example, 8.0.134 > 8.0.133).
+  static bool _isExpectedGitHubReleaseAsset(Uri? uri, String tag) {
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host != 'github.com') {
+      return false;
+    }
+    final segments = uri.pathSegments;
+    return segments.length == 6 &&
+        segments[0] == 'mipox331-netizen' &&
+        segments[1] == 'makeupart-v8' &&
+        segments[2] == 'releases' &&
+        segments[3] == 'download' &&
+        segments[4] == tag &&
+        segments[5] == _expectedAssetName;
+  }
+
+  /// Numeric dotted-version comparison (for example, 8.0.142 > 8.0.141).
   /// A malformed version compares as equal to avoid a false update prompt.
   static int compareVersions(String left, String right) {
     List<int>? parse(String value) {
