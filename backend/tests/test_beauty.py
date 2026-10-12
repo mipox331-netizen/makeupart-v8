@@ -14,6 +14,53 @@ from app.services.beauty import BeautyProvider, IdentityGuard, SkinToneMatcher
 from tests.utils import API, auth_headers, register
 
 
+def test_makeup_style_presets_apply_face_guided_tints():
+    # Synthetic 478-point mesh gives the test a bounded face oval and a lip
+    # contour; this verifies the pixel operation without downloading models.
+    coordinates = [(0.5, 0.5)] * 478
+    coordinates[10] = (0.50, 0.12)
+    coordinates[152] = (0.50, 0.90)
+    coordinates[234] = (0.20, 0.50)
+    coordinates[454] = (0.80, 0.50)
+    coordinates[61] = (0.40, 0.62)
+    coordinates[146] = (0.42, 0.60)
+    coordinates[91] = (0.44, 0.59)
+    coordinates[181] = (0.46, 0.585)
+    coordinates[84] = (0.48, 0.60)
+    coordinates[17] = (0.50, 0.605)
+    coordinates[314] = (0.52, 0.60)
+    coordinates[405] = (0.54, 0.585)
+    coordinates[321] = (0.56, 0.59)
+    coordinates[375] = (0.58, 0.60)
+    coordinates[291] = (0.60, 0.62)
+    coordinates[308] = (0.585, 0.625)
+    coordinates[324] = (0.565, 0.635)
+    coordinates[318] = (0.545, 0.642)
+    coordinates[402] = (0.525, 0.647)
+    coordinates[317] = (0.505, 0.65)
+    coordinates[14] = (0.485, 0.65)
+    coordinates[87] = (0.465, 0.645)
+    coordinates[178] = (0.445, 0.638)
+    coordinates[88] = (0.425, 0.63)
+    coordinates[95] = (0.41, 0.625)
+    coordinates[78] = (0.40, 0.62)
+    landmarks = SimpleNamespace(
+        landmark=[SimpleNamespace(x=x, y=y) for x, y in coordinates]
+    )
+    source = np.full((256, 256, 3), 150, dtype=np.uint8)
+
+    natural = BeautyProvider._apply_makeup(
+        source.copy(), landmarks, "natural", 1.0
+    )
+    evening = BeautyProvider._apply_makeup(
+        source.copy(), landmarks, "evening_glam", 1.0
+    )
+
+    assert not np.array_equal(source, natural)
+    assert not np.array_equal(natural, evening)
+    assert np.array_equal(source, np.full((256, 256, 3), 150, dtype=np.uint8))
+
+
 def test_skin_tone_detection_uses_image_pixels():
     matcher = SkinToneMatcher()
     landmarks = SimpleNamespace(
