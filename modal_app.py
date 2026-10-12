@@ -1,7 +1,7 @@
 """Modal deployment entrypoint for the MakeUpArt V8 FastAPI backend.
 
 The application image is built from the existing backend/Dockerfile so the
-same Python/MediaPipe/InsightFace runtime is used in CI and production.
+same MediaPipe/OpenCV image-processing runtime is used in CI and production.
 """
 
 import modal
@@ -89,23 +89,19 @@ def verify_migration_head():
 @app.function(
     image=image,
     secrets=[production_secret],
-    volumes={
-        "/home/app/.insightface": insightface_volume,
-    },
     cpu=2.0,
     memory=4096,
     timeout=1200,
 )
 def verify_runtime():
-    from app.services.beauty import BeautyProvider
+    from app.services.beauty import BeautyProvider, IdentityGuard
 
     provider = BeautyProvider()
     provider._get_face_mesh()
-    provider._get_face_app()
-    insightface_volume.commit()
-    print("MediaPipe runtime: OK")
-    print("InsightFace buffalo_l runtime: OK")
-    print("InsightFace model volume committed: OK")
+    if IdentityGuard.min_similarity != 0.85:
+        raise RuntimeError("OpenCV structure-preservation threshold is not configured")
+    print("MediaPipe face-landmark runtime: OK")
+    print("OpenCV structure-preservation guard: OK")
 
 
 
@@ -114,7 +110,6 @@ def verify_runtime():
     secrets=[production_secret],
     volumes={
         "/app/media": media_volume,
-        "/home/app/.insightface": insightface_volume,
     },
     cpu=2.0,
     memory=4096,
