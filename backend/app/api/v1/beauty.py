@@ -27,6 +27,7 @@ from app.schemas.beauty import (
     BeautyProcessRequest,
     BeautyProcessResponse,
     BeautyUploadResponse,
+    MakeupStyle,
 )
 from app.services.beauty import BeautyProvider, IdentityGuard
 from app.services.media_volume import commit_media_volume
@@ -193,6 +194,7 @@ def _process_payload(
                 foundation_match=str(base_result["foundation_match"]),
                 intensity=round(attempt_intensity, 4),
                 processed=bool(base_result["processed"]),
+                makeup_style=attempt_payload.makeup_style,
             )
             return response, str(generated_output)
 
@@ -262,6 +264,7 @@ def process_beauty(
 def process_beauty_upload(
     file: UploadFile = File(...),
     intensity: float = Query(default=0.7, ge=0.0, le=1.0),
+    makeup_style: MakeupStyle = Query(default="natural"),
     consent_confirmed: bool = Query(default=False),
     customer_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -304,6 +307,7 @@ def process_beauty_upload(
             image_path=str(input_path),
             intensity=intensity,
             consent_confirmed=True,
+            makeup_style=makeup_style,
         )
         response, generated_path = _process_payload(payload, BeautyProvider(), output_dir)
         generated_output = Path(generated_path).resolve()
@@ -333,7 +337,7 @@ def process_beauty_upload(
             salon_id=current_user.salon_id,
             customer_id=customer_id,
             status=BeautyJobStatus.COMPLETED,
-            selected_makeup="AI beauty enhancement",
+            selected_makeup=payload.makeup_style.replace("_", " ").title(),
             intensity=response.intensity,
             shade=response.foundation_match,
             before_image_url=f"/api/v1/beauty/jobs/{{job_id}}/image?kind=before",
