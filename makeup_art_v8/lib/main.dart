@@ -1,11 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'pages/admin_page.dart';
 import 'pages/beauty_page.dart';
 import 'pages/login_page.dart';
 import 'pages/subscription_page.dart';
 import 'services/api_client.dart';
+import 'services/update_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,13 +22,17 @@ class MakeupArtApp extends StatefulWidget {
 
 class _MakeupArtAppState extends State<MakeupArtApp> {
   late final ApiClient api;
+  late final UpdateService updateService;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool ready = false;
   bool authenticated = false;
+  bool _updateCheckStarted = false;
 
   @override
   void initState() {
     super.initState();
     api = ApiClient(onSessionExpired: _onSessionExpired);
+    updateService = UpdateService();
     _restoreSession();
   }
 
@@ -38,6 +44,76 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
   Future<void> _restoreSession() async {
     authenticated = await api.hasSession();
     if (mounted) setState(() => ready = true);
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkForAppUpdate();
+      });
+    }
+  }
+
+  Future<void> _checkForAppUpdate() async {
+    if (_updateCheckStarted) return;
+    _updateCheckStarted = true;
+
+    final update = await updateService.checkForUpdate();
+    if (!mounted || update == null) return;
+
+    final navigatorContext = _navigatorKey.currentContext;
+    if (navigatorContext == null) return;
+
+    await showDialog<void>(
+      context: navigatorContext,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.system_update_alt_rounded, size: 36),
+        title: const Text('Sasisho jipya la MakeupArt V8'),
+        content: Text(
+          'Toleo ${update.version} linapatikana. Pakua sasisho ili upate '
+          'marekebisho mapya. Android itakuomba uthibitishe kusakinisha.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Baadaye'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
+              try {
+                final opened = await launchUrl(
+                  update.downloadUri,
+                  mode: LaunchMode.externalApplication,
+                );
+                if (!opened && mounted) {
+                  final context = _navigatorKey.currentContext;
+                  if (context != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Imeshindwa kufungua upakuaji. Jaribu tena baadaye.',
+                        ),
+                      ),
+                    );
+                  }
+                }
+              } catch (_) {
+                if (!mounted) return;
+                final context = _navigatorKey.currentContext;
+                if (context != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Imeshindwa kufungua link ya sasisho.'),
+                    ),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.download_rounded),
+            label: const Text('Pakua sasisho'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -54,6 +130,7 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
     }
 
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'MakeupArt V8',
       theme: ThemeData(
