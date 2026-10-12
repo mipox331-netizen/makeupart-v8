@@ -29,8 +29,9 @@ def _hash_refresh_token(token: str) -> str:
 
 
 def _issue_tokens(user: User, db: Session) -> Token:
-    access_token = create_access_token(str(user.id))
-    refresh_token = create_refresh_token(str(user.id))
+    token_version = int(user.token_version or 0)
+    access_token = create_access_token(str(user.id), token_version=token_version)
+    refresh_token = create_refresh_token(str(user.id), token_version=token_version)
     db.add(
         RefreshSession(
             user_id=user.id,
@@ -131,6 +132,12 @@ def refresh_token(refresh_in: RefreshRequest, db: Session = Depends(get_db)) -> 
 
     user = get_user(db, user_id)
     if user is None or not user.is_active:
+        raise invalid
+    try:
+        token_version = int(payload.get("ver", 0))
+    except (TypeError, ValueError):
+        raise invalid
+    if token_version != int(user.token_version or 0):
         raise invalid
 
     session.revoked_at = datetime.now(timezone.utc)
