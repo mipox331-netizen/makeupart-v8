@@ -477,7 +477,7 @@ class _BeautyPageState extends State<BeautyPage> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Choose a portrait, apply the skin-polish engine, select a photo finish, then save a branded image.',
+                  'Choose a portrait, apply skin polish and a face-guided lip / cheek treatment, select a photo finish, then save a branded image.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.white.withValues(alpha: .78),
                       ),
@@ -815,6 +815,9 @@ class _BeautyPageState extends State<BeautyPage> {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 10),
+                    Text(
+                      'Makeup style: ${_makeupStyles[selectedMakeupStyle] ?? selectedMakeupStyle}',
+                    ),
                     Text(
                       'Image structure preservation score: ${result!['identity_similarity']}',
                     ),
