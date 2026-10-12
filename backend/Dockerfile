@@ -13,8 +13,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --home-dir /home/app --shell /usr/sbin/nologin --uid 10001 appuser
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+ARG INSTALL_DEV_DEPENDENCIES=false
+
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install -r requirements.txt \
+    && if [ "$INSTALL_DEV_DEPENDENCIES" = "true" ]; then pip install -r requirements-dev.txt; fi
 
 COPY . .
 RUN mkdir -p /app/media \

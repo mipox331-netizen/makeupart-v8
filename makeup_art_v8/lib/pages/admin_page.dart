@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
+import '../widgets/license_page_button.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key, required this.api, required this.onLogout});
@@ -149,6 +150,7 @@ class _AdminPageState extends State<AdminPage> {
       appBar: AppBar(
         title: const Text('MakeupArt Admin'),
         actions: [
+          const LicensePageButton(),
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
           IconButton(onPressed: widget.onLogout, icon: const Icon(Icons.logout)),
         ],

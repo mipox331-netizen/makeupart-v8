@@ -36,5 +36,5 @@ No generative inference provider, model license, API credential or validated gen
 
 ## Other license and distribution checks
 
-- This repository has no root-level `LICENSE` file. The project owner should choose and add a license for this repository before inviting external contributions or asserting reuse rights.
+- The root-level `LICENSE` now states that original project materials are proprietary and grants no general reuse permission. It does not cover third-party components; retain their notices and review the generated inventories described in [Third-party license audit](THIRD_PARTY_LICENSE_AUDIT.md).
 - Audit transitive Python, Flutter and native dependencies before a commercial release; removal of the restricted InsightFace weights resolves that specific finding, not the entire software bill-of-materials review.

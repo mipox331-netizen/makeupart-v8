@@ -4,7 +4,7 @@
 - Repository, environment configuration, Docker Compose, PostgreSQL and Alembic.
 - Authentication, refresh rotation/revocation and salon isolation.
 - Customer, consent and consultation workflows.
-- Beauty processing, identity-guard retry logic and protected media delivery.
+- Beauty processing, image-structure-preservation retry logic and protected media delivery.
 - Secure image validation and metadata normalization.
 - Job history and privacy deletion.
 - Flutter registration/login, token refresh, client selection, consent, camera/gallery and result viewing.
@@ -17,7 +17,7 @@
 - Configure real Android signing and Play Console credentials.
 - Configure Apple signing, provisioning and App Store Connect credentials.
 - Establish monitoring, alerting and an off-host backup policy.
-- Review InsightFace model licensing before commercial launch.
+- The restricted InsightFace pretrained weights have been removed from production; review the generated third-party license inventory and any unknown/native dependency licenses before commercial launch.
 
 ## Constraints
 - The current beauty effect is classical image enhancement, not a generative makeup model.

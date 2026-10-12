@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/license_page_button.dart';
+
 class SubscriptionPage extends StatelessWidget {
   const SubscriptionPage({
     super.key,
@@ -24,6 +26,7 @@ class SubscriptionPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Subscription'),
         actions: [
+          const LicensePageButton(),
           IconButton(onPressed: onLogout, icon: const Icon(Icons.logout)),
         ],
       ),

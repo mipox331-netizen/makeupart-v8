@@ -38,6 +38,10 @@ GitHub Actions deploys the backend, runs Alembic migrations, verifies the migrat
 
 The checked-in Docker Compose + Caddy stack remains available as a self-hosted deployment option. See `docs/PRODUCTION_RUNBOOK.md`.
 
+## Licensing
+
+Original MakeupArt V8 project code is proprietary; see [LICENSE](LICENSE). Third-party components retain their own licenses. The [third-party license audit record](docs/THIRD_PARTY_LICENSE_AUDIT.md) explains the automated inventory and the remaining manual review required before commercial distribution.
+
 ## Security
 - Never commit environment files.
 - Production requires explicit CORS configuration and a strong secret.

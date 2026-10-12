@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
+import '../widgets/license_page_button.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({
@@ -142,7 +143,10 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create salon account')),
+      appBar: AppBar(
+        title: const Text('Create salon account'),
+        actions: const [LicensePageButton()],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(28),

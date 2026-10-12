@@ -209,8 +209,8 @@ def _process_payload(
     raise HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         detail=(
-            "Beauty processing could not satisfy the identity similarity threshold "
-            f"(last_similarity={round(last_similarity, 4)})."
+            "Beauty processing could not satisfy the image-structure preservation threshold "
+            f"(last_score={round(last_similarity, 4)})."
         ),
     )
 
