@@ -18,11 +18,6 @@ media_volume = modal.Volume.from_name(
     create_if_missing=True,
 )
 
-insightface_volume = modal.Volume.from_name(
-    "makeupart-v8-insightface",
-    create_if_missing=True,
-)
-
 app = modal.App(APP_NAME)
 
 production_secret = modal.Secret.from_name("makeupart-v8-production")
