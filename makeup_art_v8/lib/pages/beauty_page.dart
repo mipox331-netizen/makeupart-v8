@@ -30,6 +30,13 @@ class BeautyPage extends StatefulWidget {
 class _BeautyPageState extends State<BeautyPage> {
   final picker = ImagePicker();
 
+  static const _makeupStyles = <String, String>{
+    'natural': 'Natural',
+    'soft_glam': 'Soft Glam',
+    'bridal_rose': 'Bridal Rose',
+    'evening_glam': 'Evening Glam',
+  };
+
   RecentImageStore get recentImageStore =>
       RecentImageStore(scope: widget.salonId);
 
@@ -706,12 +713,7 @@ class _BeautyPageState extends State<BeautyPage> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: const <MapEntry<String, String>>[
-                      MapEntry('natural', 'Natural'),
-                      MapEntry('soft_glam', 'Soft Glam'),
-                      MapEntry('bridal_rose', 'Bridal Rose'),
-                      MapEntry('evening_glam', 'Evening Glam'),
-                    ].map((style) {
+                    children: _makeupStyles.entries.map((style) {
                       return ChoiceChip(
                         avatar: Icon(
                           Icons.face_retouching_natural_rounded,
