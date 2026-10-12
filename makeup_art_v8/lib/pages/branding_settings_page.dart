@@ -254,6 +254,9 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                         const SizedBox(height: 14),
                         TextField(
                           controller: _salonName,
+                          onChanged: (_) {
+                            if (mounted) setState(() {});
+                          },
                           textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(
                             labelText: 'Salon / business name',
@@ -264,6 +267,9 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                         const SizedBox(height: 12),
                         TextField(
                           controller: _phone,
+                          onChanged: (_) {
+                            if (mounted) setState(() {});
+                          },
                           keyboardType: TextInputType.phone,
                           decoration: const InputDecoration(
                             labelText: 'Business phone (optional)',
@@ -274,6 +280,9 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                         const SizedBox(height: 12),
                         TextField(
                           controller: _instagram,
+                          onChanged: (_) {
+                            if (mounted) setState(() {});
+                          },
                           decoration: const InputDecoration(
                             labelText: 'Instagram handle (optional)',
                             prefixIcon: Icon(Icons.camera_alt_outlined),
@@ -284,6 +293,9 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                         const SizedBox(height: 12),
                         TextField(
                           controller: _tiktok,
+                          onChanged: (_) {
+                            if (mounted) setState(() {});
+                          },
                           decoration: const InputDecoration(
                             labelText: 'TikTok handle (optional)',
                             prefixIcon: Icon(Icons.music_note_outlined),
