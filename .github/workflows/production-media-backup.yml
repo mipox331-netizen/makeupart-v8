@@ -168,3 +168,11 @@ jobs:
             ${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Remove unencrypted media and temporary secrets
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rm -f "$RUNNER_TEMP/makeupart-media-passphrase" "$RUNNER_TEMP/makeupart-media-backup/verify.tar.gz" "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz"
+          rm -rf "$RUNNER_TEMP/makeupart-media-backup/stage" "$RUNNER_TEMP/makeupart-media-backup/verify"
