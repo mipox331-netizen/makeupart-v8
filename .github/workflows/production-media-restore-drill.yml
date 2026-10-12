@@ -1,0 +1,147 @@
+name: MakeupArt V8 Encrypted Media Restore Drill
+
+on:
+  workflow_run:
+    workflows: ["MakeupArt V8 Encrypted Production Media Backup"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      backup_run_id:
+        description: "Optional successful media-backup run ID; leave blank to select the newest available backup"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: makeupart-v8-media-restore-drill
+  cancel-in-progress: false
+
+jobs:
+  restore-drill:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    env:
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+
+    steps:
+      - name: Select successful encrypted media backup
+        id: select-backup
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id || '' }}
+          REQUESTED_BACKUP_RUN_ID: ${{ inputs.backup_run_id || '' }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          if [[ -n "$EVENT_RUN_ID" ]]; then
+            [[ "$EVENT_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::Invalid workflow run ID."; exit 1; }
+            candidates="$EVENT_RUN_ID"
+          elif [[ -n "$REQUESTED_BACKUP_RUN_ID" ]]; then
+            [[ "$REQUESTED_BACKUP_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::backup_run_id must contain digits only."; exit 1; }
+            candidates="$REQUESTED_BACKUP_RUN_ID"
+          else
+            candidates="$(gh api --paginate "repos/$repo/actions/workflows/production-media-backup.yml/runs?status=success&per_page=25" --jq '.workflow_runs[].id')"
+          fi
+
+          selected=""
+          for run_id in $candidates; do
+            run_status="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.conclusion // empty' 2>/dev/null || true)"
+            run_path="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.path // empty' 2>/dev/null || true)"
+            [[ "$run_status" == "success" && ( "$run_path" == ".github/workflows/production-media-backup.yml" || "$run_path" == .github/workflows/production-media-backup.yml@* ) ]] || continue
+            artifact_count="$(gh api "repos/$repo/actions/runs/$run_id/artifacts" --jq "[.artifacts[] | select(.name == \"makeupart-media-backup-$run_id\" and .expired == false)] | length" 2>/dev/null || echo 0)"
+            if [[ "$artifact_count" =~ ^[0-9]+$ ]] && (( artifact_count > 0 )); then
+              selected="$run_id"
+              break
+            fi
+          done
+
+          [[ -n "$selected" ]] || {
+            echo "::error::No successful media-backup run with an unexpired expected artifact was found."
+            exit 1
+          }
+          echo "run_id=$selected" >> "$GITHUB_OUTPUT"
+          echo "Selected a successful encrypted media backup. Private paths and customer data are not logged."
+
+      - name: Validate backup encryption secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${BACKUP_ENCRYPTION_PASSPHRASE:-}" || { echo "::error::Missing BACKUP_ENCRYPTION_PASSPHRASE in the production environment."; exit 1; }
+          [[ "${#BACKUP_ENCRYPTION_PASSPHRASE}" -ge 24 ]] || { echo "::error::Backup passphrase must be at least 24 characters."; exit 1; }
+          echo "Backup decryption secret validated without exposing its value."
+
+      - name: Download selected encrypted media backup
+        uses: actions/download-artifact@v4
+        with:
+          name: makeupart-media-backup-${{ steps.select-backup.outputs.run_id }}
+          run-id: ${{ steps.select-backup.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          path: ${{ runner.temp }}/makeupart-media-restore
+
+      - name: Verify checksum, decrypt and restore into isolated temporary directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESTORE_DIR="$RUNNER_TEMP/makeupart-media-restore"
+          PASSFILE="$RUNNER_TEMP/makeupart-media-restore-passphrase"
+          DECRYPTED="$RUNNER_TEMP/makeupart-media-restored.tar.gz"
+          EXTRACTED="$RUNNER_TEMP/makeupart-media-restored"
+          trap 'rm -f "$PASSFILE" "$DECRYPTED"; rm -rf "$EXTRACTED" "$RESTORE_DIR"' EXIT
+
+          mapfile -t ARCHIVES < <(find "$RESTORE_DIR" -maxdepth 1 -type f -name '*.tar.gz.gpg' -print)
+          [[ "${#ARCHIVES[@]}" -eq 1 ]] || { echo "::error::Expected exactly one encrypted media archive."; exit 1; }
+          ARCHIVE="${ARCHIVES[0]}"
+          CHECKSUM="$ARCHIVE.sha256"
+          test -f "$CHECKSUM" || { echo "::error::Media backup checksum file is missing."; exit 1; }
+          expected="$(awk 'NR==1 {print $1}' "$CHECKSUM")"
+          actual="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
+          [[ -n "$expected" && "$expected" == "$actual" ]] || { echo "::error::Encrypted media backup checksum verification failed."; exit 1; }
+
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSFILE"
+          chmod 600 "$PASSFILE"
+          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-file "$PASSFILE" \
+            --decrypt --output "$DECRYPTED" "$ARCHIVE"
+          mkdir -p "$EXTRACTED"
+          tar -xzf "$DECRYPTED" -C "$EXTRACTED"
+
+          python - "$EXTRACTED/media" "$EXTRACTED/manifest.json" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1]).resolve()
+          manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          if manifest.get("format") != "makeupart-media-backup-v1":
+              raise SystemExit("Unknown media backup manifest format.")
+          expected = {row["path"]: row for row in manifest.get("files", [])}
+          actual = {}
+          for item in root.rglob("*"):
+              if item.is_symlink():
+                  raise SystemExit("Restored archive unexpectedly contains a symbolic link.")
+              if item.is_file():
+                  relative = item.relative_to(root).as_posix()
+                  digest = hashlib.sha256()
+                  size = 0
+                  with item.open("rb") as stream:
+                      for block in iter(lambda: stream.read(1024 * 1024), b""):
+                          size += len(block)
+                          digest.update(block)
+                  actual[relative] = {"path": relative, "size": size, "sha256": digest.hexdigest()}
+
+          if expected != actual:
+              raise SystemExit("Media restore drill failed: restored file set or content checksum differs.")
+          total = sum(row["size"] for row in actual.values())
+          if len(actual) != manifest.get("file_count") or total != manifest.get("total_bytes"):
+              raise SystemExit("Media restore drill failed: manifest totals differ.")
+          print(f"Media restore drill passed: files={len(actual)}, bytes={total}. Production volume was not changed; customer paths and image contents were not logged.")
+          PY
