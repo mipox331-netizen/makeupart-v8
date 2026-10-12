@@ -213,6 +213,47 @@ class ApiClient {
     );
   }
 
+  Future<Map<String, dynamic>> getWatermarkSettings() async {
+    final response = await dio.get('/watermarks/me');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> updateWatermarkSettings({
+    required String position,
+    required double opacity,
+    required int size,
+    required bool showPhone,
+    required bool showInstagram,
+    required bool showTikTok,
+  }) async {
+    final response = await dio.patch(
+      '/watermarks/me',
+      data: {
+        'salon_name': true,
+        'position': position,
+        'opacity': opacity,
+        'size': size,
+        'phone': showPhone,
+        'instagram': showInstagram,
+        'tiktok': showTikTok,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> uploadWatermarkLogo(XFile image) async {
+    final data = FormData.fromMap({
+      'file': await MultipartFile.fromFile(image.path, filename: image.name),
+    });
+    final response = await dio.post('/watermarks/me/logo', data: data);
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> deleteWatermarkLogo() async {
+    final response = await dio.delete('/watermarks/me/logo');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<void> login(String email, String password) async {
     final response = await dio.post(
       '/auth/login',
