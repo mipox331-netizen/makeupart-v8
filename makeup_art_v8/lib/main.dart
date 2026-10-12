@@ -261,6 +261,8 @@ class _SessionGateState extends State<SessionGate> {
     final status = subscription?['status']?.toString().toLowerCase();
     if (status != 'active' && status != 'trialing') {
       return SubscriptionPage(
+        api: widget.api,
+        salonId: user?['salon_id']?.toString() ?? '',
         subscription: subscription ?? const {},
         onLogout: widget.onLogout,
         onRetry: _load,
@@ -285,6 +287,7 @@ class _SessionGateState extends State<SessionGate> {
       onLogout: widget.onLogout,
       salonId: salonId,
       canManageBranding: canManageBranding,
+      subscription: subscription ?? const {},
     );
   }
 }

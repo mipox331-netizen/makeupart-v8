@@ -147,6 +147,44 @@ class ApiClient {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  Future<Map<String, dynamic>> getAdminRevenueSummary({
+    String period = 'month',
+  }) async {
+    final response = await dio.get(
+      '/admin/payments/summary',
+      queryParameters: {'period': period},
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> recordAdminPayment({
+    required String salonId,
+    required String plan,
+    required String amount,
+    required String currency,
+    required String paymentMethod,
+    required int periodDays,
+    String? reference,
+    String? notes,
+  }) async {
+    final response = await dio.post(
+      '/admin/payments/record',
+      data: {
+        'salon_id': salonId,
+        'plan': plan,
+        'amount': amount,
+        'currency': currency,
+        'payment_method': paymentMethod,
+        'period_days': periodDays,
+        if (reference != null && reference.trim().isNotEmpty)
+          'reference': reference.trim(),
+        if (notes != null && notes.trim().isNotEmpty)
+          'notes': notes.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<void> register({
     required String salonName,
     required String ownerFullName,
@@ -342,6 +380,7 @@ class ApiClient {
     bool consentConfirmed = false,
     String? customerId,
     required String makeupStyle,
+    required String photoFinish,
   }) async {
     final data = FormData.fromMap({
       'file': await MultipartFile.fromFile(image.path, filename: image.name),
@@ -351,6 +390,7 @@ class ApiClient {
       queryParameters: {
         'intensity': intensity,
         'makeup_style': makeupStyle,
+        'photo_finish': photoFinish,
         'consent_confirmed': consentConfirmed,
         if (customerId != null) 'customer_id': customerId,
       },

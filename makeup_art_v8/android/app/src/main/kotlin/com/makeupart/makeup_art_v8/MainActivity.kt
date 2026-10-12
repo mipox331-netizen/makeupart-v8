@@ -3,6 +3,9 @@ package com.makeupart.makeup_art_v8
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.content.Intent
+import androidx.core.content.FileProvider
+import java.io.File
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -32,6 +35,45 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             GALLERY_CHANNEL
         ).setMethodCallHandler { call, result ->
+            if (call.method == "shareImage") {
+                val bytes = call.argument<ByteArray>("bytes")
+                val requestedName = call.argument<String>("fileName") ?: "makeupart-result.png"
+                val safeName = requestedName.replace(Regex("[^A-Za-z0-9_.-]"), "_")
+                val caption = call.argument<String>("text") ?: "Beauty result by MakeupArt V8"
+                if (bytes == null || bytes.isEmpty()) {
+                    result.error("EMPTY_IMAGE", "Image data is empty.", null)
+                    return@setMethodCallHandler
+                }
+                try {
+                    val directory = File(cacheDir, "shared_images")
+                    if (!directory.exists() && !directory.mkdirs()) {
+                        throw IllegalStateException("Could not create temporary share directory")
+                    }
+                    val imageFile = File(directory, safeName)
+                    imageFile.writeBytes(bytes)
+                    val uri = FileProvider.getUriForFile(
+                        this,
+                        "$packageName.fileprovider",
+                        imageFile
+                    )
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "image/png"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_TEXT, caption)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    startActivity(Intent.createChooser(sendIntent, "Share beauty result"))
+                    result.success(true)
+                } catch (exception: Exception) {
+                    result.error(
+                        "SHARE_FAILED",
+                        exception.message ?: "Could not open the share sheet.",
+                        null
+                    )
+                }
+                return@setMethodCallHandler
+            }
+
             if (call.method != "saveImage") {
                 result.notImplemented()
                 return@setMethodCallHandler

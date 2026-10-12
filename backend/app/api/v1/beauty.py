@@ -28,10 +28,12 @@ from app.schemas.beauty import (
     BeautyProcessResponse,
     BeautyUploadResponse,
     MakeupStyle,
+    PhotoFinish,
 )
 from app.services.beauty import BeautyProvider, IdentityGuard
 from app.services.media_volume import commit_media_volume
-from app.services.subscription import release_beauty_job_quota, reserve_beauty_job_quota
+from app.services.photo_finish import apply_photo_finish
+from app.services.subscription import require_beauty_feature, release_beauty_job_quota, reserve_beauty_job_quota
 from app.services.watermark import apply_watermark, get_or_create_watermark
 
 router = APIRouter(prefix="/beauty", tags=["beauty"])
@@ -195,6 +197,7 @@ def _process_payload(
                 intensity=round(attempt_intensity, 4),
                 processed=bool(base_result["processed"]),
                 makeup_style=attempt_payload.makeup_style,
+                photo_finish=attempt_payload.photo_finish,
             )
             return response, str(generated_output)
 
@@ -265,6 +268,7 @@ def process_beauty_upload(
     file: UploadFile = File(...),
     intensity: float = Query(default=0.7, ge=0.0, le=1.0),
     makeup_style: MakeupStyle = Query(default="natural"),
+    photo_finish: PhotoFinish = Query(default="Natural Finish"),
     consent_confirmed: bool = Query(default=False),
     customer_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -291,6 +295,18 @@ def process_beauty_upload(
     try:
         reserve_beauty_job_quota(db, current_user.salon_id)
         quota_reserved = True
+        require_beauty_feature(
+            db,
+            current_user.salon_id,
+            feature_kind="makeup_style",
+            feature_name=makeup_style,
+        )
+        require_beauty_feature(
+            db,
+            current_user.salon_id,
+            feature_kind="photo_finish",
+            feature_name=photo_finish,
+        )
         total = 0
         with input_path.open("wb") as destination:
             while chunk := file.file.read(1024 * 1024):
@@ -308,6 +324,7 @@ def process_beauty_upload(
             intensity=intensity,
             consent_confirmed=True,
             makeup_style=makeup_style,
+            photo_finish=photo_finish,
         )
         response, generated_path = _process_payload(payload, BeautyProvider(), output_dir)
         generated_output = Path(generated_path).resolve()
@@ -316,6 +333,14 @@ def process_beauty_upload(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Beauty provider generated media outside salon storage",
             )
+
+        try:
+            apply_photo_finish(generated_output, photo_finish)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not apply the selected photo finish",
+            ) from exc
 
         salon = db.get(Salon, current_user.salon_id)
         if salon is None:

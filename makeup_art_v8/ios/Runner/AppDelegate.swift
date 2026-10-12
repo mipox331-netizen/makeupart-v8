@@ -16,6 +16,40 @@ import UIKit
         binaryMessenger: controller.binaryMessenger
       )
       channel.setMethodCallHandler { call, result in
+        if call.method == "shareImage" {
+          guard
+            let arguments = call.arguments as? [String: Any],
+            let typedBytes = arguments["bytes"] as? FlutterStandardTypedData,
+            let image = UIImage(data: typedBytes.data)
+          else {
+            result(FlutterError(
+              code: "EMPTY_IMAGE",
+              message: "Image data is missing or invalid.",
+              details: nil
+            ))
+            return
+          }
+
+          let caption = arguments["text"] as? String ?? "Beauty result by MakeupArt V8"
+          let activity = UIActivityViewController(
+            activityItems: [image, caption],
+            applicationActivities: nil
+          )
+          if UIDevice.current.userInterfaceIdiom == .pad {
+            activity.popoverPresentationController?.sourceView = controller.view
+            activity.popoverPresentationController?.sourceRect = CGRect(
+              x: controller.view.bounds.midX,
+              y: controller.view.bounds.midY,
+              width: 1,
+              height: 1
+            )
+            activity.popoverPresentationController?.permittedArrowDirections = []
+          }
+          controller.present(activity, animated: true)
+          result(true)
+          return
+        }
+
         guard call.method == "saveImage" else {
           result(FlutterMethodNotImplemented)
           return

@@ -5,11 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
+import '../services/favorite_image_store.dart';
 import '../services/gallery_exporter.dart';
 import '../services/photo_look_service.dart';
 import '../services/recent_image_store.dart';
+import '../services/share_image_service.dart';
 import '../widgets/license_page_button.dart';
-import 'branding_settings_page.dart';
+import 'favorites_page.dart';
+import 'settings_page.dart';
 
 class BeautyPage extends StatefulWidget {
   const BeautyPage({
@@ -18,12 +21,14 @@ class BeautyPage extends StatefulWidget {
     required this.onLogout,
     required this.salonId,
     this.canManageBranding = false,
+    this.subscription = const {},
   });
 
   final ApiClient api;
   final VoidCallback onLogout;
   final String salonId;
   final bool canManageBranding;
+  final Map<String, dynamic> subscription;
 
   @override
   State<BeautyPage> createState() => _BeautyPageState();
@@ -42,15 +47,20 @@ class _BeautyPageState extends State<BeautyPage> {
   RecentImageStore get recentImageStore =>
       RecentImageStore(scope: widget.salonId);
 
+  FavoriteImageStore get favoriteImageStore =>
+      FavoriteImageStore(scope: widget.salonId);
+
   XFile? selected;
   Map<String, dynamic>? result;
   Future<Uint8List>? afterImageFuture;
-  Uint8List? rawAfterBytes;
   Uint8List? displayedAfterBytes;
   String selectedLook = 'Natural Finish';
   String selectedMakeupStyle = 'natural';
   bool showOriginal = false;
   bool savingGallery = false;
+  bool savingFavorite = false;
+  bool sharingResult = false;
+  bool isFavorite = false;
   List<Map<String, dynamic>> customers = [];
   String? customerId;
   bool? customerConsentActive;
@@ -117,7 +127,6 @@ class _BeautyPageState extends State<BeautyPage> {
       selected = null;
       result = null;
       afterImageFuture = null;
-      rawAfterBytes = null;
       displayedAfterBytes = null;
       showOriginal = false;
       error = null;
@@ -231,8 +240,7 @@ class _BeautyPageState extends State<BeautyPage> {
         selected = null;
         result = null;
         afterImageFuture = null;
-        rawAfterBytes = null;
-        displayedAfterBytes = null;
+          displayedAfterBytes = null;
         showOriginal = false;
         error = null;
       });
@@ -254,8 +262,7 @@ class _BeautyPageState extends State<BeautyPage> {
         consentConfirmed = false;
         result = null;
         afterImageFuture = null;
-        rawAfterBytes = null;
-        displayedAfterBytes = null;
+          displayedAfterBytes = null;
         showOriginal = false;
         error = null;
       });
@@ -285,13 +292,15 @@ class _BeautyPageState extends State<BeautyPage> {
         consentConfirmed: consentConfirmed,
         customerId: customerId,
         makeupStyle: selectedMakeupStyle,
+        photoFinish: selectedLook,
       );
 
       Uint8List? afterBytes;
       final afterUrl = response['after_image_url'] as String?;
+      final jobId = response['job_id']?.toString();
+      final favorite = jobId == null ? false : await favoriteImageStore.contains(jobId);
       if (afterUrl != null) {
-        rawAfterBytes = await widget.api.fetchImage(afterUrl);
-        afterBytes = await PhotoLookService.apply(rawAfterBytes!, selectedLook);
+        afterBytes = await widget.api.fetchImage(afterUrl);
 
         try {
           await recentImageStore.save(
@@ -308,6 +317,7 @@ class _BeautyPageState extends State<BeautyPage> {
       setState(() {
         result = response;
         displayedAfterBytes = afterBytes;
+        isFavorite = favorite;
         showOriginal = false;
         afterImageFuture =
             afterBytes == null ? null : Future<Uint8List>.value(afterBytes);
@@ -325,30 +335,273 @@ class _BeautyPageState extends State<BeautyPage> {
     }
   }
 
+  String get _currentPlan =>
+      (widget.subscription['plan']?.toString() ?? 'free').toLowerCase();
+
+  Set<String> get _allowedMakeupStyles {
+    final serverValues = widget.subscription['available_makeup_styles'];
+    if (serverValues is List && serverValues.isNotEmpty) {
+      return serverValues.map((item) => item.toString()).toSet();
+    }
+    switch (_currentPlan) {
+      case 'basic':
+        return const {'natural', 'soft_glam'};
+      case 'pro':
+      case 'enterprise':
+        return _makeupStyles.keys.toSet();
+      default:
+        return const {'natural'};
+    }
+  }
+
+  Set<String> get _allowedPhotoFinishes {
+    final serverValues = widget.subscription['available_photo_finishes'];
+    if (serverValues is List && serverValues.isNotEmpty) {
+      return serverValues.map((item) => item.toString()).toSet();
+    }
+    switch (_currentPlan) {
+      case 'basic':
+        return const {'Natural Finish', 'Warm Glow', 'Soft Glam'};
+      case 'pro':
+      case 'enterprise':
+        return PhotoLookService.names.toSet();
+      default:
+        return const {'Natural Finish', 'Warm Glow'};
+    }
+  }
+
+  Future<void> _showUpgradeDialog({
+    required String feature,
+    required String requiredPlan,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.lock_outline_rounded, size: 34),
+        title: Text('$feature is a $requiredPlan feature'),
+        content: Text(
+          'Your current ${_currentPlan.toUpperCase()} plan does not include this tool. '
+          'Contact the MakeupArt platform administrator to activate or renew a plan. '
+          'Online automatic checkout is not configured, so this app will not pretend a payment was completed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Understood'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _selectMakeupStyle(String style) async {
+    if (!_allowedMakeupStyles.contains(style)) {
+      final requiredPlan = style == 'soft_glam' ? 'Basic' : 'Pro';
+      await _showUpgradeDialog(
+        feature: _makeupStyles[style] ?? style,
+        requiredPlan: requiredPlan,
+      );
+      return;
+    }
+    setState(() {
+      selectedMakeupStyle = style;
+      result = null;
+      displayedAfterBytes = null;
+      afterImageFuture = null;
+      showOriginal = false;
+      error = null;
+    });
+  }
+
   Future<void> _selectLook(String look) async {
+    if (!_allowedPhotoFinishes.contains(look)) {
+      final requiredPlan = look == 'Soft Glam' ? 'Basic' : 'Pro';
+      await _showUpgradeDialog(feature: look, requiredPlan: requiredPlan);
+      return;
+    }
+    if (look == selectedLook) return;
+
+    final hadProcessedResult = result != null;
+    if (hadProcessedResult) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.auto_awesome_rounded, size: 32),
+          title: const Text('Apply a new photo finish?'),
+          content: const Text(
+            'The new finish is rendered by the secure server. This reprocesses the selected photo and uses one more AI job from your monthly plan.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Reprocess'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
     setState(() {
       selectedLook = look;
       error = null;
-    });
-    final raw = rawAfterBytes;
-    if (raw == null) return;
-
-    setState(() => loading = true);
-    try {
-      final styled = await PhotoLookService.apply(raw, look);
-      if (!mounted) return;
-      setState(() {
-        displayedAfterBytes = styled;
+      if (hadProcessedResult) {
+        result = null;
+        displayedAfterBytes = null;
+        afterImageFuture = null;
         showOriginal = false;
-        afterImageFuture = Future<Uint8List>.value(styled);
-      });
+        isFavorite = false;
+      }
+    });
+
+    if (hadProcessedResult) {
+      await process();
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    final bytes = displayedAfterBytes;
+    final jobId = result?['job_id']?.toString();
+    if (bytes == null || bytes.isEmpty || jobId == null || savingFavorite) return;
+
+    setState(() {
+      savingFavorite = true;
+      error = null;
+    });
+    try {
+      if (isFavorite) {
+        await favoriteImageStore.remove(jobId);
+        if (mounted) {
+          setState(() => isFavorite = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Removed from favorites.')),
+          );
+        }
+      } else {
+        await favoriteImageStore.save(bytes, jobId: jobId);
+        if (mounted) {
+          setState(() => isFavorite = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Saved to private on-device favorites.'),
+            ),
+          );
+        }
+      }
     } catch (_) {
       if (mounted) {
-        setState(() => error = 'Could not apply this photo finish.');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update favorites on this device.')),
+        );
       }
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) setState(() => savingFavorite = false);
     }
+  }
+
+  Future<void> _shareResult() async {
+    final bytes = displayedAfterBytes;
+    if (bytes == null || bytes.isEmpty || sharingResult) return;
+
+    final promotionController = TextEditingController();
+    final promotion = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Share beauty result'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Add an optional product, offer, or booking message to promote your salon.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: promotionController,
+              maxLines: 3,
+              maxLength: 240,
+              decoration: const InputDecoration(
+                labelText: 'Product / offer caption (optional)',
+                hintText: 'e.g. Bridal makeover bookings open this week',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(
+              promotionController.text.trim(),
+            ),
+            child: const Text('Continue to share'),
+          ),
+        ],
+      ),
+    );
+    promotionController.dispose();
+    if (promotion == null || !mounted) return;
+
+    setState(() => sharingResult = true);
+    try {
+      Map<String, dynamic> salon = const {};
+      try {
+        salon = await widget.api.getSalonProfile();
+      } catch (_) {
+        // Sharing still works when a profile refresh is temporarily unavailable.
+      }
+      final salonName = salon['name']?.toString().trim().isNotEmpty == true
+          ? salon['name'].toString().trim()
+          : 'our salon';
+      final captionParts = <String>[
+        if (promotion.isNotEmpty) promotion,
+        'Beauty look by $salonName.',
+        if (salon['phone']?.toString().trim().isNotEmpty == true)
+          'Bookings: ${salon['phone']}',
+        if (salon['instagram']?.toString().trim().isNotEmpty == true)
+          'Instagram: ${salon['instagram'].toString().startsWith('@') ? salon['instagram'] : '@${salon['instagram']}'}',
+        if (salon['tiktok']?.toString().trim().isNotEmpty == true)
+          'TikTok: ${salon['tiktok'].toString().startsWith('@') ? salon['tiktok'] : '@${salon['tiktok']}'}',
+        'Made with MakeupArt V8.',
+      ];
+      await ShareImageService.sharePng(
+        bytes: bytes,
+        fileName: 'makeupart_${DateTime.now().millisecondsSinceEpoch}.png',
+        caption: captionParts.join('\n'),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Share sheet opened. Choose a social app to publish the result.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open the share sheet. Try saving the image instead.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => sharingResult = false);
+    }
+  }
+
+  Future<void> _openFavorites() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FavoritesPage(salonId: widget.salonId),
+      ),
+    );
   }
 
   Future<void> _saveResultToGallery() async {
@@ -411,18 +664,27 @@ class _BeautyPageState extends State<BeautyPage> {
       appBar: AppBar(
         title: const Text('MakeupArt Studio'),
         actions: [
-          if (widget.canManageBranding)
-            IconButton(
-              tooltip: 'Salon branding and watermark',
-              onPressed: loading
-                  ? null
-                  : () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => BrandingSettingsPage(api: widget.api),
+          IconButton(
+            tooltip: 'Settings, plan, privacy, and branding',
+            onPressed: loading
+                ? null
+                : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => SettingsPage(
+                          api: widget.api,
+                          salonId: widget.salonId,
+                          subscription: widget.subscription,
+                          canManageBranding: widget.canManageBranding,
                         ),
                       ),
-              icon: const Icon(Icons.tune_rounded),
-            ),
+                    ),
+            icon: const Icon(Icons.settings_outlined),
+          ),
+          IconButton(
+            tooltip: 'Favorite results',
+            onPressed: _openFavorites,
+            icon: const Icon(Icons.favorite_border_rounded),
+          ),
           const LicensePageButton(),
           IconButton(
             onPressed: loading ? null : _loadCustomers,
@@ -652,6 +914,8 @@ class _BeautyPageState extends State<BeautyPage> {
                   const Text(
                     'Choose a client photo, confirm consent, adjust enhancement strength, then process it securely.',
                   ),
+                  const SizedBox(height: 10),
+                  const _PhotoPrivacyNotice(),
                   const SizedBox(height: 18),
                   if (selected != null)
                     ClipRRect(
@@ -718,24 +982,15 @@ class _BeautyPageState extends State<BeautyPage> {
                     runSpacing: 8,
                     children: _makeupStyles.entries.map((style) {
                       return ChoiceChip(
-                        avatar: const Icon(
-                          Icons.face_retouching_natural_rounded,
+                        avatar: Icon(
+                          !_allowedMakeupStyles.contains(style.key)
+                              ? Icons.lock_outline_rounded
+                              : Icons.face_retouching_natural_rounded,
                           size: 17,
                         ),
                         label: Text(style.value),
                         selected: selectedMakeupStyle == style.key,
-                        onSelected: loading
-                            ? null
-                            : (_) => setState(() {
-                                  selectedMakeupStyle = style.key;
-                                  // Never leave a preview that doesn't match the selected treatment.
-                                  result = null;
-                                  rawAfterBytes = null;
-                                  displayedAfterBytes = null;
-                                  afterImageFuture = null;
-                                  showOriginal = false;
-                                  error = null;
-                                }),
+                        onSelected: loading ? null : (_) => _selectMakeupStyle(style.key),
                       );
                     }).toList(),
                   ),
@@ -755,9 +1010,11 @@ class _BeautyPageState extends State<BeautyPage> {
                     children: PhotoLookService.names.map((look) {
                       return ChoiceChip(
                         avatar: Icon(
-                          selectedLook == look
-                              ? Icons.check_circle_rounded
-                              : Icons.auto_awesome_outlined,
+                          !_allowedPhotoFinishes.contains(look)
+                              ? Icons.lock_outline_rounded
+                              : selectedLook == look
+                                  ? Icons.check_circle_rounded
+                                  : Icons.auto_awesome_outlined,
                           size: 17,
                         ),
                         label: Text(look),
@@ -925,9 +1182,49 @@ class _BeautyPageState extends State<BeautyPage> {
                           padding: const EdgeInsets.symmetric(vertical: 15),
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: savingFavorite || loading ? null : _toggleFavorite,
+                              icon: savingFavorite
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : Icon(isFavorite
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded),
+                              label: Text(
+                                savingFavorite
+                                    ? 'Saving...'
+                                    : isFavorite
+                                        ? 'Remove favorite'
+                                        : 'Add favorite',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton.tonalIcon(
+                              onPressed: sharingResult || loading ? null : _shareResult,
+                              icon: sharingResult
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.share_rounded),
+                              label: Text(sharingResult ? 'Opening...' : 'Share result'),
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 6),
                       const Text(
-                        'The saved PNG includes the selected photo finish and the salon watermark from the latest processing run.',
+                        'The PNG includes the salon watermark. Sharing opens your phone’s share sheet with an optional promotional caption.',
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -936,6 +1233,37 @@ class _BeautyPageState extends State<BeautyPage> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+
+class _PhotoPrivacyNotice extends StatelessWidget {
+  const _PhotoPrivacyNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .55),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.privacy_tip_outlined, size: 21),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Privacy notice: the selected photo is uploaded to the MakeupArt cloud for AI processing. Continue only with the client’s permission. A named client also needs an active stored consent record.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
         ],
       ),
     );
