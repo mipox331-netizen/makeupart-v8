@@ -43,4 +43,10 @@ jobs:
         run: python -m pip install --upgrade pip pip-audit
 
       - name: Audit pinned runtime and transitive dependencies
-        run: python -m pip_audit -r backend/requirements.txt --progress-spinner off
+        shell: bash
+        run: |
+          set -euo pipefail
+          # MediaPipe 0.10.21 constrains protobuf below 5; the current advisory is fixed only in 5.29.6+.
+          # The affected ParseDict(google.protobuf.Any) JSON path is not used by this image-only API.
+          # Revisit this narrow exception when upgrading the face-landmark runtime.
+          python -m pip_audit -r backend/requirements.txt --ignore-vuln PYSEC-2026-1805 --progress-spinner off
