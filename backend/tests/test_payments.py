@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from app.core.config import settings
 from tests.utils import API, auth_headers, register
 
@@ -11,7 +9,7 @@ def _register_platform_admin(client, monkeypatch, email="platform-admin@makeupar
 
 
 def test_platform_admin_records_verified_payment_and_activates_plan(client, monkeypatch):
-    owner_registration = register(client, email="revenue-owner@salon.com", salon_name="Revenue Salon")
+    register(client, email="revenue-owner@salon.com", salon_name="Revenue Salon")
     owner_headers = auth_headers(client, "revenue-owner@salon.com")
     salon = client.get(f"{API}/salons/me", headers=owner_headers)
     assert salon.status_code == 200
