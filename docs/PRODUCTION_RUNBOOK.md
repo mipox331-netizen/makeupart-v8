@@ -9,7 +9,7 @@ Production API:
 
 Deploys are driven by GitHub Actions through `.github/workflows/modal-deploy.yml`.
 
-The deployment gate validates Modal/database credentials, provisions the production secret, deploys FastAPI, applies Alembic migrations, verifies the migration head and required tables, checks the MediaPipe + InsightFace runtime, and verifies `/health/ready`.
+The deployment gate validates Modal/database credentials, provisions the production secret, deploys FastAPI, applies Alembic migrations, verifies the migration head and required tables, checks the MediaPipe + OpenCV image-preservation runtime, and verifies `/health/ready`.
 
 ## 2. Required production secrets
 
@@ -67,6 +67,6 @@ The repository contains `backend/docker-compose.production.yml` with PostgreSQL,
 - Keep `CORS_ORIGINS` explicit and secrets outside Git.
 - Keep customer media private and serve it only through authenticated API routes.
 - Keep consent, retention and deletion controls in place.
-- Resolve InsightFace `buffalo_l` pretrained-model commercial licensing or replace the model before commercial use.
+- The replacement implementation removes InsightFace `buffalo_l` and checks image structure with OpenCV; verify the corresponding production deployment before enabling commercial use. This score is not biometric identity recognition.
 - The current OpenCV filter is not generative makeup. Do not advertise the generative feature as available until it is implemented and validated.
 - Review all dependency licenses and add a root-level repository license before asserting source reuse rights.
