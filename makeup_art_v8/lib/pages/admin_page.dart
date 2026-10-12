@@ -495,7 +495,7 @@ class _AdminPageState extends State<AdminPage> {
                       _MetricCard(label: 'Blocked', value: '$blockedUsers'),
                       _MetricCard(label: 'Free plan', value: '$freeUsers'),
                       _MetricCard(label: 'Active paid plans', value: '$paidSalons'),
-                      _MetricCard(label: 'Revenue', value: 'Verified ledger'),
+                      const _MetricCard(label: 'Revenue', value: 'Verified ledger'),
                       _MetricCard(label: 'Due in 7 days', value: '$expiringSoon'),
                     ],
                   ),
@@ -564,7 +564,7 @@ class _AdminPageState extends State<AdminPage> {
                                   final currency = item['currency']?.toString() ?? '';
                                   final total = double.tryParse(item['collected_total']?.toString() ?? '') ?? 0;
                                   return _MetricCard(
-                                    label: '${currency} collected',
+                                    label: '$currency collected',
                                     value: total.toStringAsFixed(2),
                                   );
                                 }).toList(),
