@@ -56,10 +56,11 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
     _updateCheckStarted = true;
 
     final update = await updateService.checkForUpdate();
-    if (!mounted || update == null) return;
+    if (!mounted) return;
+    if (update == null) return;
 
     final navigatorContext = _navigatorKey.currentContext;
-    if (navigatorContext == null) return;
+    if (navigatorContext == null || !navigatorContext.mounted) return;
 
     await showDialog<void>(
       context: navigatorContext,
@@ -84,28 +85,29 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
                   update.downloadUri,
                   mode: LaunchMode.externalApplication,
                 );
-                if (!opened && mounted) {
-                  final context = _navigatorKey.currentContext;
-                  if (context != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Imeshindwa kufungua upakuaji. Jaribu tena baadaye.',
-                        ),
-                      ),
-                    );
+                if (!opened) {
+                  final feedbackContext = _navigatorKey.currentContext;
+                  if (feedbackContext == null || !feedbackContext.mounted) {
+                    return;
                   }
-                }
-              } catch (_) {
-                if (!mounted) return;
-                final context = _navigatorKey.currentContext;
-                if (context != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(feedbackContext).showSnackBar(
                     const SnackBar(
-                      content: Text('Imeshindwa kufungua link ya sasisho.'),
+                      content: Text(
+                        'Imeshindwa kufungua upakuaji. Jaribu tena baadaye.',
+                      ),
                     ),
                   );
                 }
+              } catch (_) {
+                final feedbackContext = _navigatorKey.currentContext;
+                if (feedbackContext == null || !feedbackContext.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(feedbackContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Imeshindwa kufungua link ya sasisho.'),
+                  ),
+                );
               }
             },
             icon: const Icon(Icons.download_rounded),
