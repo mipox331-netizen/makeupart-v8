@@ -69,7 +69,7 @@ jobs:
           for run_id in $candidates; do
             run_status="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.conclusion // empty' 2>/dev/null || true)"
             run_path="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.path // empty' 2>/dev/null || true)"
-            [[ "$run_status" == "success" && "$run_path" == ".github/workflows/production-database-backup.yml" ]] || continue
+            [[ "$run_status" == "success" && ( "$run_path" == ".github/workflows/production-database-backup.yml" || "$run_path" == .github/workflows/production-database-backup.yml@* ) ]] || continue
             artifact_count="$(gh api "repos/$repo/actions/runs/$run_id/artifacts" --jq "[.artifacts[] | select(.name == \"makeupart-db-backup-$run_id\" and .expired == false)] | length" 2>/dev/null || echo 0)"
             if [[ "$artifact_count" =~ ^[0-9]+$ ]] && (( artifact_count > 0 )); then
               selected="$run_id"
