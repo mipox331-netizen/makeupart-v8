@@ -1,0 +1,165 @@
+name: MakeupArt V8 Encrypted Production Media Backup
+
+on:
+  schedule:
+    - cron: "45 2 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/production-media-backup.yml"
+      - "modal_app.py"
+      - "backend/app/services/media_volume.py"
+      - "backend/app/api/v1/beauty.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: makeupart-v8-production-media-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+    steps:
+      - name: Validate backup credentials without exposing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${MODAL_TOKEN_ID:-}" || { echo "::error::Missing Modal token ID in the production environment."; exit 1; }
+          test -n "${MODAL_TOKEN_SECRET:-}" || { echo "::error::Missing Modal token secret in the production environment."; exit 1; }
+          test -n "${BACKUP_ENCRYPTION_PASSPHRASE:-}" || { echo "::error::Missing BACKUP_ENCRYPTION_PASSPHRASE in GitHub Actions secrets."; exit 1; }
+          [[ "${#BACKUP_ENCRYPTION_PASSPHRASE}" -ge 24 ]] || { echo "::error::Backup passphrase must be at least 24 characters."; exit 1; }
+          echo "Required credentials are present. Secret values remain hidden."
+
+      - name: Set up Python and install Modal CLI
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Modal CLI
+        run: python -m pip install --upgrade modal
+
+      - name: Download Modal media volume
+        shell: bash
+        run: |
+          set -euo pipefail
+          BACKUP_DIR="$RUNNER_TEMP/makeupart-media-backup"
+          STAGE="$BACKUP_DIR/stage"
+          mkdir -p "$STAGE"
+          chmod 700 "$BACKUP_DIR" "$STAGE"
+          # Suppress CLI output so private file paths are not written to public workflow logs.
+          if ! modal volume get --force -e main makeupart-v8-media / "$STAGE/media" >/dev/null 2>&1; then
+            echo "::error::Could not download the production media volume. Command output was suppressed to protect private paths."
+            exit 1
+          fi
+          test -d "$STAGE/media" || { echo "::error::The Modal media volume download did not produce a directory."; exit 1; }
+
+          python - "$STAGE/media" "$STAGE/manifest.json" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path(sys.argv[1]).resolve()
+          manifest_path = Path(sys.argv[2])
+          entries = []
+          total_bytes = 0
+          for item in sorted(root.rglob("*")):
+              if item.is_symlink():
+                  raise SystemExit("Media backup refuses to follow symbolic links.")
+              if not item.is_file():
+                  continue
+              relative = item.relative_to(root).as_posix()
+              digest = hashlib.sha256()
+              size = 0
+              with item.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      size += len(block)
+                      digest.update(block)
+              entries.append({"path": relative, "size": size, "sha256": digest.hexdigest()})
+              total_bytes += size
+
+          # Bound runner disk use before building duplicate verification copies.
+          if total_bytes > 3 * 1024**3:
+              raise SystemExit("Media volume exceeds the safe 3 GiB source-size limit for this runner; no partial backup was uploaded.")
+          document = {
+              "format": "makeupart-media-backup-v1",
+              "created_at": datetime.now(timezone.utc).isoformat(),
+              "file_count": len(entries),
+              "total_bytes": total_bytes,
+              "files": entries,
+          }
+          manifest_path.write_text(json.dumps(document, separators=(",", ":"), sort_keys=True), encoding="utf-8")
+          print(f"Private media inventory prepared: files={len(entries)}, bytes={total_bytes}. File names and image contents are not logged.")
+          PY
+
+      - name: Encrypt and verify complete media archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          BACKUP_DIR="$RUNNER_TEMP/makeupart-media-backup"
+          STAGE="$BACKUP_DIR/stage"
+          ARCHIVE="$BACKUP_DIR/makeupart-media.tar.gz.gpg"
+          PASSFILE="$RUNNER_TEMP/makeupart-media-passphrase"
+          DECRYPTED="$BACKUP_DIR/verify.tar.gz"
+          VERIFY_DIR="$BACKUP_DIR/verify"
+          trap 'rm -f "$PASSFILE" "$DECRYPTED"; rm -rf "$VERIFY_DIR" "$STAGE"' EXIT
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSFILE"
+          chmod 600 "$PASSFILE"
+          tar --sort=name --owner=0 --group=0 --numeric-owner -czf "$BACKUP_DIR/makeupart-media.tar.gz" -C "$STAGE" media manifest.json
+          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-file "$PASSFILE" \
+            --symmetric --cipher-algo AES256 --output "$ARCHIVE" "$BACKUP_DIR/makeupart-media.tar.gz"
+          rm -f "$BACKUP_DIR/makeupart-media.tar.gz"
+          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-file "$PASSFILE" \
+            --decrypt --output "$DECRYPTED" "$ARCHIVE"
+          mkdir -p "$VERIFY_DIR"
+          tar -xzf "$DECRYPTED" -C "$VERIFY_DIR"
+          python - "$VERIFY_DIR/media" "$VERIFY_DIR/manifest.json" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1]).resolve()
+          manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          if manifest.get("format") != "makeupart-media-backup-v1":
+              raise SystemExit("Unknown media backup manifest format.")
+          expected = {row["path"]: row for row in manifest.get("files", [])}
+          actual = {}
+          for item in root.rglob("*"):
+              if item.is_symlink():
+                  raise SystemExit("Restored archive unexpectedly contains a symbolic link.")
+              if item.is_file():
+                  rel = item.relative_to(root).as_posix()
+                  digest = hashlib.sha256()
+                  size = 0
+                  with item.open("rb") as stream:
+                      for block in iter(lambda: stream.read(1024 * 1024), b""):
+                          size += len(block)
+                          digest.update(block)
+                  actual[rel] = {"path": rel, "size": size, "sha256": digest.hexdigest()}
+          if expected != actual:
+              raise SystemExit("Media restore verification failed: file set or content checksum mismatch.")
+          if len(actual) != manifest.get("file_count") or sum(row["size"] for row in actual.values()) != manifest.get("total_bytes"):
+              raise SystemExit("Media restore verification failed: manifest totals mismatch.")
+          print(f"Encrypted media archive restore verified: files={len(actual)}, bytes={sum(row['size'] for row in actual.values())}. No customer paths or image contents were logged.")
+          PY
+          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+
+      - name: Upload encrypted backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: makeupart-media-backup-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg
+            ${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg.sha256
+          if-no-files-found: error
+          retention-days: 14
