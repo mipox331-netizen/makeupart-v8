@@ -23,7 +23,6 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
     'top-left': 'Top left',
   };
 
-  Map<String, dynamic> _settings = const {};
   Uint8List? _logoBytes;
   String _position = 'bottom-right';
   double _opacity = 0.72;
@@ -58,14 +57,13 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
       }
       if (!mounted) return;
       setState(() {
-        _settings = data;
         _position = _positions.containsKey(data['position'])
             ? data['position'] as String
             : 'bottom-right';
         _opacity = ((data['opacity'] as num?)?.toDouble() ?? 0.72)
-            .clamp(0.0, 1.0);
+            .clamp(0.0, 1.0).toDouble();
         _size = ((data['size'] as num?)?.toDouble() ?? 20)
-            .clamp(8.0, 72.0);
+            .clamp(8.0, 72.0).toDouble();
         _showPhone = data['phone'] == true;
         _showInstagram = data['instagram'] == true;
         _showTikTok = data['tiktok'] == true;
@@ -97,7 +95,6 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
       final bytes = await widget.api.fetchImage('/watermarks/me/logo');
       if (!mounted) return;
       setState(() {
-        _settings = updated;
         _logoBytes = bytes;
       });
       _message('Salon logo uploaded. New AI results will include it.');
@@ -148,7 +145,6 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
         showTikTok: _showTikTok,
       );
       if (!mounted) return;
-      setState(() => _settings = updated);
       _message('Branding settings saved for this salon.');
     } catch (_) {
       if (mounted) {
