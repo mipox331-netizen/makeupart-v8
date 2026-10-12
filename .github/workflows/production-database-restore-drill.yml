@@ -8,6 +8,10 @@ on:
         required: false
         type: string
         default: ""
+  workflow_run:
+    workflows: ["MakeupArt V8 Encrypted Production Database Backup"]
+    types: [completed]
+    branches: [main]
   push:
     branches: [main]
     paths:
@@ -23,6 +27,7 @@ concurrency:
 
 jobs:
   restore-drill:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     name: Restore encrypted backup into isolated temporary PostgreSQL
     runs-on: ubuntu-latest
     environment: production
@@ -50,12 +55,19 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REQUESTED_BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id || '' }}
+          REQUESTED_BACKUP_RUN_ID: ${{ inputs.backup_run_id || '' }}
         run: |
           set -euo pipefail
           repo="$GITHUB_REPOSITORY"
           requested="$REQUESTED_BACKUP_RUN_ID"
-          if [[ -n "$requested" ]]; then
+          if [[ -n "$EVENT_RUN_ID" ]]; then
+            [[ "$EVENT_RUN_ID" =~ ^[0-9]+$ ]] || {
+              echo "::error::Invalid workflow run ID."
+              exit 1
+            }
+            candidates="$EVENT_RUN_ID"
+          elif [[ -n "$requested" ]]; then
             [[ "$requested" =~ ^[0-9]+$ ]] || {
               echo "::error::backup_run_id must contain digits only."
               exit 1
