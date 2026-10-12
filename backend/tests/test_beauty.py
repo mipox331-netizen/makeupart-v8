@@ -120,12 +120,8 @@ def test_beauty_process_satisfies_identity_threshold(client, monkeypatch, tmp_pa
     face_mesh = SimpleNamespace(
         process=lambda image: SimpleNamespace(multi_face_landmarks=[landmarks])
     )
-    face_app = SimpleNamespace(
-        get=lambda image: [SimpleNamespace(embedding=np.array([1.0, 0.0]))]
-    )
     monkeypatch.setattr(BeautyProvider, "_face_mesh_available", classmethod(lambda cls: True))
     monkeypatch.setattr(BeautyProvider, "_get_face_mesh", classmethod(lambda cls: face_mesh))
-    monkeypatch.setattr(BeautyProvider, "_get_face_app", classmethod(lambda cls: face_app))
 
     response = client.post(
         f"{API}/beauty/process",
@@ -175,6 +171,41 @@ def test_beauty_process_rejects_path_outside_media_root(client, monkeypatch, tmp
     )
 
     assert response.status_code == 400
+
+
+def test_structure_similarity_is_one_for_identical_face_images():
+    landmarks = SimpleNamespace(
+        landmark=[
+            SimpleNamespace(x=0.2, y=0.2),
+            SimpleNamespace(x=0.8, y=0.2),
+            SimpleNamespace(x=0.8, y=0.85),
+            SimpleNamespace(x=0.2, y=0.85),
+        ]
+    )
+    image = np.full((128, 128, 3), 150, dtype=np.uint8)
+
+    similarity = IdentityGuard.measure_similarity(image, image.copy(), landmarks)
+
+    assert similarity == pytest.approx(1.0, abs=1e-6)
+    assert IdentityGuard().validate(similarity, 0.8)[1] is True
+
+
+def test_structure_similarity_rejects_large_visual_changes():
+    landmarks = SimpleNamespace(
+        landmark=[
+            SimpleNamespace(x=0.2, y=0.2),
+            SimpleNamespace(x=0.8, y=0.2),
+            SimpleNamespace(x=0.8, y=0.85),
+            SimpleNamespace(x=0.2, y=0.85),
+        ]
+    )
+    original = np.full((128, 128, 3), 70, dtype=np.uint8)
+    changed = np.full((128, 128, 3), 235, dtype=np.uint8)
+
+    similarity = IdentityGuard.measure_similarity(original, changed, landmarks)
+
+    assert 0.0 <= similarity < IdentityGuard.min_similarity
+    assert IdentityGuard().validate(similarity, 0.8)[1] is False
 
 
 def test_identity_guard_does_not_invent_similarity():
