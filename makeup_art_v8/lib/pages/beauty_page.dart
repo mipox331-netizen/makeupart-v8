@@ -53,7 +53,6 @@ class _BeautyPageState extends State<BeautyPage> {
   XFile? selected;
   Map<String, dynamic>? result;
   Future<Uint8List>? afterImageFuture;
-  Uint8List? rawAfterBytes;
   Uint8List? displayedAfterBytes;
   String selectedLook = 'Natural Finish';
   String selectedMakeupStyle = 'natural';
@@ -128,7 +127,6 @@ class _BeautyPageState extends State<BeautyPage> {
       selected = null;
       result = null;
       afterImageFuture = null;
-      rawAfterBytes = null;
       displayedAfterBytes = null;
       showOriginal = false;
       error = null;
@@ -242,8 +240,7 @@ class _BeautyPageState extends State<BeautyPage> {
         selected = null;
         result = null;
         afterImageFuture = null;
-        rawAfterBytes = null;
-        displayedAfterBytes = null;
+          displayedAfterBytes = null;
         showOriginal = false;
         error = null;
       });
@@ -265,8 +262,7 @@ class _BeautyPageState extends State<BeautyPage> {
         consentConfirmed = false;
         result = null;
         afterImageFuture = null;
-        rawAfterBytes = null;
-        displayedAfterBytes = null;
+          displayedAfterBytes = null;
         showOriginal = false;
         error = null;
       });
@@ -304,8 +300,7 @@ class _BeautyPageState extends State<BeautyPage> {
       final jobId = response['job_id']?.toString();
       final favorite = jobId == null ? false : await favoriteImageStore.contains(jobId);
       if (afterUrl != null) {
-        rawAfterBytes = await widget.api.fetchImage(afterUrl);
-        afterBytes = await PhotoLookService.apply(rawAfterBytes!, selectedLook);
+        afterBytes = await widget.api.fetchImage(afterUrl);
 
         try {
           await recentImageStore.save(
@@ -411,7 +406,6 @@ class _BeautyPageState extends State<BeautyPage> {
     setState(() {
       selectedMakeupStyle = style;
       result = null;
-      rawAfterBytes = null;
       displayedAfterBytes = null;
       afterImageFuture = null;
       showOriginal = false;
@@ -425,28 +419,47 @@ class _BeautyPageState extends State<BeautyPage> {
       await _showUpgradeDialog(feature: look, requiredPlan: requiredPlan);
       return;
     }
+    if (look == selectedLook) return;
+
+    final hadProcessedResult = result != null;
+    if (hadProcessedResult) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.auto_awesome_rounded, size: 32),
+          title: const Text('Apply a new photo finish?'),
+          content: const Text(
+            'The new finish is rendered by the secure server. This reprocesses the selected photo and uses one more AI job from your monthly plan.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Reprocess'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
     setState(() {
       selectedLook = look;
       error = null;
-    });
-    final raw = rawAfterBytes;
-    if (raw == null) return;
-
-    setState(() => loading = true);
-    try {
-      final styled = await PhotoLookService.apply(raw, look);
-      if (!mounted) return;
-      setState(() {
-        displayedAfterBytes = styled;
+      if (hadProcessedResult) {
+        result = null;
+        displayedAfterBytes = null;
+        afterImageFuture = null;
         showOriginal = false;
-        afterImageFuture = Future<Uint8List>.value(styled);
-      });
-    } catch (_) {
-      if (mounted) {
-        setState(() => error = 'Could not apply this photo finish.');
+        isFavorite = false;
       }
-    } finally {
-      if (mounted) setState(() => loading = false);
+    });
+
+    if (hadProcessedResult) {
+      await process();
     }
   }
 
