@@ -1,0 +1,98 @@
+name: Third-party License Inventory
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/requirements*.txt"
+      - "backend/Dockerfile"
+      - "backend/docker-compose*.yml"
+      - "makeup_art_v8/pubspec.yaml"
+      - "makeup_art_v8/pubspec.lock"
+      - "LICENSE"
+      - ".github/workflows/third-party-license-inventory.yml"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: third-party-license-inventory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install backend runtime and development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+          python -m pip install pip-licenses
+
+      - name: Generate Python dependency license inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/license-reports"
+          pip-licenses --format=markdown --with-urls \
+            --output-file="$RUNNER_TEMP/license-reports/python-dependency-licenses.md"
+          pip-licenses --format=json --with-license-file --with-notice-file \
+            --output-file="$RUNNER_TEMP/license-reports/python-dependency-license-details.json"
+          cat "$RUNNER_TEMP/license-reports/python-dependency-licenses.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.0"
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        working-directory: makeup_art_v8
+        run: flutter pub get
+
+      - name: Generate Flutter and Dart dependency license inventory
+        working-directory: makeup_art_v8
+        shell: bash
+        run: |
+          set -euo pipefail
+          dart pub global activate dart_pubspec_licenses
+          dart pub global run dart_pubspec_licenses:generate \
+            --project-root "$GITHUB_WORKSPACE/makeup_art_v8" \
+            --output "$RUNNER_TEMP/license-reports/flutter-dependency-licenses.json" \
+            --json
+
+      - name: Upload license inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: makeupart-third-party-license-inventory-${{ github.run_id }}
+          path: ${{ runner.temp }}/license-reports/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Explain scope and manual review requirement
+        if: always()
+        run: |
+          {
+            echo "## Third-party license inventory"
+            echo ""
+            echo "The artifact records detected Python package license metadata and full license/notice files, plus the Flutter/Dart dependency license inventory."
+            echo ""
+            echo "This is an inventory, not an automatic legal approval. Review missing/ambiguous licenses and separately review native Android/iOS, operating-system, container base-image, and any externally supplied assets/models before commercial distribution."
+            echo ""
+            echo "The root LICENSE is a proprietary notice for original project materials; third-party terms remain separate."
+          } >> "$GITHUB_STEP_SUMMARY"
