@@ -102,6 +102,8 @@ jobs:
           }
           manifest_path.write_text(json.dumps(document, separators=(",", ":"), sort_keys=True), encoding="utf-8")
           print(f"Private media inventory prepared: files={len(entries)}, bytes={total_bytes}. File names and image contents are not logged.")
+          if not entries:
+              print("::warning::The production media volume currently contains zero files. The encrypted backup and restore mechanics are verified, but recovery of real customer photos is not yet proven.")
           PY
 
       - name: Encrypt and verify complete media archive
