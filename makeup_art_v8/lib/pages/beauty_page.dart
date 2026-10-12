@@ -10,6 +10,7 @@ import '../services/photo_look_service.dart';
 import '../services/recent_image_store.dart';
 import '../widgets/license_page_button.dart';
 import 'branding_settings_page.dart';
+import 'settings_page.dart';
 
 class BeautyPage extends StatefulWidget {
   const BeautyPage({
@@ -18,12 +19,14 @@ class BeautyPage extends StatefulWidget {
     required this.onLogout,
     required this.salonId,
     this.canManageBranding = false,
+    this.subscription = const {},
   });
 
   final ApiClient api;
   final VoidCallback onLogout;
   final String salonId;
   final bool canManageBranding;
+  final Map<String, dynamic> subscription;
 
   @override
   State<BeautyPage> createState() => _BeautyPageState();
@@ -285,6 +288,7 @@ class _BeautyPageState extends State<BeautyPage> {
         consentConfirmed: consentConfirmed,
         customerId: customerId,
         makeupStyle: selectedMakeupStyle,
+        photoFinish: selectedLook,
       );
 
       Uint8List? afterBytes;
@@ -325,7 +329,91 @@ class _BeautyPageState extends State<BeautyPage> {
     }
   }
 
+  String get _currentPlan =>
+      (widget.subscription['plan']?.toString() ?? 'free').toLowerCase();
+
+  Set<String> get _allowedMakeupStyles {
+    final serverValues = widget.subscription['available_makeup_styles'];
+    if (serverValues is List && serverValues.isNotEmpty) {
+      return serverValues.map((item) => item.toString()).toSet();
+    }
+    switch (_currentPlan) {
+      case 'basic':
+        return const {'natural', 'soft_glam'};
+      case 'pro':
+      case 'enterprise':
+        return _makeupStyles.keys.toSet();
+      default:
+        return const {'natural'};
+    }
+  }
+
+  Set<String> get _allowedPhotoFinishes {
+    final serverValues = widget.subscription['available_photo_finishes'];
+    if (serverValues is List && serverValues.isNotEmpty) {
+      return serverValues.map((item) => item.toString()).toSet();
+    }
+    switch (_currentPlan) {
+      case 'basic':
+        return const {'Natural Finish', 'Warm Glow', 'Soft Glam'};
+      case 'pro':
+      case 'enterprise':
+        return PhotoLookService.names.toSet();
+      default:
+        return const {'Natural Finish', 'Warm Glow'};
+    }
+  }
+
+  Future<void> _showUpgradeDialog({
+    required String feature,
+    required String requiredPlan,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.lock_outline_rounded, size: 34),
+        title: Text('$feature is a $requiredPlan feature'),
+        content: Text(
+          'Your current ${_currentPlan.toUpperCase()} plan does not include this tool. '
+          'Contact the MakeupArt platform administrator to activate or renew a plan. '
+          'Online automatic checkout is not configured, so this app will not pretend a payment was completed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Understood'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _selectMakeupStyle(String style) async {
+    if (!_allowedMakeupStyles.contains(style)) {
+      final requiredPlan = style == 'soft_glam' ? 'Basic' : 'Pro';
+      await _showUpgradeDialog(
+        feature: _makeupStyles[style] ?? style,
+        requiredPlan: requiredPlan,
+      );
+      return;
+    }
+    setState(() {
+      selectedMakeupStyle = style;
+      result = null;
+      rawAfterBytes = null;
+      displayedAfterBytes = null;
+      afterImageFuture = null;
+      showOriginal = false;
+      error = null;
+    });
+  }
+
   Future<void> _selectLook(String look) async {
+    if (!_allowedPhotoFinishes.contains(look)) {
+      final requiredPlan = look == 'Soft Glam' ? 'Basic' : 'Pro';
+      await _showUpgradeDialog(feature: look, requiredPlan: requiredPlan);
+      return;
+    }
     setState(() {
       selectedLook = look;
       error = null;
@@ -411,18 +499,22 @@ class _BeautyPageState extends State<BeautyPage> {
       appBar: AppBar(
         title: const Text('MakeupArt Studio'),
         actions: [
-          if (widget.canManageBranding)
-            IconButton(
-              tooltip: 'Salon branding and watermark',
-              onPressed: loading
-                  ? null
-                  : () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => BrandingSettingsPage(api: widget.api),
+          IconButton(
+            tooltip: 'Settings, plan, privacy, and branding',
+            onPressed: loading
+                ? null
+                : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => SettingsPage(
+                          api: widget.api,
+                          salonId: widget.salonId,
+                          subscription: widget.subscription,
+                          canManageBranding: widget.canManageBranding,
                         ),
                       ),
-              icon: const Icon(Icons.tune_rounded),
-            ),
+                    ),
+            icon: const Icon(Icons.settings_outlined),
+          ),
           const LicensePageButton(),
           IconButton(
             onPressed: loading ? null : _loadCustomers,
@@ -724,18 +816,7 @@ class _BeautyPageState extends State<BeautyPage> {
                         ),
                         label: Text(style.value),
                         selected: selectedMakeupStyle == style.key,
-                        onSelected: loading
-                            ? null
-                            : (_) => setState(() {
-                                  selectedMakeupStyle = style.key;
-                                  // Never leave a preview that doesn't match the selected treatment.
-                                  result = null;
-                                  rawAfterBytes = null;
-                                  displayedAfterBytes = null;
-                                  afterImageFuture = null;
-                                  showOriginal = false;
-                                  error = null;
-                                }),
+                        onSelected: loading ? null : (_) => _selectMakeupStyle(style.key),
                       );
                     }).toList(),
                   ),
@@ -755,9 +836,11 @@ class _BeautyPageState extends State<BeautyPage> {
                     children: PhotoLookService.names.map((look) {
                       return ChoiceChip(
                         avatar: Icon(
-                          selectedLook == look
-                              ? Icons.check_circle_rounded
-                              : Icons.auto_awesome_outlined,
+                          !_allowedPhotoFinishes.contains(look)
+                              ? Icons.lock_outline_rounded
+                              : selectedLook == look
+                                  ? Icons.check_circle_rounded
+                                  : Icons.auto_awesome_outlined,
                           size: 17,
                         ),
                         label: Text(look),
