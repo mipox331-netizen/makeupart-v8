@@ -2,6 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_active_user, is_platform_admin, require_platform_admin, require_roles
@@ -57,8 +58,18 @@ def create_staff(
     if get_user_by_email(db, user_in.email) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
 
-    user = create_staff_user(db, user_in, current_user.salon_id)
-    db.commit()
+    try:
+        user = create_staff_user(db, user_in, current_user.salon_id)
+        db.commit()
+    except IntegrityError:
+        # The email may be inserted by another request after the initial lookup.
+        db.rollback()
+        if get_user_by_email(db, user_in.email) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already in use",
+            )
+        raise
     db.refresh(user)
     return user
 
