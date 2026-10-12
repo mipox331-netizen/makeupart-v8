@@ -17,11 +17,13 @@ class BeautyPage extends StatefulWidget {
     required this.api,
     required this.onLogout,
     required this.salonId,
+    this.canManageBranding = false,
   });
 
   final ApiClient api;
   final VoidCallback onLogout;
   final String salonId;
+  final bool canManageBranding;
 
   @override
   State<BeautyPage> createState() => _BeautyPageState();
@@ -409,17 +411,18 @@ class _BeautyPageState extends State<BeautyPage> {
       appBar: AppBar(
         title: const Text('MakeupArt Studio'),
         actions: [
-          IconButton(
-            tooltip: 'Salon branding and watermark',
-            onPressed: loading
-                ? null
-                : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => BrandingSettingsPage(api: widget.api),
+          if (widget.canManageBranding)
+            IconButton(
+              tooltip: 'Salon branding and watermark',
+              onPressed: loading
+                  ? null
+                  : () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => BrandingSettingsPage(api: widget.api),
+                        ),
                       ),
-                    ),
-            icon: const Icon(Icons.tune_rounded),
-          ),
+              icon: const Icon(Icons.tune_rounded),
+            ),
           const LicensePageButton(),
           IconButton(
             onPressed: loading ? null : _loadCustomers,
