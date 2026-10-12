@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:makeup_art_v8/main.dart';
 import 'package:makeup_art_v8/pages/beauty_page.dart';
+import 'package:makeup_art_v8/pages/login_page.dart';
 import 'package:makeup_art_v8/pages/register_page.dart';
 import 'package:makeup_art_v8/services/api_client.dart';
 
@@ -28,6 +29,39 @@ class _FakeRegistrationApi extends ApiClient {
   @override
   Future<void> login(String email, String password) async {
     if (loginFailure != null) throw loginFailure!;
+  }
+}
+
+class _ExpiredSessionApi extends ApiClient {
+  bool tokensCleared = false;
+
+  @override
+  Future<Map<String, dynamic>> currentUser() async {
+    final request = RequestOptions(path: '/auth/me');
+    throw DioException(
+      requestOptions: request,
+      response: Response(
+        requestOptions: request,
+        statusCode: 401,
+        data: {'detail': 'Could not validate credentials'},
+      ),
+    );
+  }
+
+  @override
+  Future<void> logoutLocal() async {
+    tokensCleared = true;
+  }
+}
+
+class _FakeLoginApi extends ApiClient {
+  _FakeLoginApi(this.failure);
+
+  final Object failure;
+
+  @override
+  Future<void> login(String email, String password) async {
+    throw failure;
   }
 }
 
@@ -74,6 +108,65 @@ void main() {
     await tester.pumpWidget(const MakeupArtApp());
     await tester.pump();
     expect(find.byType(MakeupArtApp), findsOneWidget);
+  });
+
+  testWidgets('expired session returns to sign-in instead of a stuck error', (tester) async {
+    _useTallViewport(tester);
+    final api = _ExpiredSessionApi();
+    var logoutRequested = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SessionGate(
+          api: api,
+          onLogout: () => logoutRequested = true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(api.tokensCleared, isTrue);
+    expect(logoutRequested, isTrue);
+    expect(find.textContaining('Could not load account status:'), findsNothing);
+  });
+
+  testWidgets('login server error includes a safe support reference', (tester) async {
+    _useTallViewport(tester);
+    final api = _FakeLoginApi(
+      _responseError(500, {
+        'detail': 'Internal server error',
+        'request_id': 'login-trace-123',
+      }),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginPage(api: api, onLoggedIn: () {}),
+      ),
+    );
+    await tester.enterText(find.byType(TextField).at(0), 'owner@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'SafePassword123');
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Support reference: login-trace-123'), findsOneWidget);
+  });
+
+  testWidgets('registration server error includes a safe support reference', (tester) async {
+    _useTallViewport(tester);
+    final api = _FakeRegistrationApi(
+      registerFailure: _responseError(500, {
+        'detail': 'Internal server error',
+        'request_id': 'register-trace-123',
+      }),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: RegisterPage(api: api, onRegistered: () {})),
+    );
+    await _fillForm(tester);
+    await tester.tap(find.text('Create account'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Support reference: register-trace-123'), findsOneWidget);
   });
 
   testWidgets('registration explains when email already exists', (tester) async {

@@ -62,14 +62,19 @@ class _RegisterPageState extends State<RegisterPage> {
         return 'Please correct these details: ${messages.join('; ')}';
       }
     }
-    if (detail is String && detail.trim().isNotEmpty) {
-      return detail.trim();
+    if (statusCode != null && statusCode >= 500) {
+      final requestId =
+          data is Map ? data['request_id']?.toString().trim() : null;
+      if (requestId != null && requestId.isNotEmpty) {
+        return 'The server could not create the account. Try again later. Support reference: $requestId.';
+      }
+      return 'The server could not create the account just now. Please try again shortly.';
     }
     if (exception.response == null) {
       return 'Cannot reach the MakeupArt server. Check your internet connection and try again.';
     }
-    if (statusCode != null && statusCode >= 500) {
-      return 'The server could not create the account just now. Please try again shortly.';
+    if (detail is String && detail.trim().isNotEmpty) {
+      return detail.trim();
     }
     return 'The account details were rejected. Check the email and password, then try again.';
   }

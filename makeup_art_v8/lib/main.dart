@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import 'pages/admin_page.dart';
@@ -87,6 +88,31 @@ class _SessionGateState extends State<SessionGate> {
     _load();
   }
 
+  String _sessionLoadError(DioException exception) {
+    final statusCode = exception.response?.statusCode;
+    final data = exception.response?.data;
+    final detail = data is Map ? data['detail'] : null;
+
+    if (statusCode == 403) {
+      return 'Your account is inactive or access is restricted. Contact support.';
+    }
+    if (statusCode != null && statusCode >= 500) {
+      final requestId =
+          data is Map ? data['request_id']?.toString().trim() : null;
+      if (requestId != null && requestId.isNotEmpty) {
+        return 'The server could not load your account. Try again later. Support reference: $requestId.';
+      }
+      return 'The server could not load your account. Try again later.';
+    }
+    if (exception.response == null) {
+      return 'Cannot reach the MakeupArt server. Check your internet connection and try again.';
+    }
+    if (detail is String && detail.trim().isNotEmpty) {
+      return detail.trim();
+    }
+    return 'Could not load account status. Please sign out and try again.';
+  }
+
   Future<void> _load() async {
     if (mounted) {
       setState(() {
@@ -100,8 +126,17 @@ class _SessionGateState extends State<SessionGate> {
       if (currentUser['is_platform_admin'] != true) {
         subscription = await widget.api.getSubscription();
       }
-    } catch (exception) {
-      error = 'Could not load account status: $exception';
+    } on DioException catch (exception) {
+      if (exception.response?.statusCode == 401) {
+        // The API interceptor clears tokens when refresh fails. Return to the
+        // login screen instead of leaving users trapped on a stale-session page.
+        await widget.api.logoutLocal();
+        if (mounted) widget.onLogout();
+        return;
+      }
+      error = _sessionLoadError(exception);
+    } catch (_) {
+      error = 'Could not load account status. Check your connection and try again.';
     } finally {
       if (mounted) setState(() => loading = false);
     }

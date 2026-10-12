@@ -43,14 +43,19 @@ class _LoginPageState extends State<LoginPage> {
     if (statusCode == 403) {
       return 'Your account has been deactivated. Contact support.';
     }
-    if (detail is String && detail.trim().isNotEmpty) {
-      return detail.trim();
+    if (statusCode != null && statusCode >= 500) {
+      final requestId =
+          data is Map ? data['request_id']?.toString().trim() : null;
+      if (requestId != null && requestId.isNotEmpty) {
+        return 'The server encountered an error. Try again later. Support reference: $requestId.';
+      }
+      return 'The server encountered an error. Please try again shortly.';
     }
     if (exception.response == null) {
       return 'Cannot reach the MakeupArt server. Check your internet connection and try again.';
     }
-    if (statusCode != null && statusCode >= 500) {
-      return 'The server encountered an error. Please try again shortly.';
+    if (detail is String && detail.trim().isNotEmpty) {
+      return detail.trim();
     }
     return 'Sign in was rejected. Check your email and password, then try again.';
   }

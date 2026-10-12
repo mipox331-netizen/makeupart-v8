@@ -30,6 +30,38 @@ def test_register_rejects_duplicate_email_case_insensitive(client):
     assert register(client, email="OWNER@salon.com").status_code == 409
 
 
+def test_register_race_returns_conflict_instead_of_server_error(client, monkeypatch):
+    from app.api.v1 import auth as auth_api
+
+    email = "registration-race@salon.com"
+    assert register(client, email=email, salon_name="Existing Salon").status_code == 201
+
+    original_lookup = auth_api.get_user_by_email
+    calls = 0
+
+    def hide_existing_user_on_precheck(db, candidate_email):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            # Simulate another request inserting this address after our initial read.
+            return None
+        return original_lookup(db, candidate_email)
+
+    monkeypatch.setattr(auth_api, "get_user_by_email", hide_existing_user_on_precheck)
+    response = client.post(
+        f"{API}/auth/register",
+        json={
+            "salon_name": "Competing Salon",
+            "owner_full_name": "Competing Owner",
+            "email": email,
+            "password": PASSWORD,
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Email already registered"
+
+
 def test_register_rejects_short_password(client):
     response = client.post(
         f"{API}/auth/register",

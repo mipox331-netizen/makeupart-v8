@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, is_platform_admin
@@ -45,16 +46,28 @@ def _issue_tokens(user: User, db: Session) -> Token:
 def register(register_in: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
     if get_user_by_email(db, register_in.email) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
-    salon = create_salon(
-        db,
-        SalonCreate(
-            name=register_in.salon_name,
-            phone=register_in.phone,
-            email=register_in.email.lower(),
-        ),
-    )
-    user = create_owner_user(db, register_in, salon.id)
-    db.commit()
+    try:
+        salon = create_salon(
+            db,
+            SalonCreate(
+                name=register_in.salon_name,
+                phone=register_in.phone,
+                email=register_in.email.lower(),
+            ),
+        )
+        user = create_owner_user(db, register_in, salon.id)
+        db.commit()
+    except IntegrityError:
+        # A second registration can create the same email after the pre-check
+        # but before the unique constraint is enforced. Roll back partial salon
+        # rows and return the same conflict as the ordinary duplicate path.
+        db.rollback()
+        if get_user_by_email(db, register_in.email) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered",
+            )
+        raise
     db.refresh(salon)
     db.refresh(user)
     return RegisterResponse(salon=SalonOut.model_validate(salon), user=UserOut.model_validate(user))
