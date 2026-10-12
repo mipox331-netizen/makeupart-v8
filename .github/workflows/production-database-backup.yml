@@ -67,14 +67,37 @@ jobs:
 
           python - <<'PY' > "$URLFILE"
           import os
-          from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+          from urllib.parse import parse_qsl, quote, urlsplit, urlunsplit
           raw = os.environ["SUPABASE_DB_URL"].strip()
           parsed = urlsplit(raw)
           if parsed.scheme == "postgresql+psycopg2":
               parsed = parsed._replace(scheme="postgresql")
+
+          # Supabase's transaction pooler (6543) is not the right connection
+          # mode for pg_dump. Use the session-pooler port when this URL is a
+          # Supavisor pooler URL, and qualify the default Postgres username
+          # with this Supabase project ref when the supplied URI uses "postgres".
+          hostname = parsed.hostname or ""
+          netloc = parsed.netloc
+          if hostname.endswith(".pooler.supabase.com"):
+              if parsed.username == "postgres" and "@" in netloc:
+                  userinfo, _, hostport = netloc.rpartition("@")
+                  _, password_sep, raw_password = userinfo.partition(":")
+                  user = quote("postgres.riakbjcxcaqjaqagncmu", safe="")
+                  userinfo = user + (":" + raw_password if password_sep else "")
+                  netloc = userinfo + "@" + hostport
+              userinfo, at, hostport = netloc.rpartition("@")
+              if not at:
+                  hostport = netloc
+              host, port_sep, port = hostport.rpartition(":")
+              if port_sep and port == "6543":
+                  hostport = host + ":5432"
+                  netloc = (userinfo + "@" if at else "") + hostport
+              parsed = parsed._replace(netloc=netloc)
+
           query = dict(parse_qsl(parsed.query, keep_blank_values=True))
           query.setdefault("sslmode", "require")
-          print(urlunsplit(parsed._replace(query=urlencode(query))))
+          print(urlunsplit(parsed._replace(query=__import__("urllib.parse", fromlist=["urlencode"]).urlencode(query))))
           PY
           DB_URL_NORMALIZED="$(cat "$URLFILE")"
           printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSFILE"
