@@ -18,6 +18,27 @@ PLAN_LIMITS: dict[SubscriptionPlan, int | None] = {
     SubscriptionPlan.ENTERPRISE: None,
 }
 
+PLAN_RANK: dict[SubscriptionPlan, int] = {
+    SubscriptionPlan.FREE: 0,
+    SubscriptionPlan.BASIC: 1,
+    SubscriptionPlan.PRO: 2,
+    SubscriptionPlan.ENTERPRISE: 3,
+}
+
+PLAN_MAKEUP_STYLES: dict[SubscriptionPlan, frozenset[str]] = {
+    SubscriptionPlan.FREE: frozenset({"natural"}),
+    SubscriptionPlan.BASIC: frozenset({"natural", "soft_glam"}),
+    SubscriptionPlan.PRO: frozenset({"natural", "soft_glam", "bridal_rose", "evening_glam"}),
+    SubscriptionPlan.ENTERPRISE: frozenset({"natural", "soft_glam", "bridal_rose", "evening_glam"}),
+}
+
+PLAN_PHOTO_FINISHES: dict[SubscriptionPlan, frozenset[str]] = {
+    SubscriptionPlan.FREE: frozenset({"Natural Finish", "Warm Glow"}),
+    SubscriptionPlan.BASIC: frozenset({"Natural Finish", "Warm Glow", "Soft Glam"}),
+    SubscriptionPlan.PRO: frozenset({"Natural Finish", "Warm Glow", "Soft Glam", "Studio Polish", "Golden Hour"}),
+    SubscriptionPlan.ENTERPRISE: frozenset({"Natural Finish", "Warm Glow", "Soft Glam", "Studio Polish", "Golden Hour"}),
+}
+
 ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
 
 
@@ -115,6 +136,46 @@ def _plan_for(subscription: Subscription, salon: Salon) -> SubscriptionPlan:
         return salon.subscription_plan
 
 
+def require_beauty_feature(
+    db: Session,
+    salon_id,
+    *,
+    feature_kind: str,
+    feature_name: str,
+) -> None:
+    """Enforce feature entitlements on the server; client-side locks are only UX."""
+    subscription = _get_subscription(db, salon_id, lock=True)
+    salon = db.get(Salon, salon_id)
+    if salon is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon not found")
+
+    plan = _plan_for(subscription, salon)
+    if feature_kind == "makeup_style":
+        entitled = PLAN_MAKEUP_STYLES[plan]
+        label = "makeup style"
+    elif feature_kind == "photo_finish":
+        entitled = PLAN_PHOTO_FINISHES[plan]
+        label = "photo finish"
+    else:
+        raise ValueError(f"Unknown beauty feature kind: {feature_kind}")
+
+    if feature_name not in entitled:
+        required_plan = (
+            SubscriptionPlan.BASIC
+            if plan == SubscriptionPlan.FREE and feature_name in {"soft_glam", "Soft Glam"}
+            else SubscriptionPlan.PRO
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"The {feature_name} {label} is included with the "
+                f"{required_plan.value.title()} plan or higher. "
+                "Contact your platform administrator to upgrade."
+            ),
+            headers={"X-Required-Plan": required_plan.value},
+        )
+
+
 def reserve_beauty_job_quota(db: Session, salon_id) -> None:
     subscription = _get_subscription(db, salon_id, lock=True)
     salon = db.get(Salon, salon_id)
@@ -178,6 +239,8 @@ def get_subscription_snapshot(db: Session, salon_id) -> dict:
         "remaining": remaining,
         "period_start": subscription.usage_period_start,
         "current_period_end": subscription.current_period_end,
+        "available_makeup_styles": sorted(PLAN_MAKEUP_STYLES[plan]),
+        "available_photo_finishes": sorted(PLAN_PHOTO_FINISHES[plan]),
     }
 
 
