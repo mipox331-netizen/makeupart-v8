@@ -901,6 +901,8 @@ class _BeautyPageState extends State<BeautyPage> {
                   const Text(
                     'Choose a client photo, confirm consent, adjust enhancement strength, then process it securely.',
                   ),
+                  const SizedBox(height: 10),
+                  const _PhotoPrivacyNotice(),
                   const SizedBox(height: 18),
                   if (selected != null)
                     ClipRRect(
@@ -967,8 +969,10 @@ class _BeautyPageState extends State<BeautyPage> {
                     runSpacing: 8,
                     children: _makeupStyles.entries.map((style) {
                       return ChoiceChip(
-                        avatar: const Icon(
-                          Icons.face_retouching_natural_rounded,
+                        avatar: Icon(
+                          !_allowedMakeupStyles.contains(style.key)
+                              ? Icons.lock_outline_rounded
+                              : Icons.face_retouching_natural_rounded,
                           size: 17,
                         ),
                         label: Text(style.value),
@@ -1216,6 +1220,37 @@ class _BeautyPageState extends State<BeautyPage> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+
+class _PhotoPrivacyNotice extends StatelessWidget {
+  const _PhotoPrivacyNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .55),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.privacy_tip_outlined, size: 21),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Privacy notice: the selected photo is uploaded to the MakeupArt cloud for AI processing. Continue only with the client’s permission. A named client also needs an active stored consent record.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
         ],
       ),
     );
