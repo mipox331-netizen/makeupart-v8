@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.models.salon import SubscriptionPlan
 
@@ -29,6 +29,13 @@ class SalonUpdate(BaseModel):
     facebook: str | None = None
     location: str | None = None
     logo_url: str | None = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def name_cannot_be_null(cls, value: str | None) -> str | None:
+        if value is None:
+            raise ValueError("Salon name cannot be null.")
+        return value
 
 
 class SalonOut(SalonBase):
