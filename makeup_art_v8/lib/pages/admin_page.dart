@@ -562,7 +562,7 @@ class _AdminPageState extends State<AdminPage> {
                                     .map((item) => Map<String, dynamic>.from(item as Map)))
                                     .map((item) {
                                   final currency = item['currency']?.toString() ?? '';
-                                  final total = (item['collected_total'] as num?)?.toDouble() ?? 0;
+                                  final total = double.tryParse(item['collected_total']?.toString() ?? '') ?? 0;
                                   return _MetricCard(
                                     label: '${currency} collected',
                                     value: total.toStringAsFixed(2),
@@ -588,7 +588,7 @@ class _AdminPageState extends State<AdminPage> {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         trailing: Text(
-                                          '${payment['currency'] ?? ''} ${((payment['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                          '${payment['currency'] ?? ''} ${(double.tryParse(payment['amount']?.toString() ?? '') ?? 0).toStringAsFixed(2)}',
                                           textAlign: TextAlign.end,
                                         ),
                                       )),
