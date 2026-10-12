@@ -582,7 +582,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Identity similarity: ${result!['identity_similarity']}',
+                      'Image structure preservation score: ${result!['identity_similarity']}',
                     ),
                     Text('Skin tone: ${result!['skin_tone']}'),
                     Text('Undertone: ${result!['undertone']}'),
