@@ -27,6 +27,13 @@ class UserUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=150)
     phone: str | None = None
 
+    @field_validator("full_name", mode="before")
+    @classmethod
+    def full_name_cannot_be_null(cls, value: str | None) -> str | None:
+        if value is None:
+            raise ValueError("Full name cannot be null.")
+        return value
+
 
 class UserOut(UserBase):
     model_config = ConfigDict(from_attributes=True)
