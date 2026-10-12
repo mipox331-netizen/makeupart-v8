@@ -431,6 +431,123 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                               ? null
                               : (value) => setState(() => _size = value),
                         ),
+                        const SizedBox(height: 10),
+                        Text('Live watermark preview',
+                            style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 180,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF34253E),
+                                Color(0xFF20283A),
+                                Color(0xFF10131D),
+                              ],
+                            ),
+                          ),
+                          child: Stack(
+                            children: [
+                              const Center(
+                                child: Icon(
+                                  Icons.face_retouching_natural_rounded,
+                                  size: 78,
+                                  color: Color(0x33FFFFFF),
+                                ),
+                              ),
+                              Positioned(
+                                top: _position.startsWith('top') ? 10 : null,
+                                bottom: _position.startsWith('bottom') ? 10 : null,
+                                left: _position.endsWith('left') ? 10 : null,
+                                right: _position.endsWith('right') ? 10 : null,
+                                child: Opacity(
+                                  opacity: _opacity,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: .72),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (_logoBytes != null) ...[
+                                          Image.memory(
+                                            _logoBytes!,
+                                            width: _size * 2.2,
+                                            height: _size * 1.7,
+                                            fit: BoxFit.contain,
+                                          ),
+                                          const SizedBox(width: 8),
+                                        ],
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              _salonName.text.trim().isEmpty
+                                                  ? 'Your Salon'
+                                                  : _salonName.text.trim(),
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: (_size / 1.6)
+                                                    .clamp(9.0, 17.0)
+                                                    .toDouble(),
+                                              ),
+                                            ),
+                                            if (_showPhone && _phone.text.trim().isNotEmpty)
+                                              Text(
+                                                _phone.text.trim(),
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            if (_showInstagram && _instagram.text.trim().isNotEmpty)
+                                              Text(
+                                                _instagram.text.trim().startsWith('@')
+                                                    ? _instagram.text.trim()
+                                                    : '@${_instagram.text.trim()}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            if (_showTikTok && _tiktok.text.trim().isNotEmpty)
+                                              Text(
+                                                _tiktok.text.trim().startsWith('@')
+                                                    ? _tiktok.text.trim()
+                                                    : '@${_tiktok.text.trim()}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Preview updates as you adjust the settings. The real watermark is rendered on the server for new results.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                         const Divider(height: 28),
                         Text('Extra salon details',
                             style: theme.textTheme.titleMedium),
