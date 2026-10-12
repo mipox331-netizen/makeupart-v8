@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,7 @@ from app.crud.user import (
     update_user,
 )
 from app.db.session import get_db
+from app.models.refresh_session import RefreshSession
 from app.models.salon import Salon
 from app.models.subscription import Subscription
 from app.models.user import User, UserRole
@@ -162,7 +164,18 @@ def set_platform_user_status(
             detail="Platform admin accounts cannot be disabled",
         )
 
-    target.is_active = payload.is_active
+    if target.is_active != payload.is_active:
+        target.is_active = payload.is_active
+        target.token_version = int(target.token_version or 0) + 1
+        now = datetime.now(timezone.utc)
+        db.execute(
+            update(RefreshSession)
+            .where(
+                RefreshSession.user_id == target.id,
+                RefreshSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=now)
+        )
     db.add(target)
     db.commit()
 

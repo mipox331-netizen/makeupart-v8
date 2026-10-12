@@ -43,6 +43,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user",
         )
+    try:
+        token_version = int(payload.get("ver", 0))
+    except (TypeError, ValueError):
+        raise _credentials_exception()
+    if token_version != int(user.token_version or 0):
+        raise _credentials_exception()
     return user
 
 
