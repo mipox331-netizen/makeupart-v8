@@ -32,6 +32,7 @@ from app.schemas.beauty import (
 )
 from app.services.beauty import BeautyProvider, IdentityGuard
 from app.services.media_volume import commit_media_volume
+from app.services.photo_finish import apply_photo_finish
 from app.services.subscription import require_beauty_feature, release_beauty_job_quota, reserve_beauty_job_quota
 from app.services.watermark import apply_watermark, get_or_create_watermark
 
@@ -332,6 +333,14 @@ def process_beauty_upload(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Beauty provider generated media outside salon storage",
             )
+
+        try:
+            apply_photo_finish(generated_output, photo_finish)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not apply the selected photo finish",
+            ) from exc
 
         salon = db.get(Salon, current_user.salon_id)
         if salon is None:
