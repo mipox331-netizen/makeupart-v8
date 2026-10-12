@@ -8,6 +8,10 @@ on:
         required: true
         type: string
         default: "38251453670"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/production-database-restore-drill.yml"
 
 permissions:
   actions: read
@@ -39,7 +43,7 @@ jobs:
           --health-retries 20
     env:
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-      BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+      BACKUP_RUN_ID: ${{ inputs.backup_run_id || '38251453670' }}
 
     steps:
       - name: Validate inputs and encryption secret
@@ -63,8 +67,8 @@ jobs:
       - name: Download the selected encrypted backup artifact
         uses: actions/download-artifact@v4
         with:
-          name: makeupart-db-backup-${{ inputs.backup_run_id }}
-          run-id: ${{ inputs.backup_run_id }}
+          name: makeupart-db-backup-${{ env.BACKUP_RUN_ID }}
+          run-id: ${{ env.BACKUP_RUN_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           path: ${{ runner.temp }}/makeupart-restore-drill
@@ -124,7 +128,7 @@ jobs:
             postgres:17-alpine \
             pg_restore --host=127.0.0.1 --port=5432 \
               --username="$RESTORE_DB_USER" --dbname="$RESTORE_DB_NAME" \
-              --no-owner --no-acl --exit-on-error /backup/restored.dump
+              --schema=public --no-owner --no-acl --exit-on-error /backup/restored.dump
           echo "PostgreSQL restore completed into the disposable staging database."
 
       - name: Verify restored schema and migration head
@@ -163,6 +167,14 @@ jobs:
             exit 1
           }
 
+          users_present="$("${psql_cmd[@]}" --command='SELECT (count(*) > 0)::int FROM public.users')"
+          salons_present="$("${psql_cmd[@]}" --command='SELECT (count(*) > 0)::int FROM public.salons')"
+          subscriptions_present="$("${psql_cmd[@]}" --command='SELECT (count(*) > 0)::int FROM public.subscriptions')"
+          [[ "$users_present" == "1" && "$salons_present" == "1" && "$subscriptions_present" == "1" ]] || {
+            echo "::error::Restore integrity check found missing application data in users, salons, or subscriptions."
+            exit 1
+          }
+
           inconsistent_subscriptions="$("${psql_cmd[@]}" --command='
             SELECT count(*)
             FROM public.subscriptions s
@@ -174,7 +186,7 @@ jobs:
             exit 1
           }
 
-          echo "Restore drill passed: checksum valid, decryption valid, PostgreSQL restore valid, required_tables=$table_count, migration_head=$revision, orphaned_subscriptions=$inconsistent_subscriptions."
+          echo "Restore drill passed: checksum valid, decryption valid, public-schema PostgreSQL restore valid, required_tables=$table_count, migration_head=$revision, required application data present, orphaned_subscriptions=$inconsistent_subscriptions."
           echo "The restored temporary database is isolated to this workflow job and is discarded automatically when the job ends."
 
       - name: Remove decrypted backup material
