@@ -14,6 +14,7 @@ class BeautyProcessRequest(BaseModel):
     intensity: float = Field(default=0.7, ge=0.0, le=1.0)
     consent_confirmed: bool = False
     makeup_style: MakeupStyle = "natural"
+    photo_finish: PhotoFinish = "Natural Finish"
 
 
 class BeautyProcessResponse(BaseModel):
@@ -24,6 +25,7 @@ class BeautyProcessResponse(BaseModel):
     intensity: float
     processed: bool
     makeup_style: MakeupStyle = "natural"
+    photo_finish: PhotoFinish = "Natural Finish"
 
 
 class BeautyUploadResponse(BeautyProcessResponse):
