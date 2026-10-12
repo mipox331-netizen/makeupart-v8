@@ -21,27 +21,39 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def _create_token(subject: str, token_type: str, expires_delta: timedelta) -> str:
+def _create_token(
+    subject: str,
+    token_type: str,
+    expires_delta: timedelta,
+    token_version: int = 0,
+) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
         "type": token_type,
         "jti": str(uuid.uuid4()),
+        "ver": int(token_version),
         "iat": now,
         "exp": now + expires_delta,
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def create_access_token(subject: str) -> str:
+def create_access_token(subject: str, token_version: int = 0) -> str:
     return _create_token(
-        subject, TOKEN_TYPE_ACCESS, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        subject,
+        TOKEN_TYPE_ACCESS,
+        timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        token_version,
     )
 
 
-def create_refresh_token(subject: str) -> str:
+def create_refresh_token(subject: str, token_version: int = 0) -> str:
     return _create_token(
-        subject, TOKEN_TYPE_REFRESH, timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        subject,
+        TOKEN_TYPE_REFRESH,
+        timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        token_version,
     )
 
 
