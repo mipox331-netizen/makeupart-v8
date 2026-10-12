@@ -221,6 +221,9 @@ class _BeautyPageState extends State<BeautyPage> {
         selected = null;
         result = null;
         afterImageFuture = null;
+        rawAfterBytes = null;
+        displayedAfterBytes = null;
+        showOriginal = false;
         error = null;
       });
     } catch (_) {
@@ -229,19 +232,31 @@ class _BeautyPageState extends State<BeautyPage> {
   }
 
   Future<void> pick(ImageSource source) async {
-    final image = await picker.pickImage(source: source, imageQuality: 92);
-    if (image == null || !mounted) return;
-    setState(() {
-      selected = image;
-      // Every new photo needs its own explicit consent confirmation.
-      consentConfirmed = false;
-      result = null;
-      afterImageFuture = null;
-      rawAfterBytes = null;
-      displayedAfterBytes = null;
-      showOriginal = false;
-      error = null;
-    });
+    try {
+      final image = await picker.pickImage(
+        source: source,
+        imageQuality: 92,
+      );
+      if (image == null || !mounted) return;
+      setState(() {
+        selected = image;
+        // Every new photo needs its own explicit consent confirmation.
+        consentConfirmed = false;
+        result = null;
+        afterImageFuture = null;
+        rawAfterBytes = null;
+        displayedAfterBytes = null;
+        showOriginal = false;
+        error = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        error = source == ImageSource.camera
+            ? 'Camera could not open. Check camera permission and try again.'
+            : 'Gallery could not open. Check photo access and try again.';
+      });
+    }
   }
 
   Future<void> process() async {
