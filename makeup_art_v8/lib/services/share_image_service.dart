@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/services.dart';
 
 /// Opens the native Android/iOS share sheet with the finished PNG and caption.
