@@ -8,6 +8,7 @@ on:
       - "backend/Dockerfile"
       - "backend/docker-compose*.yml"
       - "makeup_art_v8/pubspec.yaml"
+      - "makeup_art_v8/LICENSE"
       - "makeup_art_v8/pubspec.lock"
       - "LICENSE"
       - ".github/workflows/third-party-license-inventory.yml"
