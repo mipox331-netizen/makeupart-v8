@@ -75,6 +75,10 @@ jobs:
             --project-root "$GITHUB_WORKSPACE/makeup_art_v8" \
             --output "$RUNNER_TEMP/license-reports/flutter-dependency-licenses.json" \
             --json
+          test -s "$RUNNER_TEMP/license-reports/flutter-dependency-licenses.json" || {
+            echo "::error::Flutter/Dart license inventory was not generated."
+            exit 1
+          }
 
       - name: Upload license inventory
         uses: actions/upload-artifact@v4
