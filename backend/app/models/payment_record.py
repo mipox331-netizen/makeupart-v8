@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy import (
     CheckConstraint,
@@ -53,7 +54,7 @@ class PaymentRecord(TimestampMixin, Base):
         nullable=False,
     )
     plan: Mapped[str] = mapped_column(String(50), nullable=False)
-    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="TZS", nullable=False)
     payment_method: Mapped[str] = mapped_column(String(30), nullable=False)
     reference: Mapped[str | None] = mapped_column(String(128), nullable=True)
