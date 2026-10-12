@@ -12,7 +12,7 @@ This manual workflow downloads an existing encrypted database backup artifact, v
 2. Enter a successful run ID from **MakeupArt V8 Encrypted Production Database Backup**. The current verified backup run at the time this workflow was introduced is `38251453670`, provided its artifact has not expired.
 3. Run the workflow and inspect the final verification step.
 
-A pass means the chosen artifact's checksum matches, GPG can decrypt it, `pg_restore` can restore it to a blank PostgreSQL database, the revision is `0009_reconcile_refresh_sessions`, all 11 required tables exist, and subscriptions have no orphan salon references.
+A pass means the chosen artifact's checksum matches, GPG can decrypt it, `pg_restore` can restore it to a blank PostgreSQL database, the revision is `0009_reconcile_refresh_sessions`, all 11 required tables exist, and subscriptions have no orphan salon references. If `users`, `salons` and `subscriptions` are all empty, the workflow reports a valid **empty-database restore** but explicitly does not claim row-data recovery was tested. A populated backup must restore all three core tables with data; partial core data fails the drill.
 
 ## What this does not prove
 

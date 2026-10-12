@@ -167,13 +167,17 @@ jobs:
             exit 1
           }
 
-          users_present="$("${psql_cmd[@]}" --command='SELECT (count(*) > 0)::int FROM public.users')"
-          salons_present="$("${psql_cmd[@]}" --command='SELECT (count(*) > 0)::int FROM public.salons')"
-          subscriptions_present="$("${psql_cmd[@]}" --command='SELECT (count(*) > 0)::int FROM public.subscriptions')"
-          [[ "$users_present" == "1" && "$salons_present" == "1" && "$subscriptions_present" == "1" ]] || {
-            echo "::error::Restore integrity check found missing application data in users, salons, or subscriptions."
+          users_count="$("${psql_cmd[@]}" --command='SELECT count(*) FROM public.users')"
+          salons_count="$("${psql_cmd[@]}" --command='SELECT count(*) FROM public.salons')"
+          subscriptions_count="$("${psql_cmd[@]}" --command='SELECT count(*) FROM public.subscriptions')"
+          if [[ "$users_count" == "0" && "$salons_count" == "0" && "$subscriptions_count" == "0" ]]; then
+            application_data_state="empty"
+          elif [[ "$users_count" != "0" && "$salons_count" != "0" && "$subscriptions_count" != "0" ]]; then
+            application_data_state="present"
+          else
+            echo "::error::Restore integrity check found a partial core dataset (users, salons and subscriptions must all be empty or all be present)."
             exit 1
-          }
+          fi
 
           inconsistent_subscriptions="$("${psql_cmd[@]}" --command='
             SELECT count(*)
@@ -186,7 +190,12 @@ jobs:
             exit 1
           }
 
-          echo "Restore drill passed: checksum valid, decryption valid, public-schema PostgreSQL restore valid, required_tables=$table_count, migration_head=$revision, required application data present, orphaned_subscriptions=$inconsistent_subscriptions."
+          if [[ "$application_data_state" == "empty" ]]; then
+            echo "Restore drill passed: checksum valid, decryption valid, public-schema PostgreSQL restore valid, required_tables=$table_count, migration_head=$revision, core application tables are empty, orphaned_subscriptions=$inconsistent_subscriptions."
+            echo "::notice::The selected backup has no user/salon/subscription rows. This verifies an empty-database restore; row-data recovery cannot be proven until the source contains real application data."
+          else
+            echo "Restore drill passed: checksum valid, decryption valid, public-schema PostgreSQL restore valid, required_tables=$table_count, migration_head=$revision, core application data present, orphaned_subscriptions=$inconsistent_subscriptions."
+          fi
           echo "The restored temporary database is isolated to this workflow job and is discarded automatically when the job ends."
 
       - name: Remove decrypted backup material
