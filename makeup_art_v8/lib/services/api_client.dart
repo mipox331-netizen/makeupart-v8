@@ -13,10 +13,14 @@ class ApiClient {
   static const _refreshKey = 'makeupart_refresh_token';
 
   final FlutterSecureStorage storage;
+  final void Function()? onSessionExpired;
   late final Dio dio;
   Future<String?>? _refreshInFlight;
 
-  ApiClient({FlutterSecureStorage? storage}) : storage = storage ?? const FlutterSecureStorage() {
+  ApiClient({
+    FlutterSecureStorage? storage,
+    this.onSessionExpired,
+  }) : storage = storage ?? const FlutterSecureStorage() {
     dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
@@ -40,15 +44,27 @@ class ApiClient {
           final isUnauthorized = error.response?.statusCode == 401;
           final alreadyRetried = request.extra['authRetried'] == true;
           final isAuthEndpoint = request.path.contains('/auth/login') ||
-              request.path.contains('/auth/refresh');
+              request.path.contains('/auth/refresh') ||
+              request.path.contains('/auth/logout');
 
-          if (!isUnauthorized || alreadyRetried || isAuthEndpoint) {
+          if (!isUnauthorized || isAuthEndpoint) {
+            handler.next(error);
+            return;
+          }
+
+          // A replay that still returns 401 means the session is no longer
+          // usable. Do not refresh endlessly; clear tokens and return to login.
+          if (alreadyRetried) {
+            await logoutLocal();
+            onSessionExpired?.call();
             handler.next(error);
             return;
           }
 
           final refreshToken = await this.storage.read(key: _refreshKey);
           if (refreshToken == null || refreshToken.isEmpty) {
+            await logoutLocal();
+            onSessionExpired?.call();
             handler.next(error);
             return;
           }
@@ -56,6 +72,7 @@ class ApiClient {
           final accessToken = await _refreshAccessToken(refreshToken);
           if (accessToken == null) {
             await logoutLocal();
+            onSessionExpired?.call();
             handler.next(error);
             return;
           }
@@ -66,6 +83,10 @@ class ApiClient {
             final response = await dio.fetch(request);
             handler.resolve(response);
           } on DioException catch (retryError) {
+            if (retryError.response?.statusCode == 401) {
+              await logoutLocal();
+              onSessionExpired?.call();
+            }
             handler.next(retryError);
           }
         },
