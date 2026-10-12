@@ -86,6 +86,11 @@ async def upload_watermark_logo(
             logo = ImageOps.exif_transpose(source).convert("RGBA")
     except HTTPException:
         raise
+    except Image.DecompressionBombError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Logo dimensions are too large.",
+        ) from exc
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
