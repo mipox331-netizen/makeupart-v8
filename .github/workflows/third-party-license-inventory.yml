@@ -69,7 +69,13 @@ jobs:
 
       - name: Resolve Flutter dependencies
         working-directory: makeup_art_v8
-        run: flutter pub get
+        run: |
+          flutter pub get
+          test -s pubspec.lock || {
+            echo "::error::Flutter dependency resolution did not produce pubspec.lock."
+            exit 1
+          }
+          cp pubspec.lock "$RUNNER_TEMP/license-reports/pubspec.lock"
 
       - name: Generate Flutter and Dart dependency license inventory
         working-directory: makeup_art_v8
