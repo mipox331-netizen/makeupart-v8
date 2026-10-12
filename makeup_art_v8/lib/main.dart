@@ -19,14 +19,20 @@ class MakeupArtApp extends StatefulWidget {
 }
 
 class _MakeupArtAppState extends State<MakeupArtApp> {
-  final ApiClient api = ApiClient();
+  late final ApiClient api;
   bool ready = false;
   bool authenticated = false;
 
   @override
   void initState() {
     super.initState();
+    api = ApiClient(onSessionExpired: _onSessionExpired);
     _restoreSession();
+  }
+
+  void _onSessionExpired() {
+    if (!mounted || !authenticated) return;
+    setState(() => authenticated = false);
   }
 
   Future<void> _restoreSession() async {
