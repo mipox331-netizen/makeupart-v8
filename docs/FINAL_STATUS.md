@@ -1,6 +1,6 @@
 # Final Status
 
-Status date: 12 October 2026. The latest verified application source build is commit `49cab56e66cb8c1228f28d8ebc005fda4d21a414` on `main`. See [Release Readiness](RELEASE_READINESS.md) and [Third-party license audit](THIRD_PARTY_LICENSE_AUDIT.md) for the remaining launch gates.
+Status date: 12 October 2026. The latest verified production application source is commit `d24e1848613b551b7dab7c3c3caa20d526998a3f` on `main`. The resolved Flutter dependencies are now recorded in `makeup_art_v8/pubspec.lock`, and Flutter CI/release jobs reject dependency-resolution drift. See [Release Readiness](RELEASE_READINESS.md) and [Third-party license audit](THIRD_PARTY_LICENSE_AUDIT.md) for the remaining launch gates.
 
 ## Delivered and verified
 
@@ -18,10 +18,10 @@ Status date: 12 October 2026. The latest verified application source build is co
 
 ## Latest verified production evidence
 
-- CI on source commit `49cab56e66cb8c1228f28d8ebc005fda4d21a414`: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38264810012); backend tests, Flutter analysis/tests, production API checks and Android debug build passed.
-- Modal production deployment on that same commit: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38264809934); migration head `0009_reconcile_refresh_sessions`, MediaPipe/OpenCV runtime, media-volume persistence, API readiness and registration/login/free-subscription smoke tests passed. The old non-commercial InsightFace cache was removed.
-- Third-party dependency inventory on that commit: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38264809964); manual review of reported license terms remains necessary.
-- Database restore drill: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38257496915); checksum, decryption, PostgreSQL restore, 11 required tables, migration head `0009_reconcile_refresh_sessions`, and orphan checks passed. The selected backup had no rows in `users`, `salons` or `subscriptions`, so the result proves an empty-database/schema restore, not recovery of real customer row data.
+- Latest CI on source commit `d24e1848613b551b7dab7c3c3caa20d526998a3f`: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38268979345); backend tests, Flutter analysis/tests, production API checks and Android debug build passed.
+- Latest Modal production deployment: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38268979367) on `d24e1848613b551b7dab7c3c3caa20d526998a3f`; migration head `0009_reconcile_refresh_sessions`, MediaPipe/OpenCV runtime, media-volume persistence, API readiness and registration/login/free-subscription smoke tests passed. The old non-commercial InsightFace cache was removed.
+- Latest third-party dependency inventory: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38268979353); 67 Python packages and 160 Flutter/Dart/SDK entries were inventoried. Findings include `certifi` MPL-2.0, `psycopg2` LGPL, and two SDK rows without individual license text. Manual review of these terms and native/OS/container/model assets remains necessary.
+- Latest database restore drill: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38268979200); checksum, decryption, PostgreSQL restore, 11 required tables, migration head `0009_reconcile_refresh_sessions`, and orphan checks passed. The selected backup had no rows in `users`, `salons` or `subscriptions`, so the result proves an empty-database/schema restore, not recovery of real customer row data.
 - Android Release `v8.0.145` is published and its release workflow [passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38264810025). [Download the current APK](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.145/MakeupArt-V8.apk).
 
 ## Remaining release gates
