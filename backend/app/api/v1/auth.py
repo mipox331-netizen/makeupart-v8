@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -151,12 +151,26 @@ def logout(refresh_in: RefreshRequest, db: Session = Depends(get_db)) -> Respons
     payload = decode_token(refresh_in.refresh_token)
     if payload is not None and payload.get("type") == TOKEN_TYPE_REFRESH:
         session = db.execute(
-            select(RefreshSession).where(
-                RefreshSession.token_hash == _hash_refresh_token(refresh_in.refresh_token)
-            )
+            select(RefreshSession)
+            .where(RefreshSession.token_hash == _hash_refresh_token(refresh_in.refresh_token))
+            .with_for_update()
         ).scalars().first()
         if session is not None and session.revoked_at is None:
-            session.revoked_at = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
+            session.revoked_at = now
+            # Invalidate already-issued access tokens too. The token-version
+            # check in get_current_user makes logout effective immediately.
+            user = get_user(db, session.user_id)
+            if user is not None:
+                user.token_version = int(user.token_version or 0) + 1
+                db.execute(
+                    update(RefreshSession)
+                    .where(
+                        RefreshSession.user_id == user.id,
+                        RefreshSession.revoked_at.is_(None),
+                    )
+                    .values(revoked_at=now)
+                )
             db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

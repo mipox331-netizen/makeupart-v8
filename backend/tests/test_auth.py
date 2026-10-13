@@ -170,9 +170,16 @@ def test_garbage_token_rejected(client):
     assert response.status_code == 401
 
 
-def test_logout_revokes_refresh_token(client):
+def test_logout_revokes_refresh_and_access_tokens(client):
     register(client)
-    refresh = login(client, "owner@salon.com").json()["refresh_token"]
+    tokens = login(client, "owner@salon.com").json()
+    refresh = tokens["refresh_token"]
+    access = tokens["access_token"]
+
     response = client.post(f"{API}/auth/logout", json={"refresh_token": refresh})
     assert response.status_code == 204
     assert client.post(f"{API}/auth/refresh", json={"refresh_token": refresh}).status_code == 401
+    assert client.get(
+        f"{API}/auth/me",
+        headers={"Authorization": f"Bearer {access}"},
+    ).status_code == 401
