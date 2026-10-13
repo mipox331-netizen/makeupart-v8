@@ -9,6 +9,7 @@ import '../services/gallery_exporter.dart';
 import '../services/photo_look_service.dart';
 import '../services/recent_image_store.dart';
 import '../widgets/license_page_button.dart';
+import '../widgets/before_after_comparison.dart';
 import 'branding_settings_page.dart';
 
 class BeautyPage extends StatefulWidget {
@@ -49,7 +50,6 @@ class _BeautyPageState extends State<BeautyPage> {
   Uint8List? displayedAfterBytes;
   String selectedLook = 'Natural Finish';
   String selectedMakeupStyle = 'natural';
-  bool showOriginal = false;
   bool savingGallery = false;
   List<Map<String, dynamic>> customers = [];
   String? customerId;
@@ -119,7 +119,6 @@ class _BeautyPageState extends State<BeautyPage> {
       afterImageFuture = null;
       rawAfterBytes = null;
       displayedAfterBytes = null;
-      showOriginal = false;
       error = null;
     });
     if (nextCustomerId != null) {
@@ -233,7 +232,6 @@ class _BeautyPageState extends State<BeautyPage> {
         afterImageFuture = null;
         rawAfterBytes = null;
         displayedAfterBytes = null;
-        showOriginal = false;
         error = null;
       });
     } catch (_) {
@@ -256,7 +254,6 @@ class _BeautyPageState extends State<BeautyPage> {
         afterImageFuture = null;
         rawAfterBytes = null;
         displayedAfterBytes = null;
-        showOriginal = false;
         error = null;
       });
     } catch (_) {
@@ -308,7 +305,6 @@ class _BeautyPageState extends State<BeautyPage> {
       setState(() {
         result = response;
         displayedAfterBytes = afterBytes;
-        showOriginal = false;
         afterImageFuture =
             afterBytes == null ? null : Future<Uint8List>.value(afterBytes);
       });
@@ -339,7 +335,6 @@ class _BeautyPageState extends State<BeautyPage> {
       if (!mounted) return;
       setState(() {
         displayedAfterBytes = styled;
-        showOriginal = false;
         afterImageFuture = Future<Uint8List>.value(styled);
       });
     } catch (_) {
@@ -733,7 +728,6 @@ class _BeautyPageState extends State<BeautyPage> {
                                   rawAfterBytes = null;
                                   displayedAfterBytes = null;
                                   afterImageFuture = null;
-                                  showOriginal = false;
                                   error = null;
                                 }),
                       );
@@ -828,39 +822,20 @@ class _BeautyPageState extends State<BeautyPage> {
                     Text('Undertone: ${result!['undertone']}'),
                     Text('Foundation match estimate: ${result!['foundation_match']}'),
                     const SizedBox(height: 14),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment<bool>(
-                          value: true,
-                          icon: Icon(Icons.image_outlined),
-                          label: Text('Before'),
-                        ),
-                        ButtonSegment<bool>(
-                          value: false,
-                          icon: Icon(Icons.auto_awesome_rounded),
-                          label: Text('After'),
-                        ),
-                      ],
-                      selected: <bool>{showOriginal},
-                      onSelectionChanged: loading
-                          ? null
-                          : (selection) => setState(
-                                () => showOriginal = selection.first,
-                              ),
-                    ),
-                    if (afterImageFuture != null) ...[
-
+                    if (afterImageFuture != null && selected != null) ...[
                       const SizedBox(height: 16),
+                      const Text(
+                        'Drag the divider to compare the original photo with the finished result.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 10),
                       FutureBuilder<Uint8List>(
                         future: afterImageFuture,
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
                             return const SizedBox(
                               height: 220,
-                              child: Center(
-                                child: CircularProgressIndicator(),
-                              ),
+                              child: Center(child: CircularProgressIndicator()),
                             );
                           }
                           if (snapshot.hasError ||
@@ -869,39 +844,30 @@ class _BeautyPageState extends State<BeautyPage> {
                             return const SizedBox(
                               height: 120,
                               child: Center(
-                                child: Icon(
-                                  Icons.broken_image_outlined,
-                                  size: 56,
-                                ),
+                                child: Icon(Icons.broken_image_outlined, size: 56),
                               ),
                             );
                           }
-                          final imageWidget = showOriginal && selected != null
-                              ? Image.file(
-                                  File(selected!.path),
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.broken_image_outlined,
-                                    size: 48,
-                                  ),
-                                )
-                              : Image.memory(
-                                  snapshot.data!,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.broken_image_outlined,
-                                    size: 48,
-                                  ),
-                                );
-                          return ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              width: double.infinity,
-                              constraints: const BoxConstraints(minHeight: 180, maxHeight: 460),
-                              alignment: Alignment.center,
-                              color: const Color(0xFF10131D),
-                              padding: const EdgeInsets.all(6),
-                              child: imageWidget,
+                          return BeforeAfterComparison(
+                            key: ValueKey(
+                              result?['job_id']?.toString() ?? selected!.path,
+                            ),
+                            height: 360,
+                            before: Image.file(
+                              File(selected!.path),
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.broken_image_outlined,
+                                size: 48,
+                              ),
+                            ),
+                            after: Image.memory(
+                              snapshot.data!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.broken_image_outlined,
+                                size: 48,
+                              ),
                             ),
                           );
                         },
