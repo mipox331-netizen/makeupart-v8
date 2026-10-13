@@ -141,6 +141,11 @@ class GenerativeMakeupProvider:
         try:
             payload = response.json()
             encoded = payload["data"][0]["b64_json"]
+            if not isinstance(encoded, str):
+                raise ValueError("image payload is not a base64 string")
+            max_encoded_size = ((self.max_output_bytes + 2) // 3) * 4
+            if len(encoded) > max_encoded_size:
+                raise RuntimeError("Generative output is too large to process safely.")
             image_bytes = base64.b64decode(encoded, validate=True)
         except (ValueError, TypeError, KeyError, IndexError, binascii.Error) as exc:
             logger.error("Generative provider returned an invalid image payload.")

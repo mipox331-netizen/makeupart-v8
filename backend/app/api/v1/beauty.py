@@ -440,6 +440,12 @@ def process_beauty_upload(
             ).replace("_", " ").title(),
             intensity=response.intensity,
             shade=response.foundation_match,
+            notes=(
+                "External generative AI consent confirmed; provider=OpenAI; "
+                f"look={payload.generative_look}."
+                if payload.engine == "generative"
+                else None
+            ),
             before_image_url=f"/api/v1/beauty/jobs/{{job_id}}/image?kind=before",
             after_image_url=f"/api/v1/beauty/jobs/{{job_id}}/image?kind=after",
             input_file_path=str(input_path),

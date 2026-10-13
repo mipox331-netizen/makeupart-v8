@@ -627,3 +627,9 @@ def test_generative_upload_saves_watermarked_result_without_fake_identity_score(
         headers=headers,
     )
     assert job_image.status_code == 200
+    job_record = client.get(
+        f"{API}/beauty/jobs/{payload['job_id']}", headers=headers
+    )
+    assert job_record.status_code == 200
+    assert "External generative AI consent confirmed" in job_record.json()["notes"]
+    assert "look=smokey_eye" in job_record.json()["notes"]
