@@ -108,12 +108,12 @@ class _BeforeAfterComparisonState extends State<BeforeAfterComparison> {
                         background: Colors.black.withValues(alpha: 0.66),
                       ),
                     ),
-                    Positioned(
+                    const Positioned(
                       right: 12,
                       top: 12,
                       child: _ComparisonLabel(
                         text: 'AFTER',
-                        background: const Color(0xFF44255C),
+                        background: Color(0xFF44255C),
                       ),
                     ),
                   ],
