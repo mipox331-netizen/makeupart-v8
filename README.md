@@ -85,7 +85,7 @@ All newly registered salons start on a permanent Free plan with a monthly AI-pro
 
 ## Release readiness
 
-- Current Android download: [MakeupArt V8 v8.0.153](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.153/MakeupArt-V8.apk).
+- Current Android download: [MakeupArt V8 v8.0.154](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.154/MakeupArt-V8.apk).
 - The app checks GitHub Releases for a newer APK and prompts the user to download it; Android confirmation is still required to install.
 - Classic enhancement (MediaPipe/OpenCV) works without a paid image-provider key. The app also has a generative makeup/hairstyle mode, which remains disabled until the production `OPENAI_API_KEY` secret is configured and deployment is verified.
 - Generative edits send client photos to an external image provider only after a separate consent confirmation, consume salon quota and may incur provider charges. Generated facial details are not guaranteed to preserve identity and must be reviewed.
