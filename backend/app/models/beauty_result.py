@@ -22,7 +22,8 @@ class BeautyResult(TimestampMixin, Base):
     )
     before_image_url: Mapped[str] = mapped_column(String(1000), nullable=False)
     after_image_url: Mapped[str] = mapped_column(String(1000), nullable=False)
-    identity_similarity: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # Nullable because generative edits cannot use the classic pixel-similarity score.
+    identity_similarity: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
     skin_tone: Mapped[str] = mapped_column(String(50), nullable=False)
     undertone: Mapped[str] = mapped_column(String(50), nullable=False)
     foundation_match: Mapped[str] = mapped_column(String(100), nullable=False)

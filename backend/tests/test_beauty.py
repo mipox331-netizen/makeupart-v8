@@ -623,13 +623,7 @@ def test_generative_upload_saves_watermarked_result_without_fake_identity_score(
     assert calls == {"classic": 1, "generative": 1}
 
     job_image = client.get(
-        f"{API}{payload['after_image_url'].replace('/api/v1', '')}",
+        f"{API}/beauty/jobs/{payload['job_id']}/image?kind=after",
         headers=headers,
     )
-    # Returned URLs are rooted at /api/v1/beauty/jobs/{id}/image.
-    if job_image.status_code == 404:
-        job_image = client.get(
-            f"{API}/beauty/jobs/{payload['job_id']}/image?kind=after",
-            headers=headers,
-        )
     assert job_image.status_code == 200
