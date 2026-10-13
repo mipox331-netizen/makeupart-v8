@@ -172,7 +172,7 @@ def test_garbage_token_rejected(client):
 
 def test_logout_revokes_refresh_and_access_tokens(client):
     register(client)
-    tokens = login(client, "owner@salon.com")
+    tokens = login(client, "owner@salon.com").json()
     refresh = tokens["refresh_token"]
     access = tokens["access_token"]
 
