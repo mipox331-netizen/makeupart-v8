@@ -90,6 +90,7 @@ def verify_migration_head():
 )
 def verify_runtime():
     from app.services.beauty import BeautyProvider, IdentityGuard
+    from app.services.generative_makeup import GenerativeMakeupProvider
 
     provider = BeautyProvider()
     provider._get_face_mesh()
@@ -97,6 +98,11 @@ def verify_runtime():
         raise RuntimeError("OpenCV structure-preservation threshold is not configured")
     print("MediaPipe face-landmark runtime: OK")
     print("OpenCV structure-preservation guard: OK")
+    # Report readiness without ever printing or transferring the provider key.
+    if GenerativeMakeupProvider.is_ready():
+        print("Generative image-edit provider: configured")
+    else:
+        print("Generative image-edit provider: not configured; classic mode remains available")
 
 
 
