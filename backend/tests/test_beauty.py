@@ -547,3 +547,89 @@ def test_generative_upload_requires_external_provider_consent(
     assert "external generative AI provider" in response.json()["detail"]
     input_dir = media_root / "salons" / salon_id / "inputs"
     assert not input_dir.exists() or not list(input_dir.glob("*"))
+
+
+
+def test_generative_upload_saves_watermarked_result_without_fake_identity_score(
+    client, monkeypatch, tmp_path
+):
+    registration = register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+    monkeypatch.setattr(
+        "app.api.v1.beauty.settings.OPENAI_API_KEY", "configured-test-key"
+    )
+
+    calls = {"classic": 0, "generative": 0}
+
+    def fake_classic_process(self, image_path, options=None):
+        calls["classic"] += 1
+        output_dir = media_root / "salons" / salon_id / "outputs"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output = output_dir / f"classic-analysis-{calls['classic']}.png"
+        assert cv2.imwrite(str(output), np.full((256, 256, 3), 120, dtype=np.uint8))
+        return {
+            "identity_similarity": 0.99,
+            "skin_tone": "medium",
+            "undertone": "neutral",
+            "foundation_match": "medium-neutral",
+            "processed": True,
+            "output_path": str(output),
+        }
+
+    def fake_generative_process(self, image_path, options=None):
+        calls["generative"] += 1
+        assert options["generative_look"] == "smokey_eye"
+        output_dir = Path(options["output_dir"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output = output_dir / "generated-test.png"
+        assert cv2.imwrite(str(output), np.full((256, 256, 3), 90, dtype=np.uint8))
+        return {
+            "processed": True,
+            "engine": "generative",
+            "generative_look": options["generative_look"],
+            "output_path": str(output),
+        }
+
+    monkeypatch.setattr(BeautyProvider, "process", fake_classic_process)
+    monkeypatch.setattr(
+        beauty_api.GenerativeMakeupProvider, "process", fake_generative_process
+    )
+    monkeypatch.setattr(
+        beauty_api.GenerativeMakeupProvider,
+        "is_ready",
+        classmethod(lambda cls: True),
+    )
+
+    image_bytes = cv2.imencode(
+        ".png", np.full((256, 256, 3), 120, dtype=np.uint8)
+    )[1].tobytes()
+    response = client.post(
+        f"{API}/beauty/process-upload"
+        "?engine=generative&generative_look=smokey_eye"
+        "&external_ai_consent=true&consent_confirmed=true",
+        headers=headers,
+        files={"file": ("portrait.png", image_bytes, "image/png")},
+    )
+
+    assert response.status_code == 201, response.text
+    payload = response.json()
+    assert payload["engine"] == "generative"
+    assert payload["generative_look"] == "smokey_eye"
+    assert payload["identity_similarity"] is None
+    assert payload["watermark_applied"] is True
+    assert calls == {"classic": 1, "generative": 1}
+
+    job_image = client.get(
+        f"{API}{payload['after_image_url'].replace('/api/v1', '')}",
+        headers=headers,
+    )
+    # Returned URLs are rooted at /api/v1/beauty/jobs/{id}/image.
+    if job_image.status_code == 404:
+        job_image = client.get(
+            f"{API}/beauty/jobs/{payload['job_id']}/image?kind=after",
+            headers=headers,
+        )
+    assert job_image.status_code == 200

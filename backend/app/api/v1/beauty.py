@@ -456,7 +456,13 @@ def process_beauty_upload(
                 beauty_job_id=job.id,
                 before_image_url=job.before_image_url,
                 after_image_url=job.after_image_url,
-                identity_similarity=response.identity_similarity,
+                # The DB column is NOT NULL; 0.0 is an internal sentinel when
+                # generative AI was used and no pixel-similarity score is valid.
+                identity_similarity=(
+                    response.identity_similarity
+                    if response.identity_similarity is not None
+                    else 0.0
+                ),
                 skin_tone=response.skin_tone,
                 undertone=response.undertone,
                 foundation_match=response.foundation_match,
