@@ -7,6 +7,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from sqlalchemy import inspect
 from PIL import Image
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
@@ -62,6 +63,19 @@ def _safe_media_path(
     if candidate == root or root not in candidate.parents:
         raise HTTPException(status_code=error_status, detail="Media path is outside salon storage")
     return candidate
+
+
+def _generative_storage_ready(db: Session) -> bool:
+    """Fail closed until the deployed DB accepts a missing classic similarity score."""
+    try:
+        columns = {
+            column["name"]: column
+            for column in inspect(db.get_bind()).get_columns("beauty_results")
+        }
+        return bool(columns.get("identity_similarity", {}).get("nullable"))
+    except Exception as exc:
+        logger.warning("Generative storage readiness check failed (%s).", type(exc).__name__)
+        return False
 
 
 def _require_consent(
@@ -293,10 +307,11 @@ def _process_payload(
 
 @router.get("/capabilities")
 def beauty_capabilities(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> dict[str, object]:
     """Report available engines without exposing provider credentials."""
-    ready = GenerativeMakeupProvider.is_ready()
+    ready = GenerativeMakeupProvider.is_ready() and _generative_storage_ready(db)
     return {
         "classic_available": True,
         "generative_available": ready,
@@ -319,6 +334,11 @@ def process_beauty(
         customer_id=None,
         consent_confirmed=payload.consent_confirmed,
     )
+    if payload.engine == "generative" and not _generative_storage_ready(db):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Generative makeup is paused until the production database migration is verified.",
+        )
     quota_reserved = False
     input_dir, output_dir = _media_dirs(current_user.salon_id)
     input_path = Path(payload.image_path).resolve()
@@ -375,6 +395,11 @@ def process_beauty_upload(
         customer_id=customer_id,
         consent_confirmed=consent_confirmed,
     )
+    if engine == "generative" and not _generative_storage_ready(db):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Generative makeup is paused until the production database migration is verified.",
+        )
 
     input_dir, output_dir = _media_dirs(current_user.salon_id)
     input_path = input_dir / f"{uuid.uuid4()}{extension}"
