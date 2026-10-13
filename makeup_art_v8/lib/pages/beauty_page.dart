@@ -33,6 +33,25 @@ class BeautyPage extends StatefulWidget {
 class _BeautyPageState extends State<BeautyPage> {
   final picker = ImagePicker();
 
+  static const _generativeLooks = <String, String>{
+    'natural': 'Natural',
+    'soft_glam': 'Soft Glam',
+    'full_glam': 'Full Glam',
+    'bridal_glam': 'Bridal Glam',
+    'smokey_eye': 'Smokey Eye',
+    'cat_eye': 'Cat Eye',
+    'eyeshadow': 'Eyeshadow',
+    'eyeliner': 'Eyeliner',
+    'lipstick': 'Lipstick',
+    'blush': 'Blush',
+    'foundation': 'Foundation',
+    'editorial': 'Editorial',
+    'sleek_hair': 'Sleek Hair',
+    'soft_curls': 'Soft Curls',
+    'braided_style': 'Braided Style',
+    'elegant_updo': 'Elegant Updo',
+  };
+
   static const _makeupStyles = <String, String>{
     'natural': 'Natural',
     'soft_glam': 'Soft Glam',
@@ -51,6 +70,11 @@ class _BeautyPageState extends State<BeautyPage> {
   String selectedLook = 'Natural Finish';
   String selectedMakeupStyle = 'natural';
   bool savingGallery = false;
+  String selectedEngine = 'classic';
+  String selectedGenerativeLook = 'full_glam';
+  bool externalAiConsentConfirmed = false;
+  bool loadingCapabilities = true;
+  Map<String, dynamic> capabilities = {};
   List<Map<String, dynamic>> customers = [];
   String? customerId;
   bool? customerConsentActive;
@@ -66,6 +90,22 @@ class _BeautyPageState extends State<BeautyPage> {
     super.initState();
     _loadCustomers();
     _loadRecentImages();
+    _loadCapabilities();
+  }
+
+  bool get generativeAvailable => capabilities['generative_available'] == true;
+
+  Future<void> _loadCapabilities() async {
+    try {
+      final available = await widget.api.getBeautyCapabilities();
+      if (!mounted) return;
+      setState(() => capabilities = available);
+    } catch (_) {
+      // Older or unreachable backends fail closed: classic processing remains available.
+      if (mounted) setState(() => capabilities = {'classic_available': true});
+    } finally {
+      if (mounted) setState(() => loadingCapabilities = false);
+    }
   }
 
   Future<void> _loadRecentImages() async {
@@ -114,6 +154,7 @@ class _BeautyPageState extends State<BeautyPage> {
       customerConsentActive = null;
       // Consent confirmation applies to the currently selected client and photo only.
       consentConfirmed = false;
+      externalAiConsentConfirmed = false;
       selected = null;
       result = null;
       afterImageFuture = null;
@@ -146,6 +187,7 @@ class _BeautyPageState extends State<BeautyPage> {
       setState(() {
         // A grant/revocation changes the consent state; require a fresh operator confirmation.
         consentConfirmed = false;
+        externalAiConsentConfirmed = false;
         result = null;
         afterImageFuture = null;
         error = null;
@@ -268,6 +310,8 @@ class _BeautyPageState extends State<BeautyPage> {
 
   Future<void> process() async {
     if (selected == null || !consentConfirmed) return;
+    if (selectedEngine == 'generative' &&
+        (!generativeAvailable || !externalAiConsentConfirmed)) return;
     if (customerId != null && customerConsentActive != true) return;
 
     setState(() {
@@ -282,6 +326,9 @@ class _BeautyPageState extends State<BeautyPage> {
         consentConfirmed: consentConfirmed,
         customerId: customerId,
         makeupStyle: selectedMakeupStyle,
+        engine: selectedEngine,
+        generativeLook: selectedGenerativeLook,
+        externalAiConsent: externalAiConsentConfirmed,
       );
 
       Uint8List? afterBytes;
@@ -312,13 +359,30 @@ class _BeautyPageState extends State<BeautyPage> {
       if (!mounted) return;
       final message = exception.toString().toLowerCase();
       setState(() {
-        error = message.contains('consent')
-            ? 'Client consent is required before processing.'
-            : 'Could not process this image. Check the API and image quality.';
+        error = message.contains('external generative ai provider')
+            ? 'Confirm that the client agrees to external AI processing.'
+            : message.contains('generative makeup is not enabled')
+                ? 'Generative AI is not configured on the server. Classic AI is still available.'
+                : message.contains('consent')
+                    ? 'Client consent is required before processing.'
+                    : 'Could not process this image. Check the API and image quality.';
       });
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  void _selectEngine(String engine) {
+    if (engine == 'generative' && !generativeAvailable) return;
+    setState(() {
+      selectedEngine = engine;
+      externalAiConsentConfirmed = false;
+      result = null;
+      afterImageFuture = null;
+      rawAfterBytes = null;
+      displayedAfterBytes = null;
+      error = null;
+    });
   }
 
   Future<void> _selectLook(String look) async {
@@ -399,6 +463,8 @@ class _BeautyPageState extends State<BeautyPage> {
   Widget build(BuildContext context) {
     final canProcess = selected != null &&
         consentConfirmed &&
+        (selectedEngine != 'generative' ||
+            (generativeAvailable && externalAiConsentConfirmed)) &&
         !loading &&
         (customerId == null || customerConsentActive == true);
 
@@ -700,39 +766,126 @@ class _BeautyPageState extends State<BeautyPage> {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    'Makeup style',
+                    'AI engine',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 5),
-                  const Text(
-                    'Choose the lip tint and cheek-blush finish applied to the detected face.',
-                  ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _makeupStyles.entries.map((style) {
-                      return ChoiceChip(
-                        avatar: const Icon(
-                          Icons.face_retouching_natural_rounded,
-                          size: 17,
-                        ),
-                        label: Text(style.value),
-                        selected: selectedMakeupStyle == style.key,
-                        onSelected: loading
+                    children: [
+                      ChoiceChip(
+                        avatar: const Icon(Icons.tune_rounded, size: 18),
+                        label: const Text('Classic AI'),
+                        selected: selectedEngine == 'classic',
+                        onSelected: loading ? null : (_) => _selectEngine('classic'),
+                      ),
+                      ChoiceChip(
+                        avatar: const Icon(Icons.auto_awesome_rounded, size: 18),
+                        label: const Text('Generative AI'),
+                        selected: selectedEngine == 'generative',
+                        onSelected: loading || !generativeAvailable
                             ? null
-                            : (_) => setState(() {
-                                  selectedMakeupStyle = style.key;
-                                  // Never leave a preview that doesn't match the selected treatment.
-                                  result = null;
-                                  rawAfterBytes = null;
-                                  displayedAfterBytes = null;
-                                  afterImageFuture = null;
-                                  error = null;
-                                }),
-                      );
-                    }).toList(),
+                            : (_) => _selectEngine('generative'),
+                      ),
+                    ],
                   ),
+                  if (loadingCapabilities) ...[
+                    const SizedBox(height: 8),
+                    const LinearProgressIndicator(),
+                  ],
+                  if (!loadingCapabilities && !generativeAvailable) ...[
+                    const SizedBox(height: 8),
+                    const ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.info_outline_rounded),
+                      title: Text('Generative makeup is not enabled yet'),
+                      subtitle: Text(
+                        'The server needs the protected OPENAI_API_KEY secret and a production redeploy. Classic AI remains available. Generative processing may have provider charges.',
+                      ),
+                    ),
+                  ],
+                  if (selectedEngine == 'generative') ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      'Generative look',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _generativeLooks.entries.map((look) {
+                        return ChoiceChip(
+                          avatar: const Icon(Icons.auto_awesome_rounded, size: 17),
+                          label: Text(look.value),
+                          selected: selectedGenerativeLook == look.key,
+                          onSelected: loading
+                              ? null
+                              : (_) => setState(() {
+                                    selectedGenerativeLook = look.key;
+                                    result = null;
+                                    afterImageFuture = null;
+                                    rawAfterBytes = null;
+                                    displayedAfterBytes = null;
+                                    externalAiConsentConfirmed = false;
+                                    error = null;
+                                  }),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Generative edits send the photo to an external image provider and may incur usage charges. Generated images can change facial details; review every result.',
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: externalAiConsentConfirmed,
+                      onChanged: loading
+                          ? null
+                          : (value) => setState(
+                                () => externalAiConsentConfirmed = value ?? false,
+                              ),
+                      title: const Text('Client agrees to external AI processing'),
+                      subtitle: const Text(
+                        'I have permission to send this photo to the configured third-party image provider for this edit.',
+                      ),
+                    ),
+                  ] else ...[
+                    Text(
+                      'Makeup style',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'Classic effects apply a face-guided lip tint and cheek blush; they do not generate new makeup.',
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _makeupStyles.entries.map((style) {
+                        return ChoiceChip(
+                          avatar: const Icon(
+                            Icons.face_retouching_natural_rounded,
+                            size: 17,
+                          ),
+                          label: Text(style.value),
+                          selected: selectedMakeupStyle == style.key,
+                          onSelected: loading
+                              ? null
+                              : (_) => setState(() {
+                                    selectedMakeupStyle = style.key;
+                                    result = null;
+                                    afterImageFuture = null;
+                                    rawAfterBytes = null;
+                                    displayedAfterBytes = null;
+                                    error = null;
+                                  }),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   Text(
                     'Photo finish',
@@ -761,7 +914,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     }).toList(),
                   ),
                   const SizedBox(height: 16),
-                  Text('Skin polish strength ${(intensity * 100).round()}%'),
+                  Text('${selectedEngine == 'generative' ? 'Treatment strength' : 'Skin polish strength'} ${(intensity * 100).round()}%'),
                   Slider(
                     value: intensity,
                     onChanged: loading
@@ -813,11 +966,18 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Makeup style: ${_makeupStyles[selectedMakeupStyle] ?? selectedMakeupStyle}',
+                      selectedEngine == 'generative'
+                          ? 'Generative look: ${_generativeLooks[result!['generative_look']] ?? result!['generative_look'] ?? selectedGenerativeLook}'
+                          : 'Makeup style: ${_makeupStyles[selectedMakeupStyle] ?? selectedMakeupStyle}',
                     ),
-                    Text(
-                      'Image structure preservation score: ${result!['identity_similarity']}',
-                    ),
+                    if (result!['engine'] == 'generative')
+                      const Text(
+                        'AI-generated edit: review facial details before using it as a client reference.',
+                      )
+                    else if (result!['identity_similarity'] != null)
+                      Text(
+                        'Image structure preservation score: ${result!['identity_similarity']}',
+                      ),
                     Text('Skin tone: ${result!['skin_tone']}'),
                     Text('Undertone: ${result!['undertone']}'),
                     Text('Foundation match estimate: ${result!['foundation_match']}'),

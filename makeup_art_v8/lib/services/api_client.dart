@@ -336,12 +336,20 @@ class ApiClient {
     await storage.delete(key: _refreshKey);
   }
 
+  Future<Map<String, dynamic>> getBeautyCapabilities() async {
+    final response = await dio.get('/beauty/capabilities');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<Map<String, dynamic>> processImage(
     XFile image, {
     double intensity = 0.7,
     bool consentConfirmed = false,
     String? customerId,
     required String makeupStyle,
+    String engine = "classic",
+    String generativeLook = "full_glam",
+    bool externalAiConsent = false,
   }) async {
     final data = FormData.fromMap({
       'file': await MultipartFile.fromFile(image.path, filename: image.name),
@@ -351,6 +359,9 @@ class ApiClient {
       queryParameters: {
         'intensity': intensity,
         'makeup_style': makeupStyle,
+        'engine': engine,
+        'generative_look': generativeLook,
+        'external_ai_consent': externalAiConsent,
         'consent_confirmed': consentConfirmed,
         if (customerId != null) 'customer_id': customerId,
       },
