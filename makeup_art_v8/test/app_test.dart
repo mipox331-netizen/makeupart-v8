@@ -67,6 +67,13 @@ class _FakeLoginApi extends ApiClient {
 
 class _ConsentTestApi extends ApiClient {
   @override
+  Future<Map<String, dynamic>> getBeautyCapabilities() async => {
+        'classic_available': true,
+        'generative_available': false,
+        'third_party_processing_requires_consent': true,
+      };
+
+  @override
   Future<List<Map<String, dynamic>>> listCustomers() async => [
         {'id': 'customer-a', 'first_name': 'Alice', 'last_name': 'One'},
         {'id': 'customer-b', 'first_name': 'Bob', 'last_name': 'Two'},
