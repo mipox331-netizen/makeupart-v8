@@ -152,11 +152,11 @@ class BeautyProvider:
         makeup_style: str,
         intensity: float,
     ) -> np.ndarray:
-        """Apply subtle, face-mesh-guided lip tint and cheek blush.
+        """Apply face-mesh-guided lipstick, blush, eyeshadow and eyeliner.
 
-        This is a lightweight image-space makeup effect, not generative eye or
-        hairstyle editing. The caller validates the style through the request
-        schema before reaching this function.
+        This is a lightweight OpenCV cosmetic overlay, not a generative model:
+        it preserves the source pixels outside the local makeup masks and does
+        not synthesize hairstyles. The API validates the style before this call.
         """
         palettes = {
             "natural": {
@@ -164,24 +164,36 @@ class BeautyProvider:
                 "lip_alpha": 0.18,
                 "blush": (132, 92, 190),
                 "blush_alpha": 0.055,
+                "eye_shadow": (128, 108, 153),
+                "eye_shadow_alpha": 0.025,
+                "liner_alpha": 0.06,
             },
             "soft_glam": {
                 "lip": (86, 54, 197),
                 "lip_alpha": 0.34,
                 "blush": (144, 88, 218),
                 "blush_alpha": 0.115,
+                "eye_shadow": (100, 70, 170),
+                "eye_shadow_alpha": 0.105,
+                "liner_alpha": 0.48,
             },
             "bridal_rose": {
                 "lip": (116, 82, 211),
                 "lip_alpha": 0.30,
                 "blush": (153, 105, 224),
                 "blush_alpha": 0.14,
+                "eye_shadow": (126, 94, 190),
+                "eye_shadow_alpha": 0.075,
+                "liner_alpha": 0.32,
             },
             "evening_glam": {
                 "lip": (48, 29, 160),
                 "lip_alpha": 0.48,
                 "blush": (128, 72, 190),
                 "blush_alpha": 0.10,
+                "eye_shadow": (48, 38, 92),
+                "eye_shadow_alpha": 0.19,
+                "liner_alpha": 0.72,
             },
         }
         palette = palettes.get(makeup_style)
@@ -272,6 +284,73 @@ class BeautyProvider:
         )[:, :, None]
         lip_color = np.asarray(palette["lip"], dtype=np.float32)[None, None, :]
         styled = styled * (1.0 - lip_alpha) + lip_color * lip_alpha
+
+        # Shade the upper eyelids from MediaPipe Face Mesh contours. These
+        # indices exist in the refined 478-point mesh; partial legacy fixtures
+        # keep the older lip/blush behavior without risking an index error.
+        upper_eye_paths = (
+            (33, 246, 161, 160, 159, 158, 157, 173, 133),
+            (263, 466, 388, 387, 386, 385, 384, 398, 362),
+        )
+        if len(points) > 466:
+            clipped_intensity = float(np.clip(intensity, 0.0, 1.0))
+            shadow_height = max(2, int(h * 0.035))
+            shadow_color = np.asarray(
+                palette.get("eye_shadow", palette["lip"]), dtype=np.float32
+            )[None, None, :]
+            shadow_strength = float(palette.get("eye_shadow_alpha", 0.0))
+            liner_color = np.asarray((22, 18, 30), dtype=np.float32)[None, None, :]
+            liner_strength = float(palette.get("liner_alpha", 0.0))
+            liner_width = max(1, int(round(w * 0.005)))
+
+            for contour in upper_eye_paths:
+                upper = points[list(contour)].copy()
+                shifted = upper.copy()
+                shifted[:, 1] = np.maximum(0, shifted[:, 1] - shadow_height)
+                shadow_polygon = np.vstack((upper, shifted[::-1]))
+                shadow_mask = np.zeros((height, width), dtype=np.uint8)
+                cv2.fillPoly(shadow_mask, [shadow_polygon], 255)
+                shadow_mask = cv2.bitwise_and(shadow_mask, face_mask)
+                shadow_mask = cv2.GaussianBlur(
+                    shadow_mask, (0, 0), sigmaX=max(1.0, width / 150.0)
+                )
+                shadow_alpha = (
+                    shadow_mask.astype(np.float32) / 255.0
+                    * shadow_strength
+                    * clipped_intensity
+                )[:, :, None]
+                styled = styled * (1.0 - shadow_alpha) + shadow_color * shadow_alpha
+
+                # A narrow anti-aliased line follows the upper lash line and a
+                # small outward wing. It is intentionally lighter in natural
+                # and bridal looks than in soft/evening glam.
+                outer_index = contour[0]
+                outer = points[outer_index]
+                direction = -1 if outer[0] < (x + w // 2) else 1
+                wing = np.array(
+                    [
+                        max(0, min(width - 1, int(outer[0] + direction * max(2, int(w * 0.022)))),
+                        max(0, int(outer[1] - max(1, int(h * 0.008)))),
+                    ],
+                    dtype=np.int32,
+                )
+                liner_path = np.vstack((wing, upper))
+                liner_mask = np.zeros((height, width), dtype=np.uint8)
+                cv2.polylines(
+                    liner_mask,
+                    [liner_path],
+                    isClosed=False,
+                    color=255,
+                    thickness=liner_width,
+                    lineType=cv2.LINE_AA,
+                )
+                liner_alpha = (
+                    liner_mask.astype(np.float32) / 255.0
+                    * liner_strength
+                    * clipped_intensity
+                )[:, :, None]
+                styled = styled * (1.0 - liner_alpha) + liner_color * liner_alpha
+
         return np.clip(styled, 0, 255).astype(np.uint8)
 
     def process(self, image_path: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
