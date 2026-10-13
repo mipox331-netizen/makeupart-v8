@@ -379,6 +379,7 @@ def process_beauty_upload(
     input_dir, output_dir = _media_dirs(current_user.salon_id)
     input_path = input_dir / f"{uuid.uuid4()}{extension}"
     output_path: Path | None = None
+    generated_output: Path | None = None
     quota_reserved = False
 
     try:
@@ -479,7 +480,7 @@ def process_beauty_upload(
         db.rollback()
         if quota_reserved:
             release_beauty_job_quota(db, current_user.salon_id)
-        for path in (input_path, output_path):
+        for path in (input_path, output_path, generated_output):
             if path:
                 try:
                     path.unlink()
@@ -494,7 +495,7 @@ def process_beauty_upload(
         db.rollback()
         if quota_reserved:
             release_beauty_job_quota(db, current_user.salon_id)
-        for path in (input_path, output_path):
+        for path in (input_path, output_path, generated_output):
             if path:
                 try:
                     path.unlink()
