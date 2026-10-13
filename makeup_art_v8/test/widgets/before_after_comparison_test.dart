@@ -5,8 +5,8 @@ import 'package:makeup_art_v8/widgets/before_after_comparison.dart';
 void main() {
   testWidgets('shows original and finished labels with a draggable divider',
       (tester) async {
-    await tester.view.setPhysicalSize(const Size(800, 500));
-    await tester.view.setDevicePixelRatio(1);
+    tester.view.physicalSize = const Size(800, 500);
+    tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
