@@ -1,6 +1,6 @@
 """Allow generated beauty edits without a misleading similarity score.
 
-Revision ID: 0010_nullable_generated_similarity
+Revision ID: 0010_nullable_similarity
 Revises: 0009_reconcile_refresh_sessions
 Create Date: 2026-10-13
 """
@@ -9,7 +9,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0010_nullable_generated_similarity"
+revision: str = "0010_nullable_similarity"
 down_revision: Union[str, None] = "0009_reconcile_refresh_sessions"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
