@@ -1,40 +1,43 @@
-# AI capabilities and third-party model licensing
+# AI capabilities, provider setup and third-party model licensing
 
-## Current shipped capability
+## Available processing engines
 
-The current backend is not a generative-makeup system. Its image path is:
+### Classic enhancement (works without an external AI key)
 
-1. MediaPipe face landmarks locate one face.
-2. OpenCV estimates a skin tone/undertone and applies bounded bilateral-filter skin smoothing.
-3. An OpenCV SSIM-style metric estimates how much facial image structure changed after smoothing. It is an image-preservation check, not biometric identity recognition.
-4. The backend saves the result and returns a foundation-match label.
+- MediaPipe locates exactly one face and supplies landmarks.
+- OpenCV estimates skin tone and undertone.
+- A bounded bilateral filter smooths skin, while a structural-similarity metric checks that this deterministic edit stays within the configured threshold.
+- Face-mesh-aware local effects apply lipstick tint and cheek blush.
+- The mobile app supplies five local photo finishes, a draggable Before/After comparison and salon watermarking.
 
-This pipeline does not synthesize lipstick, eyeshadow, blush, foundation coverage, or a new photorealistic makeup look from a text prompt. UI/marketing must describe it as an image-enhancement preview until a generative model is integrated and validated.
+The structure-preservation value is not biometric identity recognition and does not prove a generated image is the same person.
 
-## Face-model licensing
+### Generative makeup and hairstyle (optional; requires a paid provider account)
 
-The production image-smoothing path does not need face-recognition embeddings: MediaPipe locates facial landmarks, and OpenCV performs the bounded edit and checks structural image preservation. The implementation therefore removes the InsightFace `buffalo_l` pretrained weights and the InsightFace runtime dependency rather than using pretrained models whose published default terms restrict them to non-commercial research.
+The repository now includes an optional server-side image-edit provider using the OpenAI Images API `POST /v1/images/edits` and a configured GPT Image model. It attempts natural/soft/full glam, bridal glam, smokey eye, cat eye, eyeshadow, eyeliner, lipstick, blush, foundation, editorial looks and hairstyle variations (sleek hair, curls, braids, and elegant updo).
 
-Official license references:
-- [InsightFace model-zoo terms](https://github.com/deepinsight/insightface/blob/master/python-package/docs/model_zoo.md) — its pretrained model packages are non-commercial research by default.
-- [MediaPipe license](https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE) — Apache License 2.0.
-- [OpenCV license](https://opencv.org/license/) — Apache License 2.0 for OpenCV 4.5.0 and newer.
+The model is instructed to preserve face shape, complexion, expression, clothing and background while editing only the requested cosmetics or hairstyle. This is a prompt-level constraint, not an identity guarantee; generative image models can still change facial details or other parts of the image. Each generated result must be reviewed before it is treated as a real-world reference.
 
-The structural-similarity guard deliberately makes a narrower claim than face recognition. It checks that a bounded smoothing edit has not changed the local image structure too much; it does not verify a person's identity and must not be described as biometric identity protection. Because the app does not synthesize a new face or use identity embeddings, this removes the specific `buffalo_l` commercial-model licensing blocker. A complete commercial release still needs a software-bill-of-materials review of all direct/transitive dependencies and any bundled model assets.
+The engine remains disabled when `OPENAI_API_KEY` is empty. To enable it in production, add a protected GitHub Actions environment/repository secret named `OPENAI_API_KEY` and run the **MakeupArt V8 Modal Production Deploy** workflow. The workflow provisions it into the Modal production secret without printing it. Never place this key in Flutter, source control, issue comments or chat. Model and quality defaults are `gpt-image-2.5-sunburst` and `medium`; operators can change `OPENAI_IMAGE_MODEL` and `OPENAI_IMAGE_QUALITY` server-side.
 
-## Generative makeup — implementation gate
+Generative editing has third-party usage costs and extra latency. Every successful run consumes the existing salon AI quota. Do not advertise unlimited free generation; review provider usage and set spend controls.
 
-A genuine generative feature needs an explicit model/provider choice and an implementation separate from the existing OpenCV filter. Before enabling it for customer photos:
-- Verify commercial use rights for model weights, runtime and generated outputs.
-- Capture explicit customer consent for processing and any third-party processor transfer.
-- Define whether images are retained by the provider, and configure retention/deletion accordingly.
-- Preserve face identity, hair, skin tone and background; validate outputs and provide a safe fallback when generation fails.
-- Measure latency, infrastructure/API cost, usage quota and abuse limits before enabling it on the free plan.
-- Add before/after tests across lighting, skin tones and makeup styles; do not present the feature as available until those tests pass.
+## Customer privacy and consent
 
-No generative inference provider, model license, API credential or validated generative pipeline is configured in this repository as of this status update.
+The app requires the existing client/operator processing consent and a distinct confirmation before a photo is sent to an external generative provider. The server rejects generative requests without both confirmations. Classic image enhancement does not send the image to OpenAI. Provider credentials remain server-side, and provider failures are sanitized so credentials and raw portraits are not written to logs.
 
-## Other license and distribution checks
+OpenAI states that API inputs and outputs are not used to improve models by default unless the API organization opts into data sharing; this does not mean zero retention. Salons must disclose external processing to clients and configure provider-account data controls according to their retention requirements. See the [OpenAI API data-use policy](https://help.openai.com/en/articles/10306912-sharing-feedback-evaluation-and-fine-tuning-data-and-api-inputs-and-outputs-with-openai).
 
-- The root-level `LICENSE` now states that original project materials are proprietary and grants no general reuse permission. It does not cover third-party components; retain their notices and review the generated inventories described in [Third-party license audit](THIRD_PARTY_LICENSE_AUDIT.md).
-- Audit transitive Python, Flutter and native dependencies before a commercial release; removal of the restricted InsightFace weights resolves that specific finding, not the entire software bill-of-materials review.
+## Third-party and commercial licensing
+
+Official API references:
+- [OpenAI Images API — edit an image](https://developers.openai.com/api/reference/resources/images/methods/edit)
+- [OpenAI image generation guide and model/cost guidance](https://developers.openai.com/api/docs/guides/image-generation)
+- [MediaPipe license](https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE) — Apache 2.0.
+- [OpenCV license](https://opencv.org/license/) — Apache 2.0 for OpenCV 4.5.0 and newer.
+
+The repository removes InsightFace's pretrained `buffalo_l` weights because published default terms restrict those weights to non-commercial research. Full commercial release still requires a transitive dependency, native SDK and bundled-assets license audit.
+
+## Remaining release gates
+
+The provider integration and mocked tests do not prove live image quality. Before enabling it for customers, configure the API key, run controlled end-to-end tests using consenting test portraits across skin tones and lighting, review face/hair/background preservation, and set provider spend controls. Google Play publication, signed iOS/App Store distribution, real production-row restore testing and a complete commercial license review remain separate gates.
