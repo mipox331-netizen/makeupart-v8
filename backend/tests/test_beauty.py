@@ -44,6 +44,19 @@ def test_makeup_style_presets_apply_face_guided_tints():
     coordinates[88] = (0.425, 0.63)
     coordinates[95] = (0.41, 0.625)
     coordinates[78] = (0.40, 0.62)
+    # Upper eyelid contours (outer corner to inner corner) for the refined mesh.
+    left_eye = {
+        33: (0.34, 0.42), 246: (0.36, 0.405), 161: (0.38, 0.395),
+        160: (0.40, 0.388), 159: (0.42, 0.385), 158: (0.44, 0.388),
+        157: (0.46, 0.395), 173: (0.48, 0.405), 133: (0.49, 0.42),
+    }
+    right_eye = {
+        263: (0.66, 0.42), 466: (0.64, 0.405), 388: (0.62, 0.395),
+        387: (0.60, 0.388), 386: (0.58, 0.385), 385: (0.56, 0.388),
+        384: (0.54, 0.395), 398: (0.52, 0.405), 362: (0.51, 0.42),
+    }
+    for index, point in {**left_eye, **right_eye}.items():
+        coordinates[index] = point
     landmarks = SimpleNamespace(
         landmark=[SimpleNamespace(x=x, y=y) for x, y in coordinates]
     )
@@ -58,6 +71,12 @@ def test_makeup_style_presets_apply_face_guided_tints():
 
     assert not np.array_equal(source, natural)
     assert not np.array_equal(natural, evening)
+    # The glam preset must alter the upper-eye area independently of the lips
+    # and cheeks; natural mode remains deliberately subtle there.
+    eye_region = np.s_[85:112, 85:125]
+    assert np.mean(
+        np.abs(natural[eye_region].astype(np.float32) - evening[eye_region].astype(np.float32))
+    ) > 1.0
     assert np.array_equal(source, np.full((256, 256, 3), 150, dtype=np.uint8))
 
 
