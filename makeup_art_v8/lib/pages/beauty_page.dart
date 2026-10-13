@@ -311,7 +311,9 @@ class _BeautyPageState extends State<BeautyPage> {
   Future<void> process() async {
     if (selected == null || !consentConfirmed) return;
     if (selectedEngine == 'generative' &&
-        (!generativeAvailable || !externalAiConsentConfirmed)) return;
+        (!generativeAvailable || !externalAiConsentConfirmed)) {
+      return;
+    }
     if (customerId != null && customerConsentActive != true) return;
 
     setState(() {
