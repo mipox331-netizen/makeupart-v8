@@ -68,7 +68,6 @@ jobs:
     permissions:
       contents: read
     steps:
-    steps:
       - name: Check required secret presence without exposing values
         shell: bash
         env:
