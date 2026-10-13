@@ -329,9 +329,9 @@ jobs:
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          SUPABASE_DB_URL_SECRET: ${{ secrets.SUPABASE_DB_URL_SECRET }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Reuse the validated, normalized SUPABASE_DB_URL exported via GITHUB_ENV.
+          # Explicitly binding the raw secret here could override the normalized fallback
+          # when only SUPABASE_DB_URL_SECRET or DATABASE_URL is configured.
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
