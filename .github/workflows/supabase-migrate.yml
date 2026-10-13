@@ -3,8 +3,9 @@ name: MakeupArt V8 Supabase Database Migration
 on:
   workflow_dispatch:
 
+# Share the deployment lock: both workflows migrate the same Supabase database.
 concurrency:
-  group: makeupart-v8-supabase-migration
+  group: makeupart-v8-modal-production
   cancel-in-progress: false
 
 jobs:
