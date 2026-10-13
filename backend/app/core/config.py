@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     REFRESH_SESSION_RETENTION_DAYS: int = 7
     SUBSCRIPTION_TRIAL_DAYS: int = 30
     PLATFORM_ADMIN_EMAILS: str = ""
+    # Optional paid generative engine; intentionally disabled until provisioned.
+    OPENAI_API_KEY: str = ""
+    OPENAI_IMAGE_MODEL: str = "gpt-image-2.5-sunburst"
+    OPENAI_IMAGE_QUALITY: str = "medium"
     LOGIN_MAX_FAILED_ATTEMPTS: int = 5
     LOGIN_WINDOW_MINUTES: int = 15
     LOGIN_LOCKOUT_MINUTES: int = 15

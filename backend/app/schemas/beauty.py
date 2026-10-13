@@ -6,6 +6,12 @@ from pydantic import BaseModel, Field
 
 
 MakeupStyle = Literal["natural", "soft_glam", "bridal_rose", "evening_glam"]
+BeautyEngine = Literal["classic", "generative"]
+GenerativeLook = Literal[
+    "natural", "soft_glam", "full_glam", "bridal_glam", "smokey_eye",
+    "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush", "foundation",
+    "editorial", "sleek_hair", "soft_curls", "braided_style", "elegant_updo",
+]
 
 
 class BeautyProcessRequest(BaseModel):
@@ -13,16 +19,21 @@ class BeautyProcessRequest(BaseModel):
     intensity: float = Field(default=0.7, ge=0.0, le=1.0)
     consent_confirmed: bool = False
     makeup_style: MakeupStyle = "natural"
+    engine: BeautyEngine = "classic"
+    generative_look: GenerativeLook = "full_glam"
+    external_ai_consent: bool = False
 
 
 class BeautyProcessResponse(BaseModel):
-    identity_similarity: float
+    identity_similarity: float | None = None
     skin_tone: str
     undertone: str
     foundation_match: str
     intensity: float
     processed: bool
     makeup_style: MakeupStyle = "natural"
+    engine: BeautyEngine = "classic"
+    generative_look: GenerativeLook | None = None
 
 
 class BeautyUploadResponse(BeautyProcessResponse):
