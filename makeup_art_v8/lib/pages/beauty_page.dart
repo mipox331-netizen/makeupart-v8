@@ -290,8 +290,9 @@ class _BeautyPageState extends State<BeautyPage> {
       if (image == null || !mounted) return;
       setState(() {
         selected = image;
-        // Every new photo needs its own explicit consent confirmation.
+        // Every new photo needs fresh consent for both processing and any external provider.
         consentConfirmed = false;
+        externalAiConsentConfirmed = false;
         result = null;
         afterImageFuture = null;
         rawAfterBytes = null;
