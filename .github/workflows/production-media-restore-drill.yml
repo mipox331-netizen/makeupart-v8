@@ -27,9 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
-    env:
-      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-
     steps:
       - name: Select successful encrypted media backup
         id: select-backup
@@ -72,6 +69,8 @@ jobs:
 
       - name: Validate backup encryption secret
         shell: bash
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
           test -n "${BACKUP_ENCRYPTION_PASSPHRASE:-}" || { echo "::error::Missing BACKUP_ENCRYPTION_PASSPHRASE in the production environment."; exit 1; }
@@ -89,6 +88,8 @@ jobs:
 
       - name: Verify checksum, decrypt and restore into isolated temporary directory
         shell: bash
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
           RESTORE_DIR="$RUNNER_TEMP/makeupart-media-restore"
