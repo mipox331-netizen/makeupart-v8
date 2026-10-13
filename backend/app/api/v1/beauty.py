@@ -28,8 +28,11 @@ from app.schemas.beauty import (
     BeautyProcessResponse,
     BeautyUploadResponse,
     MakeupStyle,
+    BeautyEngine,
+    GenerativeLook,
 )
 from app.services.beauty import BeautyProvider, IdentityGuard
+from app.services.generative_makeup import GenerativeMakeupProvider
 from app.services.media_volume import commit_media_volume
 from app.services.subscription import release_beauty_job_quota, reserve_beauty_job_quota
 from app.services.watermark import apply_watermark, get_or_create_watermark
@@ -155,6 +158,77 @@ def _process_payload(
     provider: BeautyProvider,
     output_dir: Path,
 ) -> tuple[BeautyProcessResponse, str]:
+    if payload.engine == "generative":
+        if not payload.external_ai_consent:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Explicit consent to send this photo to the external generative AI provider is required.",
+            )
+        if not GenerativeMakeupProvider.is_ready():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Generative makeup is not enabled on this server. The administrator must configure the provider key.",
+            )
+
+        # Validate one face and estimate undertone locally before any photo is
+        # transferred to the third-party image editor.
+        analysis_payload = payload.model_copy(
+            update={
+                "engine": "classic",
+                "intensity": 0.0,
+                "makeup_style": "natural",
+                "external_ai_consent": False,
+            }
+        )
+        analysis_response, analysis_path = _process_payload(
+            analysis_payload, provider, output_dir
+        )
+        try:
+            try:
+                generated = GenerativeMakeupProvider().process(
+                    payload.image_path,
+                    {
+                        "output_dir": str(output_dir),
+                        "generative_look": payload.generative_look,
+                        "intensity": payload.intensity,
+                    },
+                )
+            except RuntimeError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=str(exc),
+                ) from exc
+        finally:
+            try:
+                Path(analysis_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        generated_output = Path(str(generated.get("output_path", ""))).resolve()
+        if output_dir.resolve() not in generated_output.parents or not generated_output.is_file():
+            try:
+                generated_output.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Generative provider generated media outside salon storage",
+            )
+
+        # Pixel-level similarity is not a reliable identity guarantee for generated edits.
+        response = BeautyProcessResponse(
+            identity_similarity=None,
+            skin_tone=analysis_response.skin_tone,
+            undertone=analysis_response.undertone,
+            foundation_match=analysis_response.foundation_match,
+            intensity=round(float(payload.intensity), 4),
+            processed=True,
+            makeup_style=payload.makeup_style,
+            engine="generative",
+            generative_look=payload.generative_look,
+        )
+        return response, str(generated_output)
+
     identity_guard = IdentityGuard()
     attempt_intensity = float(payload.intensity)
     last_similarity = 0.0
@@ -217,6 +291,22 @@ def _process_payload(
     )
 
 
+@router.get("/capabilities")
+def beauty_capabilities(
+    current_user: User = Depends(get_current_active_user),
+) -> dict[str, object]:
+    """Report available engines without exposing provider credentials."""
+    ready = GenerativeMakeupProvider.is_ready()
+    return {
+        "classic_available": True,
+        "generative_available": ready,
+        "generative_provider": "OpenAI" if ready else None,
+        "generative_model": settings.OPENAI_IMAGE_MODEL if ready else None,
+        "supported_generative_looks": sorted(GenerativeMakeupProvider.allowed_looks),
+        "third_party_processing_requires_consent": True,
+    }
+
+
 @router.post("/process", response_model=BeautyProcessResponse, status_code=status.HTTP_200_OK)
 def process_beauty(
     payload: BeautyProcessRequest,
@@ -265,6 +355,9 @@ def process_beauty_upload(
     file: UploadFile = File(...),
     intensity: float = Query(default=0.7, ge=0.0, le=1.0),
     makeup_style: MakeupStyle = Query(default="natural"),
+    engine: BeautyEngine = Query(default="classic"),
+    generative_look: GenerativeLook = Query(default="full_glam"),
+    external_ai_consent: bool = Query(default=False),
     consent_confirmed: bool = Query(default=False),
     customer_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -308,6 +401,9 @@ def process_beauty_upload(
             intensity=intensity,
             consent_confirmed=True,
             makeup_style=makeup_style,
+            engine=engine,
+            generative_look=generative_look,
+            external_ai_consent=external_ai_consent,
         )
         response, generated_path = _process_payload(payload, BeautyProvider(), output_dir)
         generated_output = Path(generated_path).resolve()
@@ -337,7 +433,10 @@ def process_beauty_upload(
             salon_id=current_user.salon_id,
             customer_id=customer_id,
             status=BeautyJobStatus.COMPLETED,
-            selected_makeup=payload.makeup_style.replace("_", " ").title(),
+            selected_makeup=(
+                payload.generative_look if payload.engine == "generative"
+                else payload.makeup_style
+            ).replace("_", " ").title(),
             intensity=response.intensity,
             shade=response.foundation_match,
             before_image_url=f"/api/v1/beauty/jobs/{{job_id}}/image?kind=before",

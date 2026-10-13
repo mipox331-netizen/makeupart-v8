@@ -502,3 +502,48 @@ def test_beauty_process_rejects_multiple_faces(client, monkeypatch, tmp_path):
 
     assert response.status_code == 422
     assert "exactly one face" in response.json()["detail"]
+
+
+
+def test_beauty_capabilities_report_provider_readiness_without_exposing_key(
+    client, monkeypatch
+):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    monkeypatch.setattr("app.api.v1.beauty.settings.OPENAI_API_KEY", "")
+    disabled = client.get(f"{API}/beauty/capabilities", headers=headers)
+    assert disabled.status_code == 200
+    assert disabled.json()["classic_available"] is True
+    assert disabled.json()["generative_available"] is False
+    assert "OPENAI_API_KEY" not in disabled.text
+
+    monkeypatch.setattr("app.api.v1.beauty.settings.OPENAI_API_KEY", "configured-test-key")
+    enabled = client.get(f"{API}/beauty/capabilities", headers=headers)
+    assert enabled.status_code == 200
+    assert enabled.json()["generative_available"] is True
+    assert enabled.json()["generative_provider"] == "OpenAI"
+    assert "configured-test-key" not in enabled.text
+
+
+def test_generative_upload_requires_external_provider_consent(
+    client, monkeypatch, tmp_path
+):
+    registration = register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+    monkeypatch.setattr("app.api.v1.beauty.settings.OPENAI_API_KEY", "configured-test-key")
+    image_bytes = cv2.imencode(
+        ".png", np.full((32, 32, 3), 120, dtype=np.uint8)
+    )[1].tobytes()
+
+    response = client.post(
+        f"{API}/beauty/process-upload?engine=generative&consent_confirmed=true",
+        headers=headers,
+        files={"file": ("portrait.png", image_bytes, "image/png")},
+    )
+    assert response.status_code == 403
+    assert "external generative AI provider" in response.json()["detail"]
+    input_dir = media_root / "salons" / salon_id / "inputs"
+    assert not input_dir.exists() or not list(input_dir.glob("*"))
