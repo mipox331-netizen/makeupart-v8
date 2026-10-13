@@ -329,7 +329,7 @@ class BeautyProvider:
                 direction = -1 if outer[0] < (x + w // 2) else 1
                 wing = np.array(
                     [
-                        max(0, min(width - 1, int(outer[0] + direction * max(2, int(w * 0.022)))),
+                        max(0, min(width - 1, int(outer[0] + direction * max(2, int(w * 0.022))))),
                         max(0, int(outer[1] - max(1, int(h * 0.008)))),
                     ],
                     dtype=np.int32,
