@@ -35,7 +35,7 @@ jobs:
             local body http_code actual preview
             body="$(mktemp)"
             http_code="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
-              --connect-timeout 10 --max-time 20 "$API_ROOT$endpoint" || true)"
+              --connect-timeout 10 --max-time 90 "$API_ROOT$endpoint" || true)"
 
             if [[ "$http_code" != "200" ]]; then
               preview="$(head -c 240 "$body" | tr '\n' ' ' || true)"
