@@ -27,20 +27,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          API_ROOT="${API_BASE_URL%/}"
 
           check_health() {
             local endpoint="$1"
             local expected="$2"
-            local body
-            local actual
-            body="$(curl --fail --silent --show-error \
-              --connect-timeout 10 --max-time 20 \
-              --retry 3 --retry-delay 5 --retry-all-errors \
-              "$API_BASE_URL$endpoint")"
-            actual="$(printf '%s' "$body" | python -c 'import json,sys; print(json.load(sys.stdin).get("status", ""))')"
+            local body http_code actual preview
+            body="$(mktemp)"
+            http_code="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
+              --connect-timeout 10 --max-time 20 "$API_ROOT$endpoint" || true)"
+
+            if [[ "$http_code" != "200" ]]; then
+              preview="$(head -c 240 "$body" | tr '\n' ' ' || true)"
+              rm -f "$body"
+              echo "::error::Production endpoint $endpoint returned HTTP ${http_code:-000}; response=${preview:-<empty>}"
+              return 1
+            fi
+
+            actual="$(python - "$body" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        print(json.load(handle).get("status", ""))
+except Exception:
+    print("")
+PY
+)"
+            rm -f "$body"
             if [[ "$actual" != "$expected" ]]; then
-              echo "::error::Unexpected health result for $endpoint (expected $expected, got $actual)"
-              printf '%s\n' "$body"
+              echo "::error::Unexpected health result for $endpoint (expected $expected, got ${actual:-<invalid JSON>})"
               return 1
             fi
             echo "Production $endpoint check: $actual"
