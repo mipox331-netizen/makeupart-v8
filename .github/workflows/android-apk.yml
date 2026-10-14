@@ -14,10 +14,18 @@ on:
     branches: [main]
     paths:
       - "makeup_art_v8/**"
+      - "backend/**"
+      - "modal_app.py"
+      - ".github/workflows/android-apk.yml"
+      - ".github/workflows/modal-deploy.yml"
   workflow_dispatch:
+  workflow_run:
+    workflows: ["MakeupArt V8 Modal Production Deploy"]
+    types: [completed]
 
 jobs:
   build-android-apk:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     env:
       PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
@@ -109,6 +117,44 @@ jobs:
 
       - name: Run Flutter tests
         run: flutter test
+
+      - name: Verify production API liveness and readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_ROOT="${PRODUCTION_API_BASE_URL%/api/v1}"
+          check_health() {
+            local endpoint="$1"
+            local expected="$2"
+            local body http_code actual
+            body="$(mktemp)"
+            http_code="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
+              --connect-timeout 10 --max-time 25 "$API_ROOT$endpoint" || true)"
+            if [[ "$http_code" != "200" ]]; then
+              local preview
+              preview="$(head -c 240 "$body" | tr '\n' ' ' || true)"
+              rm -f "$body"
+              echo "::error::Production API endpoint $endpoint returned HTTP ${http_code:-000}; response=${preview:-<empty>}"
+              return 1
+            fi
+            actual="$(python - "$body" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        print(json.load(handle).get("status", ""))
+except Exception:
+    print("")
+PY
+)"
+            rm -f "$body"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error::Production API endpoint $endpoint expected status '$expected', got '${actual:-<invalid JSON>}'"
+              return 1
+            fi
+            echo "Production API $endpoint: $actual"
+          }
+          check_health "/health/live" "alive"
+          check_health "/health/ready" "ready"
 
       - name: Build Android release APK
         run: |
