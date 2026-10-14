@@ -28,7 +28,7 @@ jobs:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     env:
-      PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
+      PRODUCTION_API_BASE_URL: https://makeupart-api.onrender.com/api/v1
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
