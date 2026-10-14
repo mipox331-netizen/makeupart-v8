@@ -373,14 +373,14 @@ jobs:
               return 1
             fi
             actual="$(python - "$body" <<'PY'
-import json, sys
-try:
-    with open(sys.argv[1], encoding="utf-8") as handle:
-        print(json.load(handle).get("status", ""))
-except Exception:
-    print("")
-PY
-)"
+          import json, sys
+          try:
+              with open(sys.argv[1], encoding="utf-8") as handle:
+                  print(json.load(handle).get("status", ""))
+          except Exception:
+              print("")
+          PY
+          )"
             rm -f "$body"
             if [[ "$actual" != "$expected" ]]; then
               echo "::error::Deployed API endpoint $endpoint expected status '$expected', got '${actual:-<invalid JSON>}'"
