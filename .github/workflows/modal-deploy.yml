@@ -353,14 +353,45 @@ jobs:
       - name: Verify media volume persistence
         run: modal run modal_app.py::verify_media_volume
 
-      - name: Verify deployed app
+      - name: Verify deployed app liveness and readiness
         shell: bash
         run: |
           set -euo pipefail
           API_ROOT='https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run'
-          curl --fail --silent --show-error --max-time 30 "$API_ROOT/health/ready"
-          echo
-          echo "Production API is ready: $API_ROOT"
+
+          check_health() {
+            local endpoint="$1"
+            local expected="$2"
+            local body http_code actual preview
+            body="$(mktemp)"
+            http_code="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
+              --connect-timeout 10 --max-time 30 "$API_ROOT$endpoint" || true)"
+            if [[ "$http_code" != "200" ]]; then
+              preview="$(head -c 240 "$body" | tr '\n' ' ' || true)"
+              rm -f "$body"
+              echo "::error::Deployed API endpoint $endpoint returned HTTP ${http_code:-000}; response=${preview:-<empty>}"
+              return 1
+            fi
+            actual="$(python - "$body" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        print(json.load(handle).get("status", ""))
+except Exception:
+    print("")
+PY
+)"
+            rm -f "$body"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error::Deployed API endpoint $endpoint expected status '$expected', got '${actual:-<invalid JSON>}'"
+              return 1
+            fi
+            echo "Deployed API $endpoint: $actual"
+          }
+
+          check_health "/health/live" "alive"
+          check_health "/health/ready" "ready"
+          echo "Production API liveness and readiness verified: $API_ROOT"
 
       - name: Verify production registration and login
         shell: bash
