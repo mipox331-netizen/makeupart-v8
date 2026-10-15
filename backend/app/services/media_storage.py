@@ -19,7 +19,10 @@ class MediaStorageError(RuntimeError):
 
 
 def is_configured() -> bool:
-    return bool(settings.SUPABASE_SERVICE_ROLE_KEY.strip())
+    return bool(
+        settings.SUPABASE_URL.strip().rstrip("/") == EXPECTED_SUPABASE_URL
+        and settings.SUPABASE_SERVICE_ROLE_KEY.strip()
+    )
 
 
 def _config():
@@ -125,4 +128,26 @@ def ensure_local_file(path: str | Path) -> bool:
         raise MediaStorageError("Persistent media could not be restored locally.") from exc
     finally:
         temporary.unlink(missing_ok=True)
+    return True
+
+
+def delete_media_file(path: str | Path) -> bool:
+    """Delete a salon-scoped object from the configured private bucket."""
+    candidate = Path(path).expanduser().resolve()
+    object_key = _key(candidate)
+    config = _config()
+    if config is None:
+        return False
+    _, service_key, bucket = config
+    try:
+        response = httpx.delete(
+            f"{EXPECTED_SUPABASE_URL}/storage/v1/object/{quote(bucket, safe='')}",
+            headers=_headers(service_key, "application/json"),
+            json={"prefixes": [object_key]},
+            timeout=httpx.Timeout(30.0, connect=10.0),
+        )
+    except httpx.HTTPError as exc:
+        raise MediaStorageError("Persistent media storage could not be reached for deletion.") from exc
+    if response.status_code not in (200, 204):
+        raise MediaStorageError(f"Persistent media deletion failed (HTTP {response.status_code}).")
     return True
