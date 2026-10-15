@@ -61,7 +61,7 @@ jobs:
           DOWNLOAD_LOG="$RUNNER_TEMP/modal-volume-download.log"
           download_ok=false
           for attempt in 1 2 3; do
-            if timeout 180 modal volume get --force -e main makeupart-v8-media / "$STAGE/media" >/dev/null 2>"$DOWNLOAD_LOG"; then
+            if timeout 180 modal volume get --force -e main makeupart-v8-media / "$STAGE/media" >"$DOWNLOAD_LOG" 2>&1; then
               download_ok=true
               break
             fi
