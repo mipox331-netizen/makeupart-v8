@@ -57,11 +57,42 @@ jobs:
           # Create the local target even when the production volume has no files yet.
           mkdir -p "$STAGE/media"
           chmod 700 "$BACKUP_DIR" "$STAGE" "$STAGE/media"
-          # Suppress CLI output so private file paths are not written to public workflow logs.
-          if ! modal volume get --force -e main makeupart-v8-media / "$STAGE/media" >/dev/null 2>&1; then
-            echo "::error::Could not download the production media volume. Command output was suppressed to protect private paths."
+          # Capture CLI diagnostics privately; classify the failure without logging paths, tokens, or customer data.
+          DOWNLOAD_LOG="$RUNNER_TEMP/modal-volume-download.log"
+          download_ok=false
+          for attempt in 1 2 3; do
+            if timeout 180 modal volume get --force -e main makeupart-v8-media / "$STAGE/media" >/dev/null 2>"$DOWNLOAD_LOG"; then
+              download_ok=true
+              break
+            fi
+            if [[ "$attempt" -lt 3 ]]; then
+              sleep 3
+            fi
+          done
+
+          if [[ "$download_ok" != true ]]; then
+            reason="$(python - "$DOWNLOAD_LOG" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+          output = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").lower()
+          if re.search(r"spend limit|billing|workspace.{0,30}disabled|exceed.{0,30}limit", output):
+              print("Modal workspace appears restricted by billing or a spend limit; restore Modal access before retrying media backup.")
+          elif re.search(r"unauthorized|authentication failed|invalid token|token.{0,20}expired", output):
+              print("Modal rejected the configured credentials; refresh the production Modal token secrets.")
+          elif re.search(r"permission denied|forbidden|not authorized", output):
+              print("The configured Modal identity lacks access to the production media volume.")
+          elif re.search(r"volume.{0,40}(not found|does not exist)|no volume named", output):
+              print("The named Modal media volume was not found in the selected environment.")
+          else:
+              print("Modal media volume download failed after three attempts; raw command output was withheld to protect private paths and credentials.")
+          PY
+          )"
+            rm -f "$DOWNLOAD_LOG"
+            echo "::error::$reason"
             exit 1
           fi
+          rm -f "$DOWNLOAD_LOG"
           test -d "$STAGE/media" || { echo "::error::The Modal media volume download did not produce a directory."; exit 1; }
 
           python - "$STAGE/media" "$STAGE/manifest.json" <<'PY'

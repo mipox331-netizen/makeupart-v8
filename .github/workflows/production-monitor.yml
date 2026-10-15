@@ -34,8 +34,19 @@ jobs:
             local expected="$2"
             local body http_code actual preview
             body="$(mktemp)"
-            http_code="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
-              --connect-timeout 10 --max-time 90 "$API_ROOT$endpoint" || true)"
+            for attempt in 1 2; do
+              http_code="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
+                --connect-timeout 10 --max-time 90 "$API_ROOT$endpoint" || true)"
+              [[ "$http_code" == "200" ]] && break
+              if [[ "$http_code" == "000" || "$http_code" == "502" || "$http_code" == "503" || "$http_code" == "504" ]]; then
+                if [[ "$attempt" -lt 2 ]]; then
+                  echo "::warning::Production endpoint $endpoint returned HTTP ${http_code:-000}; retrying once for a possible free-tier cold start."
+                  sleep 5
+                  continue
+                fi
+              fi
+              break
+            done
 
             if [[ "$http_code" != "200" ]]; then
               preview="$(head -c 240 "$body" | tr '\n' ' ' || true)"
