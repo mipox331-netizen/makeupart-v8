@@ -1,46 +1,44 @@
 # Final Status
 
-Status date: 12 October 2026. The latest verified production deployment is commit `8980ef5df4e49249ca9e93d5687f693a471cfe52` ([Modal deployment run](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38271732606)). Subsequent commits add automated encrypted database/media backup and restore workflows. See [Release Readiness](RELEASE_READINESS.md), [Media Backup](MEDIA_BACKUP.md), and [Third-party license audit](THIRD_PARTY_LICENSE_AUDIT.md) for the remaining launch gates.
+Status verified against GitHub Actions and the connected Render workspace on 15 October 2026. This report separates a published APK and passing code checks from remaining production-operability risks.
 
 ## Delivered and verified
 
 - FastAPI + PostgreSQL + Alembic backend, salon-scoped authentication, user administration and subscription enforcement.
-- Customer records, consultations, stored consent, job history, privacy deletion and authenticated salon-isolated media.
-- Image validation, metadata stripping, retention cleanup, request IDs and security headers.
-- Flutter registration/login, token refresh, customer controls, consent, camera/gallery processing and authenticated result images.
-- Android APK release pipeline, signing verification, public GitHub Release and in-app update prompt.
-- Production health monitor workflow configured to check liveness/readiness every 15 minutes.
-- Encrypted PostgreSQL backup workflow, automatically triggered after successful production deployment and daily, with a separate PostgreSQL restore drill that automatically runs against each successful backup.
-- Encrypted Modal media-volume backup with SHA-256 inventory, GPG AES-256 encryption, 14-day artifact retention, temporary-directory restore verification, and cleanup of unencrypted staging files.
-- Admin disable/unblock now revokes refresh sessions and rejects stale access tokens via `token_version`.
-- InsightFace pretrained weights/runtime were removed; production uses MediaPipe landmarks + OpenCV structural-preservation guard. The score is not biometric identity recognition.
-- Root [LICENSE](../LICENSE) now records the proprietary rights notice for original project materials.
-- Python and Flutter/Dart third-party license inventory workflow added.
+- Customer records, consultations, stored consent, job history, privacy deletion and authenticated salon-isolated media routes.
+- Image validation, embedded metadata removal, retention cleanup, request IDs and security response headers.
+- Flutter registration/login, token refresh, customer controls, consent, camera/gallery flow, before/after view and gallery export.
+- Salon branding/watermark settings and before/after image outputs.
+- Admin deactivation revokes refresh sessions and rejects stale access tokens via `token_version`.
+- Production health monitor and release workflows use liveness/readiness checks and retry transient network/gateway failures once.
+- Public Android APK release [v8.0.164](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.164). [Direct APK download](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.164/MakeupArt-V8.apk).
+- Optional app update checker prompts for newer GitHub Releases; Android installation still requires user approval.
+- Database backup and isolated restore automation is configured and recent database backup/restore jobs passed.
+- InsightFace runtime/weights were removed; the classic image path uses MediaPipe + OpenCV. Its structure-preservation score is not biometric identity recognition.
+- Original source licensing notice and third-party dependency inventory workflow are present.
 
-## Latest verified production evidence
+## Latest verified evidence
 
-- CI on deployed application source commit `8980ef5df4e49249ca9e93d5687f693a471cfe52`: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38271732582); backend tests, Flutter analysis/tests, production API checks and Android debug build passed.
-- Modal production deployment on commit `8980ef5df4e49249ca9e93d5687f693a471cfe52`: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38271732606); migration head `0009_reconcile_refresh_sessions`, MediaPipe/OpenCV runtime, media-volume persistence, API readiness and registration/login/free-subscription smoke tests passed. The production secret argument bug was corrected.
-- Third-party dependency inventory on that commit: [success](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38264809964); manual review of reported license terms remains necessary.
-- Database backup/restore automation: [encrypted backup](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38272625257) and [isolated restore drill](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38272736313) both passed. The restore has 11 required tables and migration head `0009_reconcile_refresh_sessions`, but `users`, `salons`, and `subscriptions` are empty. This proves an empty-database/schema restore, not recovery of real customer rows.
-- Android Release `v8.0.145` is published and its release workflow [passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38264810025). [Download the current APK](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.145/MakeupArt-V8.apk).
+- Android APK workflow [#164 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699306152): Flutter analysis/tests, production `/health/live` and `/health/ready`, release APK build, APK verification and public GitHub Release succeeded.
+- APK SHA-256: `b048bd80ba5611c1ee9a78eb716d331736ed3495268ab7e2f2d93f8a6389cbba`.
+- **Signing limitation:** the release job explicitly reported that Android release-signing secrets are not configured, then used Flutter's debug signing key. This build supports manual installation; it is not a Play Store-signed release.
+- Production monitor [#140 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699306251). Earlier monitor [#135 timed out](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38685000956) during API startup; subsequent checks succeeded.
+- Latest completed full CI before the ops-only change was [#515, passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38575788229). CI workflows for the latest operational commits were still queued/running when this report was updated.
+- Encrypted database backup [#22 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38673627849) and isolated database restore drill [#29 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38673699725). They prove that the workflow can create and restore an archive, not yet that the backup URL equals the database used by the live Render API.
+- Encrypted media backup [#25 failed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699417171); its paired [restore drill #24 was skipped](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699465088). The job retries the Modal volume download and withholds raw CLI output to protect paths and credentials, but the volume download still fails.
+- The connected Render workspace lists `makeupart-api` as a free web service and also exposes a free PostgreSQL resource with an expiry date of 31 October 2026. The runtime's actual database URL is not visible from service metadata, so confirm which DB is in use before any resource removal or final disaster-recovery claim.
 
-## Media backup evidence
+## Release blockers
 
-- [Encrypted media backup](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38272705211) and [isolated media restore drill](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38272747093) passed checksum, decryption and file-manifest verification. The Modal media volume contained **0 files / 0 bytes** during this run; the mechanics are verified, but recovery of actual customer photos is not yet proven. See [Media Backup](MEDIA_BACKUP.md).
+1. **Photo durability:** The live API writes image files under `MEDIA_ROOT`; the media backup job downloads a separate Modal volume. A successful backup/restore of that volume would not prove recovery of photos that exist only on Render. Connect the live API to durable object storage, back up that same storage, then restore a populated archive.
+2. **Database source agreement:** Confirm that live Render `DATABASE_URL` and the database backup secret refer to the same production database; test row-level recovery on an isolated target containing test data.
+3. **Android store signing:** Configure the Android release keystore/secrets before publishing to Play Console. Current v8.0.164 uses the debug signing key.
+4. **Commercial clearance:** Review the generated Python, Flutter/Dart, native Android/iOS, container and asset/model license terms before claiming full commercial clearance.
+5. **Store availability:** No successful Google Play rollout, signed iOS IPA, TestFlight build or App Store submission is verified.
+6. **Independent incident alerting:** GitHub Actions health checks exist; independent SMS/pager incident alerts are not verified.
 
-## Remaining release gates
+## AI capabilities and limitations
 
-- **Third-party licensing:** automated inventories are generated, but the reports must be reviewed for unknown/ambiguous licenses and native Android/iOS, operating-system and container components before a full commercial-clearance claim.
-- **Database disaster recovery:** the current successful restore drill used an empty core dataset. Verify a backup containing actual application rows against an isolated target before claiming row-data recovery.
-- **Media disaster recovery:** encrypted off-volume backups and isolated restore checks are now automated. The current production media volume is empty, so actual customer-photo recovery remains unproven until real media exists; artifacts are retained for 14 days.
-- **Generative makeup:** not implemented. Current processing is bounded OpenCV skin smoothing and heuristic shade estimation, not generation of a new makeup look.
-- **Google Play:** no successful store publication is verified; requires the Play Console app and service-account permissions.
-- **iOS:** no signed IPA, TestFlight build or App Store submission is verified.
-- **Incident alerts:** GitHub Actions health checks are configured, but independent SMS/pager alerts are not.
+Classic MediaPipe/OpenCV effects run without a paid image-generation key. This is deterministic local image processing and shade estimation, not a FaceApp-equivalent diffusion makeup transfer. The optional OpenAI image-edit provider exists in code but remains disabled unless configured server-side; it adds provider cost and requires explicit external-processing consent. Generated facial details are not guaranteed to preserve identity and should be reviewed.
 
-## AI limitations
-
-The current score checks local image-structure preservation after a bounded smoothing edit. It is not biometric identity matching and does not guarantee identity preservation for arbitrary generated images. Skin-tone and undertone estimates are heuristics, not validated cosmetic measurements.
-
-The status above distinguishes completed engineering checks from external launch evidence; a green CI/deploy does not itself complete store publication, legal review, or disaster recovery.
+A green APK workflow does not itself prove the complete live customer workflow, photo durability, paid-provider readiness, store approval or commercial licensing.
