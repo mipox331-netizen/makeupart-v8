@@ -1,17 +1,22 @@
 # MakeupArt V8 Production Runbook
 
-## 1. Primary production path
+## 1. Current Android endpoint and deployment paths
 
-The live production backend runs on Modal with Supabase PostgreSQL.
+The published Android APK v8.0.164 is configured to call the Render API:
 
-Production API:
+`https://makeupart-api.onrender.com/api/v1`
+
+The connected deployment record identifies `makeupart-api` on Render's free plan. Cold starts and transient gateway timeouts have occurred, so a green health check is not a guarantee that every user flow works continuously.
+
+**Important storage and database boundary:** the APK's API endpoint being Render does not prove that the running service uses the same database URL selected by the backup workflow, and it does not make local `MEDIA_ROOT` files durable. Verify the runtime database target before relying on a database restore, and do not rely on local media files for customer-photo retention unless persistent/object storage is attached and its restore is tested.
+
+The repository also retains a separate Modal deployment path. That path is **not** the endpoint configured in the published APK. Use it only after the Modal deployment, database connection, and media volume are deliberately restored and verified. Its API URL is:
+
 `https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run`
 
-Deploys are driven by GitHub Actions through `.github/workflows/modal-deploy.yml`.
+Deploys for the Modal alternative are driven by GitHub Actions through `.github/workflows/modal-deploy.yml`. The deployment gate validates Modal/database credentials, provisions the production secret, deploys FastAPI, applies Alembic migrations, verifies the migration head and required tables, checks the MediaPipe + OpenCV image-preservation runtime, and verifies `/health/ready`.
 
-The deployment gate validates Modal/database credentials, provisions the production secret, deploys FastAPI, applies Alembic migrations, verifies the migration head and required tables, checks the MediaPipe + OpenCV image-preservation runtime, and verifies `/health/ready`.
-
-## 2. Required production secrets
+## 2. Required secrets for the Modal deployment path
 
 Store these in GitHub repository secrets or the `production` environment as appropriate:
 

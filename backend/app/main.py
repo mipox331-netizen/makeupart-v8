@@ -45,10 +45,11 @@ async def request_middleware(request: Request, call_next):
             request.method,
             request.url.path,
         )
-        return JSONResponse(
+        response = JSONResponse(
             status_code=500,
             content={"detail": "Internal server error", "request_id": request_id},
         )
+        return response
     finally:
         elapsed_ms = (time.perf_counter() - started) * 1000
         if response is not None:
