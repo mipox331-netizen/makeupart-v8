@@ -5,7 +5,10 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-MakeupStyle = Literal["natural", "soft_glam", "bridal_rose", "evening_glam"]
+MakeupStyle = Literal[
+    "natural", "soft_glam", "bridal_rose", "evening_glam",
+    "smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush",
+]
 BeautyEngine = Literal["classic", "generative"]
 GenerativeLook = Literal[
     "natural", "soft_glam", "full_glam", "bridal_glam", "smokey_eye",
