@@ -22,7 +22,8 @@ class Settings(BaseSettings):
     GOOGLE_DRIVE_CLIENT_ID: str = ""
     GOOGLE_DRIVE_CLIENT_SECRET: str = ""
     GOOGLE_DRIVE_REFRESH_TOKEN: str = ""
-    REQUIRE_DURABLE_MEDIA: bool = False\n    MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
+    REQUIRE_DURABLE_MEDIA: bool = False
+    MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
     MAX_IMAGE_PIXELS: int = 40_000_000
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
