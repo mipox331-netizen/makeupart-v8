@@ -21,6 +21,7 @@ class FakeScalars:
 class FakeSession:
     def __init__(self, rows):
         self.rows = rows
+        self.commits = 0
 
     def __enter__(self):
         return self
@@ -31,10 +32,16 @@ class FakeSession:
     def execute(self, _statement):
         return FakeScalars(self.rows)
 
+    def commit(self):
+        self.commits += 1
+
 
 def test_cleanup_expires_drive_media_when_render_local_root_is_missing(monkeypatch, tmp_path):
     media_root = tmp_path / "missing-media-root"
     monkeypatch.setattr(settings, "MEDIA_ROOT", str(media_root))
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "test-client")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "test-secret")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "test-refresh")
     salon_id = uuid.uuid4()
     missing_file = (
         media_root / "salons" / str(salon_id) / "outputs" / "old-photo.png"
@@ -45,9 +52,8 @@ def test_cleanup_expires_drive_media_when_render_local_root_is_missing(monkeypat
         input_file_path=str(missing_file),
         output_file_path=None,
     )
-    monkeypatch.setattr(
-        cleanup_script, "SessionLocal", lambda: FakeSession([old_job])
-    )
+    fake_session = FakeSession([old_job])
+    monkeypatch.setattr(cleanup_script, "SessionLocal", lambda: fake_session)
     deleted: list[Path] = []
 
     def delete_drive_media(path):
@@ -63,3 +69,5 @@ def test_cleanup_expires_drive_media_when_render_local_root_is_missing(monkeypat
     assert not media_root.exists()
     assert cleanup_script.cleanup_media() == 0
     assert deleted == [missing_file]
+    assert old_job.input_file_path is None
+    assert fake_session.commits == 1
