@@ -13,6 +13,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Iterator
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -78,7 +79,8 @@ def _relative_key(path: str | Path) -> str:
     key = relative.as_posix()
     if not key or key == "." or ".." in key.split("/"):
         raise GoogleDriveMediaError("Media path is invalid.")
-    if len(key.encode("utf-8")) > 120:
+    # Google Drive limits each appProperties key+value to 124 UTF-8 bytes.
+    if len(key.encode("utf-8")) > 105:
         raise GoogleDriveMediaError("Media path is too long for the private storage index.")
     return key
 
@@ -306,6 +308,18 @@ def persist_media_file(path: str | Path) -> bool:
     session_url = response.headers.get("Location")
     if not session_url:
         raise GoogleDriveMediaError("Google Drive did not return a resumable upload session.")
+    parsed_session_url = urlsplit(session_url)
+    if (
+        parsed_session_url.scheme != "https"
+        or not parsed_session_url.hostname
+        or not (
+            parsed_session_url.hostname == "googleapis.com"
+            or parsed_session_url.hostname.endswith(".googleapis.com")
+        )
+    ):
+        raise GoogleDriveMediaError(
+            "Google Drive returned an unsafe resumable upload URL."
+        )
 
     response = _request(
         "PUT",
