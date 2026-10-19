@@ -359,6 +359,10 @@ def ensure_local_file(path: str | Path) -> bool:
     temporary = candidate.with_name(f".{candidate.name}.{uuid.uuid4().hex}.tmp")
     headers = {"Authorization": f"Bearer {token}"}
     total = 0
+    # Drive exposes md5Checksum for binary files. Validate it before publishing a
+    # restored photo so a truncated/corrupted download never replaces the local copy.
+    expected_md5 = str(media.get("md5Checksum") or "").strip().lower()
+    actual_md5 = hashlib.md5(usedforsecurity=False)
     try:
         with httpx.stream(
             "GET",
@@ -381,11 +385,16 @@ def ensure_local_file(path: str | Path) -> bool:
                         raise GoogleDriveMediaError(
                             "Google Drive media object exceeds the safe restore limit."
                         )
+                    actual_md5.update(chunk)
                     destination.write(chunk)
                 destination.flush()
                 os.fsync(destination.fileno())
         if total == 0:
             raise GoogleDriveMediaError("Google Drive returned an empty media object.")
+        if expected_md5 and actual_md5.hexdigest().lower() != expected_md5:
+            raise GoogleDriveMediaError(
+                "Google Drive media checksum mismatch; refusing to restore a corrupted file."
+            )
         os.replace(temporary, candidate)
         return True
     except GoogleDriveMediaError:
