@@ -2,10 +2,11 @@ import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import delete, or_
+from sqlalchemy import delete, or_, select
 
 from app.core.config import settings
 from app.db.session import SessionLocal
+from app.models.beauty_job import BeautyJob
 from app.models.login_attempt import LoginAttempt
 from app.models.refresh_session import RefreshSession
 from app.services import google_drive_media
@@ -38,6 +39,46 @@ def cleanup_media() -> int:
             logger.exception("Failed to remove expired media from private Drive storage: %s", path)
         except OSError:
             logger.exception("Failed to remove media file %s", path)
+
+    # Render's local filesystem is ephemeral. A media file may therefore
+    # be absent locally while its private Drive copy still exists. Use retained
+    # job records as the authoritative index for expiring those remote objects.
+    with SessionLocal() as db:
+        expired_jobs = db.execute(
+            select(BeautyJob).where(BeautyJob.created_at < cutoff)
+        ).scalars().all()
+
+        for job in expired_jobs:
+            salon_root = (
+                settings.media_root_path / "salons" / str(job.salon_id)
+            ).resolve()
+            for stored_path in (job.input_file_path, job.output_file_path):
+                if not stored_path:
+                    continue
+                candidate = Path(stored_path).expanduser().resolve()
+                try:
+                    candidate.relative_to(salon_root)
+                except ValueError:
+                    logger.error(
+                        "Refusing retention cleanup for a media path outside its salon."
+                    )
+                    continue
+                if candidate.exists() and not candidate.is_file():
+                    logger.error("Refusing retention cleanup for a non-file media path.")
+                    continue
+                try:
+                    google_drive_media.delete_media_file(candidate)
+                except GoogleDriveMediaError:
+                    logger.exception(
+                        "Failed to expire remote salon media; its job record is retained."
+                    )
+                    continue
+                if candidate.is_file():
+                    try:
+                        candidate.unlink()
+                        removed += 1
+                    except OSError:
+                        logger.exception("Failed to remove expired local media.")
 
     return removed
 
