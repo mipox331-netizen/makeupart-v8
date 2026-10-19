@@ -367,7 +367,16 @@ def process_beauty(
             detail="Input image is outside salon storage",
         )
     if not input_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Input image not found")
+        try:
+            restored = google_drive_media.ensure_local_file(input_path)
+        except GoogleDriveMediaError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Private photo storage is temporarily unavailable.",
+            ) from exc
+        if not restored or not input_path.is_file():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Input image not found")
+        commit_media_volume()
     payload.image_path = str(input_path)
 
     try:
