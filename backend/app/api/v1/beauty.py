@@ -38,6 +38,8 @@ from app.services.media_volume import commit_media_volume
 from app.services.subscription import release_beauty_job_quota, reserve_beauty_job_quota
 from app.services.watermark import apply_watermark, get_or_create_watermark
 
+logger = logging.getLogger("makeupart.beauty")
+
 router = APIRouter(prefix="/beauty", tags=["beauty"])
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
