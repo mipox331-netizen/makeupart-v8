@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import uuid
 
 from app.core.config import settings
-from app.scripts import cleanup as cleanup_script
+from scripts import cleanup as cleanup_script
 
 
 class FakeScalars:
