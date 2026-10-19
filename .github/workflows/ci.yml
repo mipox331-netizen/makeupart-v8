@@ -201,10 +201,14 @@ jobs:
         run: flutter test
 
       - name: Verify production API
+        # Pull-request checks must be deterministic and must not wait on a cold,
+        # free-tier production service. Production pushes and manual release builds
+        # still verify readiness; the scheduled production monitor owns ongoing uptime.
+        if: ${{ github.event_name != 'pull_request' }}
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "${PRODUCTION_API_BASE_URL%/api/v1}/health/ready"
+          curl --fail --silent --show-error --retry 2 --retry-delay 3 --connect-timeout 10 --max-time 20 "${PRODUCTION_API_BASE_URL%/api/v1}/health/ready"
           echo
 
       - name: Build Android debug APK
