@@ -161,7 +161,12 @@ def _access_token() -> str:
 
 
 def _root_folder_id(token: str) -> str:
-    cache_key = hashlib.sha256(settings.GOOGLE_DRIVE_CLIENT_ID.strip().encode()).hexdigest()
+    credentials = _credentials()
+    if credentials is None:
+        raise GoogleDriveMediaError("Google Drive OAuth is not configured.")
+    cache_key = hashlib.sha256(
+        (credentials[0] + "\\0" + credentials[2]).encode("utf-8")
+    ).hexdigest()
     with _ROOT_LOCK:
         cached = _ROOT_CACHE.get(cache_key)
         if cached:
