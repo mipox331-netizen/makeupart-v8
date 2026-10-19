@@ -96,8 +96,8 @@ def test_upload_uses_private_app_folder_and_resumable_drive_upload(monkeypatch, 
             assert kwargs["params"]["ignoreDefaultVisibility"] == "true"
             assert metadata["appProperties"]["makeupart_path"] == "salons/salon-123/outputs/after.png"
             assert metadata["name"].endswith("-after.png")
-            return make_response(url, headers={"Location": "https://upload.test/session"})
-        if method == "PUT" and url == "https://upload.test/session":
+            return make_response(url, headers={"Location": "https://www.googleapis.com/upload/session"})
+        if method == "PUT" and url == "https://www.googleapis.com/upload/session":
             uploaded_chunks.extend(list(kwargs["content"]))
             return make_response(url, body={"id": "saved-file", "name": "after.png"})
         raise AssertionError(f"Unexpected Google Drive API request: {method} {url}")
@@ -175,3 +175,24 @@ def test_delete_trashes_only_the_matched_private_drive_file(monkeypatch, tmp_pat
     assert recorded["method"] == "PATCH"
     assert recorded["url"].endswith("/files/matched-file")
     assert recorded["json"] == {"trashed": True}
+
+
+def test_rejects_upload_session_url_outside_google_hosts(monkeypatch, tmp_path):
+    configure_drive(monkeypatch, tmp_path)
+    media_path = (
+        settings.media_root_path / "salons" / "salon-123" / "outputs" / "after.png"
+    )
+    media_path.parent.mkdir(parents=True)
+    media_path.write_bytes(b"private-makeup-image")
+    monkeypatch.setattr(drive, "_access_token", lambda: "test-token")
+    monkeypatch.setattr(drive, "_root_folder_id", lambda _token: "private-root")
+    monkeypatch.setattr(drive, "_find_media_object", lambda *_args: None)
+
+    def fake_request(method, url, **kwargs):
+        if method == "GET":
+            return make_response(url, body={"files": []})
+        return make_response(url, headers={"Location": "https://attacker.example/upload"})
+
+    monkeypatch.setattr(drive, "_request", fake_request)
+    with pytest.raises(drive.GoogleDriveMediaError, match="unsafe resumable upload URL"):
+        drive.persist_media_file(media_path)
