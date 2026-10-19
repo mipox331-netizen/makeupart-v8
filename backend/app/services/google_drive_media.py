@@ -213,6 +213,12 @@ def _escaped_query_value(value: str) -> str:
     return value.replace("\\", "\\\\").replace("'", "\\'")
 
 
+def verify_connection() -> None:
+    """Verify OAuth access and ensure the app's private root folder is reachable."""
+    token = _access_token()
+    _root_folder_id(token)
+
+
 def _find_media_object(path_key: str, token: str, folder_id: str) -> dict | None:
     escaped_key = _escaped_query_value(path_key)
     query = (
