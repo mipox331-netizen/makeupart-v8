@@ -79,6 +79,30 @@ def test_makeup_style_presets_apply_face_guided_tints():
     ) > 1.0
     assert np.array_equal(source, np.full((256, 256, 3), 150, dtype=np.uint8))
 
+    # These additional presets are genuinely targeted effects, not just labels
+    # that silently fall back to the natural preset.
+    targeted = {}
+    for style in ("smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush"):
+        targeted[style] = BeautyProvider._apply_makeup(
+            source.copy(), landmarks, style, 1.0
+        )
+        assert not np.array_equal(source, targeted[style]), style
+
+    assert not np.array_equal(
+        source[eye_region], targeted["eyeshadow"][eye_region]
+    )
+    assert not np.array_equal(
+        source[eye_region], targeted["eyeliner"][eye_region]
+    )
+    lip_region = np.s_[145:170, 96:160]
+    assert not np.array_equal(
+        source[lip_region], targeted["lipstick"][lip_region]
+    )
+    cheek_region = np.s_[160:190, 80:180]
+    assert not np.array_equal(
+        source[cheek_region], targeted["blush"][cheek_region]
+    )
+
 
 def test_skin_tone_detection_uses_image_pixels():
     matcher = SkinToneMatcher()
