@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: makeupart-v8-supabase-migration
+  # Share the same lock with Modal production deploy/migrations against this database.
+  group: makeupart-v8-modal-production
   cancel-in-progress: false
 
 jobs:
