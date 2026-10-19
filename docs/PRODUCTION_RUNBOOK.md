@@ -36,7 +36,7 @@ Never commit secret values or paste them into chat.
 
 The API has an optional private Google Drive adapter for salon logos and customer before/after photos. It uses the Google account owner's OAuth refresh token (not a service account), the `drive.file` scope, and a private folder created by the app. It does not create public sharing links.
 
-Enable the Google Drive API in Google Cloud, create an OAuth client, and grant the app the `https://www.googleapis.com/auth/drive.file` scope with offline access. Use the [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground/) with your own OAuth client credentials to authorize the account and obtain a refresh token. Do not paste credentials into chat or commit them to Git.
+Enable the Google Drive API in Google Cloud, configure the OAuth consent screen, and create a **Web application** OAuth client. Add `https://developers.google.com/oauthplayground` as an authorized redirect URI. In the [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground/), open Settings, enable **Use your own OAuth credentials**, enter that client ID/secret, request `https://www.googleapis.com/auth/drive.file`, use offline access, authorize your Google account, then exchange the code for a refresh token. Do not paste credentials into chat or commit them to Git. The `drive.file` scope is the narrow per-file scope recommended by Google; it avoids granting the app broad access to every Drive file. See [Drive API scope guidance](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
 
 Set these environment variables on the live Render `makeupart-api` service:
 
@@ -48,6 +48,8 @@ Set these environment variables on the live Render `makeupart-api` service:
 The example environment leaves `REQUIRE_DURABLE_MEDIA=false` so setup does not unexpectedly disable photo processing. Once the OAuth values are configured, test a new image upload and restore after a service restart, then enable required mode. If Drive authentication or persistence fails, processing returns a storage error rather than treating a local-only save as durable. Existing photos that are available only on an earlier Render filesystem are not automatically backfilled by this adapter.
 
 Keep the Drive folder private. OAuth-created files belong to the authenticated user and consume that account's Drive storage quota. Google OAuth apps left in External / Testing mode may issue refresh tokens that expire after seven days; configure the consent screen for the intended long-term deployment before relying on unattended uploads. See [Google's OAuth refresh-token guidance](https://developers.google.com/identity/protocols/oauth2).
+
+To backfill any media that still exists only on the current server, run from the backend working directory after configuring the Drive OAuth variables: `python -m scripts.backfill_media_to_google_drive` first (dry run), then `python -m scripts.backfill_media_to_google_drive --apply` to upload. This script never deletes the local files. It cannot recover images already lost from an earlier ephemeral server filesystem.
 
 ## 3. Monitoring
 
