@@ -109,3 +109,68 @@ def test_upload_uses_private_app_folder_and_resumable_drive_upload(monkeypatch, 
     assert any(method == "PUT" for method, _, _ in api_calls)
     # No public permission or share-link operation is ever requested.
     assert all("/permissions" not in url for _, url, _ in api_calls)
+
+
+def test_restore_recovers_a_missing_media_file_atomically(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path / "media"))
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "restore-client")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "restore-secret")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "restore-refresh")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", True)
+    media_path = settings.media_root_path / "salons" / "salon-123" / "outputs" / "after.png"
+    monkeypatch.setattr(drive, "_access_token", lambda: "test-token")
+    monkeypatch.setattr(drive, "_root_folder_id", lambda _token: "private-root")
+    monkeypatch.setattr(
+        drive,
+        "_find_media_object",
+        lambda key, _token, _folder: (
+            {"id": "stored-file"} if key == "salons/salon-123/outputs/after.png" else None
+        ),
+    )
+
+    class FakeStream:
+        status_code = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def iter_bytes(self, chunk_size=1024 * 1024):
+            assert chunk_size > 0
+            yield b"restored-private-image"
+
+    monkeypatch.setattr(drive.httpx, "stream", lambda *args, **kwargs: FakeStream())
+
+    assert drive.ensure_local_file(media_path) is True
+    assert media_path.read_bytes() == b"restored-private-image"
+    assert list(media_path.parent.glob("*.tmp")) == []
+
+
+def test_delete_trashes_only_the_matched_private_drive_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path / "media"))
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "delete-client")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "delete-secret")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "delete-refresh")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", True)
+    media_path = settings.media_root_path / "salons" / "salon-123" / "inputs" / "before.jpg"
+    monkeypatch.setattr(drive, "_access_token", lambda: "test-token")
+    monkeypatch.setattr(drive, "_root_folder_id", lambda _token: "private-root")
+    monkeypatch.setattr(
+        drive,
+        "_find_media_object",
+        lambda *_args: {"id": "matched-file"},
+    )
+    recorded = {}
+
+    def fake_request(method, url, **kwargs):
+        recorded.update(method=method, url=url, **kwargs)
+        return make_response(url, body={"id": "matched-file", "trashed": True})
+
+    monkeypatch.setattr(drive, "_request", fake_request)
+
+    assert drive.delete_media_file(media_path) is True
+    assert recorded["method"] == "PATCH"
+    assert recorded["url"].endswith("/files/matched-file")
+    assert recorded["json"] == {"trashed": True}
