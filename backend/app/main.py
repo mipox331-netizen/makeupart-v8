@@ -11,6 +11,8 @@ from sqlalchemy import text
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.db.session import engine
+from app.services import google_drive_media
+from app.services.google_drive_media import GoogleDriveMediaError
 
 logger = logging.getLogger("makeupart.api")
 
@@ -98,10 +100,29 @@ def readiness_check() -> dict[str, str]:
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
-    except Exception as exc:
+    except Exception:
         logger.exception("Readiness check failed")
         return JSONResponse(
             status_code=503,
             content={"status": "not_ready", "reason": "database_unavailable"},
         )
+
+    drive_configured = any(
+        value.strip()
+        for value in (
+            settings.GOOGLE_DRIVE_CLIENT_ID,
+            settings.GOOGLE_DRIVE_CLIENT_SECRET,
+            settings.GOOGLE_DRIVE_REFRESH_TOKEN,
+        )
+    )
+    if settings.REQUIRE_DURABLE_MEDIA or drive_configured:
+        try:
+            google_drive_media.verify_connection()
+        except GoogleDriveMediaError:
+            logger.exception("Google Drive readiness check failed")
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not_ready", "reason": "media_storage_unavailable"},
+            )
+
     return {"status": "ready"}
