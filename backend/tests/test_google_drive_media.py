@@ -26,12 +26,12 @@ def configure_drive(monkeypatch, tmp_path: Path):
 
 
 def make_response(url: str, status: int = 200, *, body=None, headers=None, content=b""):
+    response_payload = {"json": body} if body is not None else {"content": content}
     return httpx.Response(
         status,
-        json=body if body is not None else {},
         headers=headers,
-        content=content,
         request=httpx.Request("GET", url),
+        **response_payload,
     )
 
 
