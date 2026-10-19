@@ -40,45 +40,56 @@ def cleanup_media() -> int:
             except OSError:
                 logger.exception("Failed to remove media file %s", path)
 
-    # Render's local filesystem is ephemeral. A media file may therefore
-    # be absent locally while its private Drive copy still exists. Use retained
-    # job records as the authoritative index for expiring those remote objects.
-    with SessionLocal() as db:
-        expired_jobs = db.execute(
-            select(BeautyJob).where(BeautyJob.created_at < cutoff)
-        ).scalars().all()
+    # Render's local filesystem is ephemeral. Only run the DB-indexed remote
+    # sweep when Drive is configured; then clear successfully expired paths so
+    # each daily cleanup does not repeatedly list already-expired Drive files.
+    if google_drive_media.is_configured():
+        with SessionLocal() as db:
+            expired_jobs = db.execute(
+                select(BeautyJob).where(BeautyJob.created_at < cutoff)
+            ).scalars().all()
+            changed = False
 
-        for job in expired_jobs:
-            salon_root = (
-                settings.media_root_path / "salons" / str(job.salon_id)
-            ).resolve()
-            for stored_path in (job.input_file_path, job.output_file_path):
-                if not stored_path:
-                    continue
-                candidate = Path(stored_path).expanduser().resolve()
-                try:
-                    candidate.relative_to(salon_root)
-                except ValueError:
-                    logger.error(
-                        "Refusing retention cleanup for a media path outside its salon."
-                    )
-                    continue
-                if candidate.exists() and not candidate.is_file():
-                    logger.error("Refusing retention cleanup for a non-file media path.")
-                    continue
-                try:
-                    google_drive_media.delete_media_file(candidate)
-                except GoogleDriveMediaError:
-                    logger.exception(
-                        "Failed to expire remote salon media; its job record is retained."
-                    )
-                    continue
-                if candidate.is_file():
+            for job in expired_jobs:
+                salon_root = (
+                    settings.media_root_path / "salons" / str(job.salon_id)
+                ).resolve()
+                for attribute in ("input_file_path", "output_file_path"):
+                    stored_path = getattr(job, attribute)
+                    if not stored_path:
+                        continue
+                    candidate = Path(stored_path).expanduser().resolve()
                     try:
-                        candidate.unlink()
-                        removed += 1
-                    except OSError:
-                        logger.exception("Failed to remove expired local media.")
+                        candidate.relative_to(salon_root)
+                    except ValueError:
+                        logger.error(
+                            "Refusing retention cleanup for a media path outside its salon."
+                        )
+                        continue
+                    if candidate.exists() and not candidate.is_file():
+                        logger.error("Refusing retention cleanup for a non-file media path.")
+                        continue
+                    try:
+                        deleted = google_drive_media.delete_media_file(candidate)
+                    except GoogleDriveMediaError:
+                        logger.exception(
+                            "Failed to expire remote salon media; its job record is retained."
+                        )
+                        continue
+                    if not deleted:
+                        continue
+                    if candidate.is_file():
+                        try:
+                            candidate.unlink()
+                            removed += 1
+                        except OSError:
+                            logger.exception("Failed to remove expired local media.")
+                            continue
+                    setattr(job, attribute, None)
+                    changed = True
+
+            if changed:
+                db.commit()
 
     return removed
 
