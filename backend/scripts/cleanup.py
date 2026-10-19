@@ -8,6 +8,8 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.login_attempt import LoginAttempt
 from app.models.refresh_session import RefreshSession
+from app.services import google_drive_media
+from app.services.google_drive_media import GoogleDriveMediaError
 
 logging.basicConfig(level=settings.LOG_LEVEL)
 logger = logging.getLogger("makeupart.cleanup")
@@ -27,8 +29,13 @@ def cleanup_media() -> int:
         try:
             modified = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
             if modified < cutoff:
+                # Delete the private Drive copy before removing the local file.
+                # If cloud deletion fails, retain the local copy so cleanup can retry.
+                google_drive_media.delete_media_file(path)
                 path.unlink()
                 removed += 1
+        except GoogleDriveMediaError:
+            logger.exception("Failed to remove expired media from private Drive storage: %s", path)
         except OSError:
             logger.exception("Failed to remove media file %s", path)
 
