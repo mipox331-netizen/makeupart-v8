@@ -15,6 +15,8 @@ from app.models.user import User, UserRole
 from app.services.watermark import get_or_create_watermark
 from app.schemas.watermark import WatermarkOut, WatermarkUpdate
 from app.services.media_volume import commit_media_volume
+from app.services import google_drive_media
+from app.services.google_drive_media import GoogleDriveMediaError
 
 router = APIRouter(prefix="/watermarks", tags=["watermarks"])
 
@@ -103,7 +105,13 @@ async def upload_watermark_logo(
     try:
         logo.save(temporary, format="PNG", optimize=True)
         os.replace(temporary, target)
+        google_drive_media.persist_media_file(target)
         commit_media_volume()
+    except GoogleDriveMediaError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Private Google Drive storage is unavailable. The logo was not confirmed saved.",
+        ) from exc
     except OSError as exc:
         temporary.unlink(missing_ok=True)
         raise HTTPException(
@@ -126,8 +134,19 @@ def read_watermark_logo(
 ) -> FileResponse:
     watermark = get_or_create_watermark(db, current_user.salon)
     path = _logo_path(current_user.salon_id)
-    if not watermark.logo_url or not path.is_file():
+    if not watermark.logo_url:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon logo not found")
+    if not path.is_file():
+        try:
+            restored = google_drive_media.ensure_local_file(path)
+        except GoogleDriveMediaError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Private salon logo storage is temporarily unavailable.",
+            ) from exc
+        if not restored or not path.is_file():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon logo not found")
+        commit_media_volume()
     return FileResponse(path, media_type="image/png", filename="salon-logo.png")
 
 
@@ -136,11 +155,20 @@ def delete_watermark_logo(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.ADMIN)),
 ) -> WatermarkOut:
+    path = _logo_path(current_user.salon_id)
+    try:
+        google_drive_media.delete_media_file(path)
+    except GoogleDriveMediaError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not securely remove the salon logo from private Drive storage.",
+        ) from exc
+    path.unlink(missing_ok=True)
+    commit_media_volume()
+
     watermark = get_or_create_watermark(db, current_user.salon)
     watermark.logo_url = None
     current_user.salon.logo_url = None
-    _logo_path(current_user.salon_id).unlink(missing_ok=True)
-    commit_media_volume()
     db.commit()
     db.refresh(watermark)
     return watermark
