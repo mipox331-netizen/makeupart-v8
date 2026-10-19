@@ -21,9 +21,8 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     env:
-      # Match the endpoint used by the currently published APK. Do not switch to
-      # Modal until that deployment and its database/media path have been verified.
-      PRODUCTION_API_BASE_URL: https://makeupart-api.onrender.com/api/v1
+      # Match the API and deployment validated by the Modal production workflow.
+      PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
 
     steps:
       - name: Checkout
