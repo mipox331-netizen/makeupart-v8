@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 
 import httpx
@@ -125,7 +126,12 @@ def test_restore_recovers_a_missing_media_file_atomically(monkeypatch, tmp_path)
         drive,
         "_find_media_object",
         lambda key, _token, _folder: (
-            {"id": "stored-file"} if key == "salons/salon-123/outputs/after.png" else None
+            {
+                "id": "stored-file",
+                "md5Checksum": "89c0afcc7a35f2000404f5512f312569",
+            }
+            if key == "salons/salon-123/outputs/after.png"
+            else None
         ),
     )
 
@@ -147,6 +153,47 @@ def test_restore_recovers_a_missing_media_file_atomically(monkeypatch, tmp_path)
     assert drive.ensure_local_file(media_path) is True
     assert media_path.read_bytes() == b"restored-private-image"
     assert list(media_path.parent.glob("*.tmp")) == []
+
+
+def test_restore_rejects_corrupt_content_without_publishing_partial_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path / "media"))
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "restore-client")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "restore-secret")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "restore-refresh")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", True)
+    media_path = settings.media_root_path / "salons" / "salon-123" / "outputs" / "after.png"
+    monkeypatch.setattr(drive, "_access_token", lambda: "test-token")
+    monkeypatch.setattr(drive, "_root_folder_id", lambda _token: "private-root")
+    monkeypatch.setattr(
+        drive,
+        "_find_media_object",
+        lambda *_args: {
+            "id": "stored-file",
+            # Expected checksum is for the original payload, not the response below.
+            "md5Checksum": hashlib.md5(b"original-private-image", usedforsecurity=False).hexdigest(),
+        },
+    )
+
+    class FakeStream:
+        status_code = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def iter_bytes(self, chunk_size=1024 * 1024):
+            assert chunk_size > 0
+            yield b"corrupted-private-image"
+
+    monkeypatch.setattr(drive.httpx, "stream", lambda *args, **kwargs: FakeStream())
+
+    with pytest.raises(drive.GoogleDriveMediaError, match="checksum mismatch"):
+        drive.ensure_local_file(media_path)
+
+    assert not media_path.exists()
+    assert list(media_path.parent.glob(".after.png.*.tmp")) == []
 
 
 def test_delete_trashes_only_the_matched_private_drive_file(monkeypatch, tmp_path):
