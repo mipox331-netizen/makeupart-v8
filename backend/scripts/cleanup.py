@@ -18,27 +18,27 @@ logger = logging.getLogger("makeupart.cleanup")
 
 def cleanup_media() -> int:
     root = settings.media_root_path / "salons"
-    if not root.exists():
-        return 0
-
     cutoff = datetime.now(timezone.utc) - timedelta(days=settings.MEDIA_RETENTION_DAYS)
     removed = 0
 
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        try:
-            modified = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
-            if modified < cutoff:
-                # Delete the private Drive copy before removing the local file.
-                # If cloud deletion fails, retain the local copy so cleanup can retry.
-                google_drive_media.delete_media_file(path)
-                path.unlink()
-                removed += 1
-        except GoogleDriveMediaError:
-            logger.exception("Failed to remove expired media from private Drive storage: %s", path)
-        except OSError:
-            logger.exception("Failed to remove media file %s", path)
+    # The local media root can be absent after a Render restart. Keep scanning
+    # the DB index below so old Drive-only objects still honor retention.
+    if root.exists():
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            try:
+                modified = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+                if modified < cutoff:
+                    # Delete the private Drive copy before removing the local file.
+                    # If cloud deletion fails, retain the local copy so cleanup can retry.
+                    google_drive_media.delete_media_file(path)
+                    path.unlink()
+                    removed += 1
+            except GoogleDriveMediaError:
+                logger.exception("Failed to remove expired media from private Drive storage: %s", path)
+            except OSError:
+                logger.exception("Failed to remove media file %s", path)
 
     # Render's local filesystem is ephemeral. A media file may therefore
     # be absent locally while its private Drive copy still exists. Use retained
