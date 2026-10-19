@@ -93,6 +93,7 @@ def test_upload_uses_private_app_folder_and_resumable_drive_upload(monkeypatch, 
         if method == "POST" and url == f"{drive._UPLOAD_API}/files":
             metadata = kwargs["json"]
             assert metadata["parents"] == ["private-root"]
+            assert kwargs["params"]["ignoreDefaultVisibility"] == "true"
             assert metadata["appProperties"]["makeupart_path"] == "salons/salon-123/outputs/after.png"
             assert metadata["name"].endswith("-after.png")
             return make_response(url, headers={"Location": "https://upload.test/session"})
