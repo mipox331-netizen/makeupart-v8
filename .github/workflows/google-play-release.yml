@@ -21,12 +21,9 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     env:
-      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-      ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-      PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
+      # Match the endpoint used by the currently published APK. Do not switch to
+      # Modal until that deployment and its database/media path have been verified.
+      PRODUCTION_API_BASE_URL: https://makeupart-api.onrender.com/api/v1
 
     steps:
       - name: Checkout
@@ -67,6 +64,11 @@ jobs:
         run: flutter test
 
       - name: Validate release secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         shell: bash
         run: |
           set -euo pipefail
@@ -77,6 +79,11 @@ jobs:
 
       - name: Configure Android upload signing
         working-directory: makeup_art_v8/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         shell: bash
         run: |
           set -euo pipefail
@@ -139,6 +146,8 @@ jobs:
           retention-days: 30
 
       - name: Validate Google Play service account
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
         shell: bash
         run: |
           set -euo pipefail
@@ -161,7 +170,7 @@ jobs:
       - name: Upload to Google Play
         uses: r0adkll/upload-google-play@v1
         with:
-          serviceAccountJsonPlainText: ${{ env.PLAY_SERVICE_ACCOUNT_JSON }}
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.makeupart.makeup_art_v8
           releaseFiles: makeup_art_v8/build/app/outputs/bundle/release/app-release.aab
           tracks: ${{ inputs.track || 'internal' }}
