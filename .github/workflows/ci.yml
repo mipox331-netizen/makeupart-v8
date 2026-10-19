@@ -14,7 +14,9 @@ on:
 
 concurrency:
   group: makeupart-v8-${{ github.ref }}
-  cancel-in-progress: false
+  # Superseded PR commits should not leave the latest verification queued behind stale runs.
+  # Main-branch runs remain serialized and are never cancelled by a newer main push.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
