@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     CORS_ORIGINS: str = ""
     MEDIA_ROOT: str = "./media"
-    MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
+    # Optional private Google Drive media mirror; use OAuth user credentials, not a service account.\n    GOOGLE_DRIVE_CLIENT_ID: str = ""\n    GOOGLE_DRIVE_CLIENT_SECRET: str = ""\n    GOOGLE_DRIVE_REFRESH_TOKEN: str = ""\n    REQUIRE_DURABLE_MEDIA: bool = False\n    MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
     MAX_IMAGE_PIXELS: int = 40_000_000
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
