@@ -197,7 +197,10 @@ def _root_folder_id(token: str) -> str:
                         _ROOT_MARKER_KEY: _ROOT_MARKER_VALUE,
                     },
                 },
-                params={"fields": "id,name,mimeType"},
+                params={
+                    "fields": "id,name,mimeType",
+                    "ignoreDefaultVisibility": "true",
+                },
             )
             folder_id = str(response.json().get("id", ""))
             if not folder_id:
@@ -273,11 +276,20 @@ def persist_media_file(path: str | Path) -> bool:
         upload_url = f"{_UPLOAD_API}/files"
         method = "POST"
 
+    upload_params = {
+        "uploadType": "resumable",
+        "fields": "id,name,size,md5Checksum",
+    }
+    if not existing:
+        # Override Workspace defaults that automatically expose newly uploaded
+        # files to a domain; parent-folder permissions still apply.
+        upload_params["ignoreDefaultVisibility"] = "true"
+
     response = _request(
         method,
         upload_url,
         token=token,
-        params={"uploadType": "resumable", "fields": "id,name,size,md5Checksum"},
+        params=upload_params,
         headers={
             "Content-Type": "application/json; charset=UTF-8",
             "X-Upload-Content-Type": media_type,
