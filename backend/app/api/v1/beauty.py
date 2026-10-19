@@ -559,11 +559,7 @@ def process_beauty_upload(
         if quota_reserved:
             release_beauty_job_quota(db, current_user.salon_id)
         for path in (input_path, output_path, generated_output):
-            if path:
-                try:
-                    path.unlink()
-                except OSError:
-                    pass
+            _discard_local_and_drive_media(path)
         try:
             commit_media_volume()
         except Exception:
