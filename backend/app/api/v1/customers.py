@@ -17,6 +17,8 @@ from app.models.customer import Customer
 from app.models.user import User, UserRole
 from app.schemas.customer import CustomerCreate, CustomerOut, CustomerUpdate
 from app.services.media_volume import commit_media_volume
+from app.services import google_drive_media
+from app.services.google_drive_media import GoogleDriveMediaError
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 logger = logging.getLogger("makeupart.customers")
@@ -42,6 +44,12 @@ def _delete_customer_media(db: Session, salon_id: uuid.UUID, customer_id: uuid.U
             if salon_root not in candidate.parents:
                 failed = True
                 logger.error("Customer media path failed salon-boundary validation")
+                continue
+            try:
+                google_drive_media.delete_media_file(candidate)
+            except GoogleDriveMediaError:
+                failed = True
+                logger.exception("Failed to remove customer media from private Drive storage")
                 continue
             if not candidate.exists():
                 continue

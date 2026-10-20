@@ -53,9 +53,11 @@ The checked-in Docker Compose + Caddy stack remains available as a self-hosted d
 
 ## Photo durability and disaster recovery
 
-The backend currently writes image files below its configured `MEDIA_ROOT`. The live Render service metadata does not show a persistent disk attached, while the existing encrypted media-backup workflow downloads a separate Modal volume. These locations are not proven to contain the same files. Before real customer photos are relied on, connect the live API to a durable object store and back up/restore that exact storage source.
+The backend now has a private Google Drive media adapter for salon logos and before/after photos. It uses the authenticated Google user's OAuth refresh token with the narrow `drive.file` scope, creates its own private `MakeUpArt V8 Private Media` folder, and can restore missing local files when a Render instance restarts. This adapter is **not active until** `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, and `GOOGLE_DRIVE_REFRESH_TOKEN` are configured on the Render service. Keep `REQUIRE_DURABLE_MEDIA=false` during setup; after testing a real upload and restore, set it to `true` so the API refuses to silently fall back to ephemeral local-only media if credentials/storage are unavailable.
 
-Database backup and restore workflows have passed, but the runtime Render `DATABASE_URL` target has not been verified against the Supabase database URL selected by the backup workflow. The connected workspace also contains a free Render PostgreSQL resource expiring on 31 October 2026. Do not delete or rely on either database until the live connection target is confirmed.
+The previous Modal-volume media-backup workflow remains separate and does not prove the Render API's files were backed up. Media already stored only on a previous Render filesystem is not automatically copied into Drive by deploying this adapter; it needs a one-time backfill from any still-accessible local files before relying on the new storage path.
+
+Database backup and restore workflows have passed for their selected target, but the runtime Render `DATABASE_URL` target has not been verified against the database URL selected by the backup workflow. The connected workspace also contains a free Render PostgreSQL resource expiring on 31 October 2026. Do not delete or rely on either database until the live connection target is confirmed.
 
 ## Licensing and AI capabilities
 

@@ -32,6 +32,25 @@ Store these in GitHub repository secrets or the `production` environment as appr
 
 Never commit secret values or paste them into chat.
 
+### Google Drive private media storage
+
+The API has an optional private Google Drive adapter for salon logos and customer before/after photos. It uses the Google account owner's OAuth refresh token (not a service account), the `drive.file` scope, and a private folder created by the app. It does not create public sharing links.
+
+Enable the Google Drive API in Google Cloud, configure the OAuth consent screen, and create a **Web application** OAuth client. Add `https://developers.google.com/oauthplayground` as an authorized redirect URI. In the [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground/), open Settings, enable **Use your own OAuth credentials**, enter that client ID/secret, request `https://www.googleapis.com/auth/drive.file`, use offline access, authorize your Google account, then exchange the code for a refresh token. Do not paste credentials into chat or commit them to Git. The `drive.file` scope is the narrow per-file scope recommended by Google; it avoids granting the app broad access to every Drive file. See [Drive API scope guidance](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
+
+Set these environment variables on the live Render `makeupart-api` service:
+
+- `GOOGLE_DRIVE_CLIENT_ID`
+- `GOOGLE_DRIVE_CLIENT_SECRET`
+- `GOOGLE_DRIVE_REFRESH_TOKEN`
+- `REQUIRE_DURABLE_MEDIA=true` (only after OAuth is configured and an upload/restore has passed)
+
+The example environment leaves `REQUIRE_DURABLE_MEDIA=false` so setup does not unexpectedly disable photo processing. Once the OAuth values are configured, test a new image upload and restore after a service restart, then enable required mode. If Drive authentication or persistence fails, processing returns a storage error rather than treating a local-only save as durable. Existing photos that are available only on an earlier Render filesystem are not automatically backfilled by this adapter.
+
+Keep the Drive folder private. OAuth-created files belong to the authenticated user and consume that account's Drive storage quota. This setup is central storage: the Google account owner (and applicable Workspace administrators) can access salon/customer photos, so use an account and privacy notice authorized for that purpose. Google OAuth apps left in External / Testing mode may issue refresh tokens that expire after seven days; configure the consent screen for the intended long-term deployment before relying on unattended uploads. See [Google's OAuth refresh-token guidance](https://developers.google.com/identity/protocols/oauth2).
+
+To backfill any media that still exists only on the current server, run from the backend working directory after configuring the Drive OAuth variables: `python -m scripts.backfill_media_to_google_drive` first (dry run), then `python -m scripts.backfill_media_to_google_drive --apply` to upload. This script never deletes the local files. It cannot recover images already lost from an earlier ephemeral server filesystem.
+
 ## 3. Monitoring
 
 `.github/workflows/production-monitor.yml` checks `/health/live` and `/health/ready` every 15 minutes and can also be run manually. A failure produces a failed GitHub Actions run; delivery of notifications depends on GitHub notification settings. It is a basic availability check, not a full APM, uptime SLA, SMS or pager service.
@@ -44,7 +63,7 @@ Before the first run, add `BACKUP_ENCRYPTION_PASSPHRASE` as a GitHub secret in t
 
 The artifact is an encrypted database export; it is not proof of recoverability until a restore to a clean staging database has been tested. To inspect an archive after authorized download, decrypt it with the same offline passphrase and use `pg_restore --list` to check its contents.
 
-**Important:** database exports do not include image files stored in the Modal `makeupart-v8-media` volume. A separate, private off-host media backup destination and credentials are still required. Do not treat the database workflow as a complete disaster-recovery plan.
+**Important:** database exports do not include image files. The Modal `makeupart-v8-media` volume and the new Google Drive adapter are separate. The Google Drive adapter must be configured and cold-start restore tested before treating the live Render photos as durable; database dump success alone is not a complete disaster-recovery plan.
 
 Supabase Free projects do not receive the Pro/Team/Enterprise daily-backup feature and should maintain their own exports. See [Supabase database backups](https://supabase.com/docs/guides/platform/backups).
 

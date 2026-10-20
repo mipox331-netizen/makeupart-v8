@@ -57,6 +57,12 @@ class _BeautyPageState extends State<BeautyPage> {
     'soft_glam': 'Soft Glam',
     'bridal_rose': 'Bridal Rose',
     'evening_glam': 'Evening Glam',
+    'smokey_eye': 'Smokey Eye',
+    'cat_eye': 'Cat Eye',
+    'eyeshadow': 'Eyeshadow Only',
+    'eyeliner': 'Eyeliner Only',
+    'lipstick': 'Lipstick Only',
+    'blush': 'Blush Only',
   };
 
   RecentImageStore get recentImageStore =>
@@ -861,7 +867,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 5),
                     const Text(
-                      'Classic effects apply a face-guided lip tint and cheek blush; they do not generate new makeup.',
+                      'Use complete looks or a single local effect. Smokey Eye, Cat Eye, Eyeshadow Only, Eyeliner Only, Lipstick Only and Blush Only work without a paid AI key.',
                     ),
                     const SizedBox(height: 10),
                     Wrap(
@@ -896,7 +902,7 @@ class _BeautyPageState extends State<BeautyPage> {
                   ),
                   const SizedBox(height: 5),
                   const Text(
-                    'These are final-image color grades. Eyeliner, eyeshadow, and hairstyle generation are not yet supported by the current AI engine.',
+                    'Photo finishes adjust the overall color tone. For eye, lip and cheek makeup, choose a style above. Hair color and hairstyle generation are not available in the free Classic engine.',
                   ),
                   const SizedBox(height: 10),
                   Wrap(
