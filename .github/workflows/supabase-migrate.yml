@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: makeupart-v8-supabase-migration
+  # Share the same lock with Modal production deploy/migrations against this database.
+  group: makeupart-v8-modal-production
   cancel-in-progress: false
 
 jobs:
@@ -15,7 +16,6 @@ jobs:
       run:
         working-directory: backend
     env:
-      DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
       SECRET_KEY: ci-supabase-migration-secret-key-012345678901234567890123
       CORS_ORIGINS: https://example.invalid
       ENVIRONMENT: production
@@ -35,12 +35,18 @@ jobs:
 
       - name: Validate Supabase database secret
         shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
           test -n "${DATABASE_URL:-}" || { echo "SUPABASE_DB_URL secret is missing."; exit 1; }
 
       - name: Run Alembic migrations
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: alembic upgrade head
 
       - name: Confirm migration head
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: alembic current

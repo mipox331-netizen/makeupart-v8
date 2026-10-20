@@ -46,9 +46,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
-    env:
-      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-
     steps:
       - name: Select available backup artifact
         id: select-backup
@@ -100,6 +97,7 @@ jobs:
         shell: bash
         env:
           BACKUP_RUN_ID: ${{ steps.select-backup.outputs.run_id }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
           [[ "$BACKUP_RUN_ID" =~ ^[0-9]+$ ]] || {
@@ -128,6 +126,8 @@ jobs:
       - name: Verify checksum and decrypt the archive
         id: decrypt
         shell: bash
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
           BACKUP_DIR="$RUNNER_TEMP/makeupart-restore-drill"

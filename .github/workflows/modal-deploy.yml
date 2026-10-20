@@ -67,20 +67,19 @@ jobs:
     environment: ${{ matrix.environment }}
     permissions:
       contents: read
-    env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_DB_URL_SECRET: ${{ secrets.SUPABASE_DB_URL_SECRET }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
-      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
-      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
-      SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
     steps:
       - name: Check required secret presence without exposing values
         shell: bash
         env:
           TARGET_ENVIRONMENT: ${{ matrix.environment }}
           PROBE_INDEX: ${{ strategy.job-index }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_URL_SECRET: ${{ secrets.SUPABASE_DB_URL_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
+          SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -167,17 +166,6 @@ jobs:
     permissions:
       contents: read
 
-    env:
-      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
-      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_DB_URL_SECRET: ${{ secrets.SUPABASE_DB_URL_SECRET }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
-      PLATFORM_ADMIN_EMAILS: ${{ secrets.PLATFORM_ADMIN_EMAILS }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     steps:
       - name: Checkout
@@ -194,10 +182,17 @@ jobs:
           pip install modal
 
       - name: Validate Modal credentials
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: modal token info
 
       - name: Validate SUPABASE_DB_URL
         shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_URL_SECRET: ${{ secrets.SUPABASE_DB_URL_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           set -euo pipefail
           python -m pip install --quiet 'psycopg2-binary==2.9.9'
@@ -324,33 +319,65 @@ jobs:
               if query:
                   normalized_url += '?' + query
 
-          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env_file:
-              env_file.write('SUPABASE_DB_URL=' + normalized_url + '\n')
+          # Keep the normalized connection URL out of GITHUB_ENV because that
+          # file exposes it to every later step in the job.
+          from pathlib import Path
+          import stat
+          url_path = Path(os.environ["RUNNER_TEMP"]) / "makeupart-normalized-db-url"
+          url_path.write_text(normalized_url + "\n", encoding="utf-8")
+          url_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
           print(f"Using working Supabase DB target: {host}:{port}/{database or '<default>'}")
           PY
       - name: Provision production secret
         shell: bash
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
+          SUPABASE_DB_URL_FILE: ${{ runner.temp }}/makeupart-normalized-db-url
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
+          PLATFORM_ADMIN_EMAILS: ${{ secrets.PLATFORM_ADMIN_EMAILS }}
         run: |
           set -euo pipefail
-          test -n "${SUPABASE_DB_URL:-}" || { echo "SUPABASE_DB_URL secret is missing."; exit 1; }
+          trap 'rm -f "${SUPABASE_DB_URL_FILE}"' EXIT
+          test -s "${SUPABASE_DB_URL_FILE:-}" || { echo "Validated Supabase database URL file is missing."; exit 1; }
+          SUPABASE_DB_URL="$(cat "${SUPABASE_DB_URL_FILE}")"
+          test -n "${SUPABASE_DB_URL}" || { echo "Validated Supabase database URL is empty."; exit 1; }
+          export SUPABASE_DB_URL
           test -n "${SUPABASE_SECRET_KEY:-}" || { echo "SUPABASE_SECRET_KEY/SUPABASE_SECRET secret is missing."; exit 1; }
           APP_SECRET_KEY="$(python -c 'import hashlib, os; print(hashlib.sha256(os.environ["SUPABASE_SECRET_KEY"].encode()).hexdigest())')"
-          modal secret create --force -e main makeupart-v8-production             "SECRET_KEY=${APP_SECRET_KEY}"             "DATABASE_URL=${SUPABASE_DB_URL}"             "ENVIRONMENT=production"             "PROJECT_NAME=MakeupArt V8"             "API_V1_STR=/api/v1"             "ALGORITHM=HS256"             "ACCESS_TOKEN_EXPIRE_MINUTES=30"             "REFRESH_TOKEN_EXPIRE_DAYS=30"             "CORS_ORIGINS=https://riakbjcxcaqjaqagncmu.supabase.co"             "MEDIA_ROOT=/app/media"             "MAX_UPLOAD_BYTES=10485760"             "MAX_IMAGE_PIXELS=40000000"             "DB_POOL_SIZE=5"             "DB_MAX_OVERFLOW=10"             "DB_POOL_RECYCLE_SECONDS=1800"             "LOG_LEVEL=INFO"             "MEDIA_RETENTION_DAYS=30"             "REFRESH_SESSION_RETENTION_DAYS=7"             "SUBSCRIPTION_TRIAL_DAYS=30"             "PLATFORM_ADMIN_EMAILS=${PLATFORM_ADMIN_EMAILS}"             "OPENAI_API_KEY=${OPENAI_API_KEY}"             "OPENAI_IMAGE_MODEL=gpt-image-2.5-sunburst"             "OPENAI_IMAGE_QUALITY=medium"             "SUPABASE_URL=https://riakbjcxcaqjaqagncmu.supabase.co"             "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}"             "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SECRET}"
+          modal secret create --force -e main makeupart-v8-production             "SECRET_KEY=${APP_SECRET_KEY}"             "DATABASE_URL=${SUPABASE_DB_URL}"             "ENVIRONMENT=production"             "PROJECT_NAME=MakeupArt V8"             "API_V1_STR=/api/v1"             "ALGORITHM=HS256"             "ACCESS_TOKEN_EXPIRE_MINUTES=30"             "REFRESH_TOKEN_EXPIRE_DAYS=30"             "CORS_ORIGINS=https://riakbjcxcaqjaqagncmu.supabase.co"             "MEDIA_ROOT=/app/media"             "MAX_UPLOAD_BYTES=10485760"             "MAX_IMAGE_PIXELS=40000000"             "DB_POOL_SIZE=5"             "DB_MAX_OVERFLOW=10"             "DB_POOL_RECYCLE_SECONDS=1800"             "LOG_LEVEL=INFO"             "MEDIA_RETENTION_DAYS=30"             "REFRESH_SESSION_RETENTION_DAYS=7"             "SUBSCRIPTION_TRIAL_DAYS=30"             "PLATFORM_ADMIN_EMAILS=${PLATFORM_ADMIN_EMAILS}"                         "OPENAI_IMAGE_MODEL=gpt-image-2.5-sunburst"             "OPENAI_IMAGE_QUALITY=medium"             "SUPABASE_URL=https://riakbjcxcaqjaqagncmu.supabase.co"             "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}"             "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SECRET}"
 
       - name: Deploy FastAPI
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: modal deploy modal_app.py
 
       - name: Run Supabase migrations
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: modal run modal_app.py::migrate
 
       - name: Confirm migration head
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: modal run modal_app.py::verify_migration_head
 
       - name: Verify AI runtime
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: modal run modal_app.py::verify_runtime
 
       - name: Verify media volume persistence
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: modal run modal_app.py::verify_media_volume
 
       - name: Verify deployed app liveness and readiness
@@ -400,6 +427,9 @@ jobs:
       - name: Capture sanitized production exception context
         if: failure() && env.PROD_SMOKE_REQUEST_ID != ''
         shell: bash
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -465,7 +495,13 @@ jobs:
           PY
 
       - name: Remove obsolete non-commercial InsightFace model cache
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: modal volume delete --yes --allow-missing -e main makeupart-v8-insightface
 
       - name: Show deployed app
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: modal app info makeupart-v8-api
