@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 import uuid
 
@@ -15,6 +16,15 @@ from app.services import google_drive_media
 from app.services.google_drive_media import GoogleDriveMediaError
 
 logger = logging.getLogger("makeupart.api")
+_REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+
+
+def _request_id_from_header(value: str | None) -> str:
+    candidate = (value or "").strip()
+    if _REQUEST_ID_PATTERN.fullmatch(candidate):
+        return candidate
+    return str(uuid.uuid4())
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -34,7 +44,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def request_middleware(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request_id = _request_id_from_header(request.headers.get("X-Request-ID"))
     started = time.perf_counter()
     response = None
     try:
