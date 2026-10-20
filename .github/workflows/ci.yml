@@ -198,7 +198,11 @@ jobs:
       - name: Test
         run: flutter test
 
+      # Pull-request CI must be deterministic and should not depend on a
+      # free production host waking up or on an external database's availability.
+      # Production health remains checked on main pushes and manual release checks.
       - name: Verify production API
+        if: ${{ github.event_name != 'pull_request' }}
         shell: bash
         run: |
           set -euo pipefail
