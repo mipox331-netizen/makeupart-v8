@@ -157,7 +157,7 @@ jobs:
               selected = candidates[0]
               print(f"Selected GitHub environment with required secrets and working Modal token: {selected}")
               with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-                  handle.write("environment=" + selected + "\\n")
+                  print("environment=" + selected, file=handle)
           else:
               print("::error::No GitHub environment contains all required deployment secrets and a working Modal token.", flush=True)
               for row in seen:
