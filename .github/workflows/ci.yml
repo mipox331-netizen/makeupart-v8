@@ -202,9 +202,9 @@ jobs:
         run: flutter test
 
       - name: Verify production API
-        # Pull-request checks must be deterministic and must not wait on a cold,
-        # free-tier production service. Production pushes and manual release builds
-        # still verify readiness; the scheduled production monitor owns ongoing uptime.
+        # Pull-request CI must be deterministic and should not depend on a
+        # free production host waking up or on an external database's availability.
+        # Production health remains checked on main pushes and manual release checks.
         if: ${{ github.event_name != 'pull_request' }}
         shell: bash
         run: |
