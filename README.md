@@ -29,13 +29,11 @@ Use the computer's LAN address instead of `10.0.2.2` on a physical device.
 
 ## Current production and Android release
 
-The current Android release is [MakeupArt V8 v8.0.164](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.164). [Download MakeupArt-V8.apk](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.164/MakeupArt-V8.apk).
+The latest public Android APK is [MakeupArt V8 v8.0.169](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.169). [Download MakeupArt-V8.apk](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.169/MakeupArt-V8.apk). It was published on 15 October 2026; it is the last published build, not proof that the current source has deployed successfully.
 
-The release workflow passed Flutter analysis/tests, production API liveness/readiness checks, APK build and APK signature verification: [run #164](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699306152). The workflow reported that Android release-signing secrets are not configured and used Flutter's debug signing key. This APK is for manual installation, not Google Play publication.
+That published APK still points to `https://makeupart-api.onrender.com/api/v1`. The current release workflow on `main` now targets the Modal API at `https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1`, but a replacement APK has not yet passed production checks. On 20 October 2026, the latest Modal deployment run failed with `Token not found`, and the Android release run failed because the Android signing secrets were incomplete. The current public APK therefore must not be treated as proof of a working connection to the current production backend.
 
-The APK targets the Render endpoint `https://makeupart-api.onrender.com/api/v1`. The connected Render workspace shows `makeupart-api` on the free plan. A free service can have cold starts; recent monitor checks pass but an earlier check timed out. Basic monitoring and release health checks now retry transient network/gateway failures once.
-
-The repository retains a separate Modal deployment path. The current APK does **not** use that Modal endpoint. Modal's media-backup workflow still targets the separate `makeupart-v8-media` volume and has recently failed; do not treat it as a backup of files stored on Render.
+For a reliable upgrade path, configure all four Android signing secrets using the same release keystore that signed the installed build. A different signing key can prevent Android from installing an update over an existing copy. A passing build and API health check still need to be followed by a real-device sign-in/photo-save smoke test before calling the release production-ready.
 
 ## Backend development stack
 The API uses FastAPI, PostgreSQL and Alembic. GitHub Actions checks migrations, backend tests, Flutter analysis/tests, the Android build and production health. See [release readiness](docs/RELEASE_READINESS.md) for live evidence and remaining blockers.
@@ -53,11 +51,13 @@ The checked-in Docker Compose + Caddy stack remains available as a self-hosted d
 
 ## Photo durability and disaster recovery
 
-The backend now has a private Google Drive media adapter for salon logos and before/after photos. It uses the authenticated Google user's OAuth refresh token with the narrow `drive.file` scope, creates its own private `MakeUpArt V8 Private Media` folder, and can restore missing local files when a Render instance restarts. This adapter is **not active until** `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, and `GOOGLE_DRIVE_REFRESH_TOKEN` are configured on the Render service. Keep `REQUIRE_DURABLE_MEDIA=false` during setup; after testing a real upload and restore, set it to `true` so the API refuses to silently fall back to ephemeral local-only media if credentials/storage are unavailable.
+The backend now contains a private Google Drive media adapter for salon logos and before/after photos. It uses Google's OAuth `drive.file` scope, stores objects privately, verifies restored content, and can restore missing local media. The Modal deployment workflow passes `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, and `GOOGLE_DRIVE_REFRESH_TOKEN` from the selected GitHub environment into the deployed service when those secrets are configured. **Drive durability is not active or verified until those credentials are set and a real upload plus restore after a service restart succeeds.**
 
-The previous Modal-volume media-backup workflow remains separate and does not prove the Render API's files were backed up. Media already stored only on a previous Render filesystem is not automatically copied into Drive by deploying this adapter; it needs a one-time backfill from any still-accessible local files before relying on the new storage path.
+Keep the GitHub environment variable `REQUIRE_DURABLE_MEDIA=false` during setup. After OAuth is configured and a real photo/logo upload and restore are verified, set it to `true` so readiness fails closed instead of silently accepting local-only media. Setting it to true before Drive is configured intentionally makes `/health/ready` return HTTP 503.
 
-Database backup and restore workflows have passed for their selected target, but the runtime Render `DATABASE_URL` target has not been verified against the database URL selected by the backup workflow. The connected workspace also contains a free Render PostgreSQL resource expiring on 31 October 2026. Do not delete or rely on either database until the live connection target is confirmed.
+Existing photos are not backfilled automatically: run `backend/scripts/backfill_media_to_google_drive.py` against files that are still accessible. Photos that existed only on a lost ephemeral filesystem cannot be recovered by code changes alone.
+
+The encrypted media-backup workflow currently archives the Modal media volume; it is not an independent backup of the Google Drive account. The most recent database and media backup workflows failed because `BACKUP_ENCRYPTION_PASSPHRASE` was missing, so there is no confirmed current encrypted backup/restore proof. Set a unique passphrase of at least 24 characters in the `production` GitHub environment and store it safely offline. Before depending on database recovery, verify that the runtime `DATABASE_URL` and backup URL point at the same live Supabase database and complete a restore drill.
 
 ## Licensing and AI capabilities
 
