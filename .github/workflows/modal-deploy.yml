@@ -87,6 +87,7 @@ jobs:
             MODAL_TOKEN_VALID=true
           else
             MODAL_TOKEN_VALID=false
+            echo "::warning::Modal authentication failed for GitHub environment '${TARGET_ENVIRONMENT}'. Check whether its Modal token is valid and its Modal workspace is enabled; secret values were not logged."
           fi
           export MODAL_TOKEN_VALID
           python - <<'PY'
@@ -137,9 +138,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          selected="$(python - <<'PY'
+          python - <<'PY'
           import glob
           import json
+          import os
+
           candidates = []
           seen = []
           required = ("database", "modal_id", "modal_secret", "modal_valid", "supabase_app_secret", "supabase_service_role")
@@ -151,21 +154,17 @@ jobs:
                   candidates.append(result["environment"])
           candidates = sorted(set(candidates), key=lambda value: (value.lower() != "production", value.lower()))
           if candidates:
-              print(candidates[0])
+              selected = candidates[0]
+              print(f"Selected GitHub environment with required secrets and working Modal token: {selected}")
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+                  handle.write("environment=" + selected + "\\n")
           else:
-              print("No GitHub environment contains the required deployment secrets with a valid Modal token.", flush=True)
+              print("::error::No GitHub environment contains all required deployment secrets and a working Modal token.", flush=True)
               for row in seen:
-                  ready = ",".join(key for key in required if row.get(key))
-                  print(f"Environment '{row.get('environment', '?')}': available={ready or 'none'}", flush=True)
+                  missing = [key for key in required if not row.get(key)]
+                  print(f"Environment '{row.get('environment', '?')}': failed checks={','.join(missing) or 'none'}", flush=True)
               raise SystemExit(2)
           PY
-          )"
-          if [ -z "$selected" ]; then
-            echo "Unable to select a GitHub environment for production deployment."
-            exit 1
-          fi
-          echo "Selected GitHub environment: $selected"
-          echo "environment=$selected" >> "$GITHUB_OUTPUT"
 
   deploy:
     runs-on: ubuntu-latest
