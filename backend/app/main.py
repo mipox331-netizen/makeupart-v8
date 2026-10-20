@@ -42,7 +42,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def request_middleware(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request_id = _request_id_from_header(request.headers.get("X-Request-ID"))
     started = time.perf_counter()
     response = None
     try:
