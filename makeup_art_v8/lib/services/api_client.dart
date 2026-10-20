@@ -297,8 +297,16 @@ class ApiClient {
     if (running != null) return running;
 
     final future = () async {
+      final refreshDio = Dio(
+        BaseOptions(
+          baseUrl: baseUrl,
+          connectTimeout: const Duration(seconds: 15),
+          sendTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 20),
+          headers: const {'Accept': 'application/json'},
+        ),
+      );
       try {
-        final refreshDio = Dio(BaseOptions(baseUrl: baseUrl));
         final response = await refreshDio.post(
           '/auth/refresh',
           data: {'refresh_token': refreshToken},
@@ -310,8 +318,12 @@ class ApiClient {
         await storage.write(key: _accessKey, value: accessToken);
         await storage.write(key: _refreshKey, value: rotatedRefresh);
         return accessToken;
-      } on DioException {
+      } catch (_) {
+        // Network, malformed-response and platform-storage errors all fail
+        // closed; the interceptor will clear the unusable local session.
         return null;
+      } finally {
+        refreshDio.close(force: true);
       }
     }();
 

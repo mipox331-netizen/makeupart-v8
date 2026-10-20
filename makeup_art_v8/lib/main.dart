@@ -42,13 +42,28 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
   }
 
   Future<void> _restoreSession() async {
-    authenticated = await api.hasSession();
-    if (mounted) setState(() => ready = true);
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _checkForAppUpdate();
-      });
+    var hasStoredSession = false;
+    try {
+      hasStoredSession = await api.hasSession();
+    } catch (_) {
+      // Corrupt/unavailable platform secure storage must not leave the app
+      // stuck on the startup spinner. Fail closed and show the sign-in screen.
+      try {
+        await api.logoutLocal();
+      } catch (_) {
+        // Some platform storage failures also prevent deletion; startup must
+        // still recover to the sign-in screen.
+      }
     }
+
+    if (!mounted) return;
+    setState(() {
+      authenticated = hasStoredSession;
+      ready = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _checkForAppUpdate();
+    });
   }
 
   Future<void> _checkForAppUpdate() async {
