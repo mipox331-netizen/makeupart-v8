@@ -14,6 +14,15 @@ from app.core.config import settings
 from app.db.session import engine
 
 logger = logging.getLogger("makeupart.api")
+_REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+
+
+def _request_id_from_header(value: str | None) -> str:
+    candidate = (value or "").strip()
+    if _REQUEST_ID_PATTERN.fullmatch(candidate):
+        return candidate
+    return str(uuid.uuid4())
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
