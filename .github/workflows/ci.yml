@@ -14,7 +14,9 @@ on:
 
 concurrency:
   group: makeupart-v8-${{ github.ref }}
-  cancel-in-progress: false
+  # Superseded PR commits should not leave the latest verification queued behind stale runs.
+  # Main-branch runs remain serialized and are never cancelled by a newer main push.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -169,7 +171,8 @@ jobs:
       run:
         working-directory: makeup_art_v8
     env:
-      PRODUCTION_API_BASE_URL: ${{ inputs.api_base_url || 'https://makeupart-api.onrender.com/api/v1' }}
+      # Modal deploy workflow owns the production API; Render was retired from the release path.
+      PRODUCTION_API_BASE_URL: ${{ inputs.api_base_url || 'https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -198,15 +201,15 @@ jobs:
       - name: Test
         run: flutter test
 
-      # Pull-request CI must be deterministic and should not depend on a
-      # free production host waking up or on an external database's availability.
-      # Production health remains checked on main pushes and manual release checks.
       - name: Verify production API
+        # Pull-request CI must be deterministic and should not depend on a
+        # free production host waking up or on an external database's availability.
+        # Production health remains checked on main pushes and manual release checks.
         if: ${{ github.event_name != 'pull_request' }}
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "${PRODUCTION_API_BASE_URL%/api/v1}/health/ready"
+          curl --fail --silent --show-error --retry 2 --retry-delay 3 --connect-timeout 10 --max-time 20 "${PRODUCTION_API_BASE_URL%/api/v1}/health/ready"
           echo
 
       - name: Build Android debug APK

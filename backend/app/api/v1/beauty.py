@@ -33,6 +33,8 @@ from app.schemas.beauty import (
     GenerativeLook,
 )
 from app.services.beauty import BeautyProvider, IdentityGuard
+from app.services import google_drive_media
+from app.services.google_drive_media import GoogleDriveMediaError
 from app.services.generative_makeup import GenerativeMakeupProvider
 from app.services.media_volume import commit_media_volume
 from app.services.subscription import release_beauty_job_quota, reserve_beauty_job_quota
@@ -52,6 +54,21 @@ def _media_dirs(salon_id: uuid.UUID) -> tuple[Path, Path]:
     input_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     return input_dir, output_dir
+
+
+def _discard_local_and_drive_media(path: Path | None) -> None:
+    if path is None:
+        return
+    try:
+        google_drive_media.delete_media_file(path)
+    except GoogleDriveMediaError:
+        # Retain the local copy when a remote privacy cleanup cannot be completed.
+        logger.exception("Failed to remove rolled-back private Drive media")
+        return
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        logger.exception("Failed to remove rolled-back local media")
 
 
 def _safe_media_path(
@@ -350,7 +367,16 @@ def process_beauty(
             detail="Input image is outside salon storage",
         )
     if not input_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Input image not found")
+        try:
+            restored = google_drive_media.ensure_local_file(input_path)
+        except GoogleDriveMediaError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Private photo storage is temporarily unavailable.",
+            ) from exc
+        if not restored or not input_path.is_file():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Input image not found")
+        commit_media_volume()
     payload.image_path = str(input_path)
 
     try:
@@ -446,6 +472,15 @@ def process_beauty_upload(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon not found")
 
         watermark = get_or_create_watermark(db, salon)
+        logo_path = settings.media_root_path / "salons" / str(current_user.salon_id) / "branding" / "logo.png"
+        if watermark.logo_url and not logo_path.is_file():
+            try:
+                google_drive_media.ensure_local_file(logo_path)
+            except GoogleDriveMediaError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Salon logo storage is temporarily unavailable. The photo was not saved.",
+                ) from exc
         try:
             watermark_applied = apply_watermark(generated_output, salon, watermark)
         except (OSError, ValueError) as exc:
@@ -456,6 +491,14 @@ def process_beauty_upload(
 
         output_path = output_dir / f"{uuid.uuid4()}.png"
         shutil.move(generated_output, output_path)
+        try:
+            google_drive_media.persist_media_file(input_path)
+            google_drive_media.persist_media_file(output_path)
+        except GoogleDriveMediaError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Private Google Drive media storage is unavailable. The photo was not saved.",
+            ) from exc
 
         job = BeautyJob(
             salon_id=current_user.salon_id,
@@ -514,11 +557,7 @@ def process_beauty_upload(
         if quota_reserved:
             release_beauty_job_quota(db, current_user.salon_id)
         for path in (input_path, output_path, generated_output):
-            if path:
-                try:
-                    path.unlink()
-                except OSError:
-                    pass
+            _discard_local_and_drive_media(path)
         try:
             commit_media_volume()
         except Exception:
@@ -529,11 +568,7 @@ def process_beauty_upload(
         if quota_reserved:
             release_beauty_job_quota(db, current_user.salon_id)
         for path in (input_path, output_path, generated_output):
-            if path:
-                try:
-                    path.unlink()
-                except OSError:
-                    pass
+            _discard_local_and_drive_media(path)
         try:
             commit_media_volume()
         except Exception:
@@ -591,5 +626,14 @@ def get_job_image(
 
     path = _safe_media_path(stored_path, current_user.salon_id)
     if not path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+        try:
+            restored = google_drive_media.ensure_local_file(path)
+        except GoogleDriveMediaError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Private photo storage is temporarily unavailable.",
+            ) from exc
+        if not restored or not path.is_file():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+        commit_media_volume()
     return FileResponse(path)

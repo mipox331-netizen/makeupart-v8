@@ -43,3 +43,20 @@ def test_oversized_request_id_is_replaced_with_safe_trace_id(client):
     assert response_request_id != untrusted_request_id
     assert len(response_request_id) <= 128
     assert response.json()["request_id"] == response_request_id
+
+
+def test_readiness_fails_closed_when_durable_drive_storage_is_required(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", True)
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
+
+    response = client.get("/health/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "not_ready",
+        "reason": "media_storage_unavailable",
+    }
