@@ -204,8 +204,9 @@ jobs:
       - name: Verify production API
         # Pull-request CI must be deterministic and should not depend on a
         # free production host waking up or on an external database's availability.
-        # Production health remains checked on main pushes and manual release checks.
-        if: ${{ github.event_name != 'pull_request' }}
+        # Modal deploy and the gated APK workflow perform production checks after deployment.
+        # A main push runs CI and deploy concurrently, so checking here creates a race/false failure.
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         run: |
           set -euo pipefail

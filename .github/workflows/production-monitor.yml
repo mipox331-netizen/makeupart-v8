@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      API_BASE_URL: https://makeupart-api.onrender.com
+      API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run
     steps:
       - name: Check production liveness and readiness
         shell: bash

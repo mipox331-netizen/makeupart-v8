@@ -2,19 +2,19 @@
 
 ## 1. Current Android endpoint and deployment paths
 
-The published Android APK v8.0.164 is configured to call the Render API:
+The latest public Android APK is [v8.0.169](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.169), published on 15 October 2026. That already-published APK calls the legacy Render API:
 
 `https://makeupart-api.onrender.com/api/v1`
 
-The connected deployment record identifies `makeupart-api` on Render's free plan. Cold starts and transient gateway timeouts have occurred, so a green health check is not a guarantee that every user flow works continuously.
+The current source/release workflow targets the intended Modal API:
 
-**Important storage and database boundary:** the APK's API endpoint being Render does not prove that the running service uses the same database URL selected by the backup workflow, and it does not make local `MEDIA_ROOT` files durable. Verify the runtime database target before relying on a database restore, and do not rely on local media files for customer-photo retention unless persistent/object storage is attached and its restore is tested.
+`https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1`
 
-The repository also retains a separate Modal deployment path. That path is **not** the endpoint configured in the published APK. Use it only after the Modal deployment, database connection, and media volume are deliberately restored and verified. Its API URL is:
+Do not confuse a published old APK with a verified build of the current source. The latest Modal deploy attempt failed at token authentication (`Token not found`), and the latest APK run failed because Android signing secrets were incomplete. Until deploy/migration/runtime/readiness checks pass and a replacement APK passes signature checks plus a real-device smoke test, production is **not verified**.
 
-`https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run`
+The Modal workflow checks Modal authentication and Supabase connectivity, provisions the production secret, deploys FastAPI, runs Alembic migrations, verifies migration head/runtime/media-volume persistence and checks health. A valid `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` are required in the selected GitHub environment; non-empty but invalid tokens must fail. The workflow now validates each candidate environment's token before selecting it.
 
-Deploys for the Modal alternative are driven by GitHub Actions through `.github/workflows/modal-deploy.yml`. The deployment gate validates Modal/database credentials, provisions the production secret, deploys FastAPI, applies Alembic migrations, verifies the migration head and required tables, checks the MediaPipe + OpenCV image-preservation runtime, and verifies `/health/ready`.
+**Data boundary:** the old APK's Render URL does not prove which backend or database is active, and local `MEDIA_ROOT` is not durable customer-photo storage. Verify runtime and backup URLs point to the same actual Supabase database before depending on recovery.
 
 ## 2. Required secrets for the Modal deployment path
 
@@ -38,12 +38,13 @@ The API has an optional private Google Drive adapter for salon logos and custome
 
 Enable the Google Drive API in Google Cloud, configure the OAuth consent screen, and create a **Web application** OAuth client. Add `https://developers.google.com/oauthplayground` as an authorized redirect URI. In the [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground/), open Settings, enable **Use your own OAuth credentials**, enter that client ID/secret, request `https://www.googleapis.com/auth/drive.file`, use offline access, authorize your Google account, then exchange the code for a refresh token. Do not paste credentials into chat or commit them to Git. The `drive.file` scope is the narrow per-file scope recommended by Google; it avoids granting the app broad access to every Drive file. See [Drive API scope guidance](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
 
-Set these environment variables on the live Render `makeupart-api` service:
+Set these GitHub secrets in the `production` environment so the Modal deploy workflow can pass them into the production service:
 
 - `GOOGLE_DRIVE_CLIENT_ID`
 - `GOOGLE_DRIVE_CLIENT_SECRET`
 - `GOOGLE_DRIVE_REFRESH_TOKEN`
-- `REQUIRE_DURABLE_MEDIA=true` (only after OAuth is configured and an upload/restore has passed)
+
+Keep the GitHub environment variable `REQUIRE_DURABLE_MEDIA=false` during setup. Change it to `true` only after OAuth is configured and a real upload plus restore after restart has passed.
 
 The example environment leaves `REQUIRE_DURABLE_MEDIA=false` so setup does not unexpectedly disable photo processing. Once the OAuth values are configured, test a new image upload and restore after a service restart, then enable required mode. If Drive authentication or persistence fails, processing returns a storage error rather than treating a local-only save as durable. Existing photos that are available only on an earlier Render filesystem are not automatically backfilled by this adapter.
 
@@ -59,7 +60,7 @@ To backfill any media that still exists only on the current server, run from the
 
 `.github/workflows/production-database-backup.yml` is configured for a daily 02:30 UTC PostgreSQL dump and a manual run. It encrypts the custom-format dump with GPG AES-256, verifies that the encrypted archive can be decrypted/listed, and uploads the encrypted archive and checksum as a GitHub Actions artifact retained for 14 days.
 
-Before the first run, add `BACKUP_ENCRYPTION_PASSPHRASE` as a GitHub secret in the production environment. Use a unique high-entropy value of at least 24 characters and keep a recovery copy offline. The workflow accepts `SUPABASE_DB_URL`, `SUPABASE_DB_URL_SECRET` or `DATABASE_URL` already configured as a secret. If either the database URL or encryption passphrase is missing, the workflow fails rather than claiming that a backup was made.
+The most recent database and media backup workflows failed secret validation because `BACKUP_ENCRYPTION_PASSPHRASE` was missing; their restore drills were skipped. Add it as a GitHub secret in the `production` environment, use a unique high-entropy value of at least 24 characters and keep a recovery copy offline. Re-run both backups and restore drills before treating recovery as proven. The workflow accepts `SUPABASE_DB_URL`, `SUPABASE_DB_URL_SECRET` or `DATABASE_URL` already configured as a secret. If either the database URL or encryption passphrase is missing, the workflow fails rather than claiming that a backup was made.
 
 The artifact is an encrypted database export; it is not proof of recoverability until a restore to a clean staging database has been tested. To inspect an archive after authorized download, decrypt it with the same offline passphrase and use `pg_restore --list` to check its contents.
 

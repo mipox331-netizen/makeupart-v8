@@ -82,6 +82,13 @@ jobs:
           SUPABASE_SECRET: ${{ secrets.SUPABASE_SECRET }}
         run: |
           set -euo pipefail
+          python -m pip install --quiet --upgrade modal
+          if modal token info >/dev/null 2>&1; then
+            MODAL_TOKEN_VALID=true
+          else
+            MODAL_TOKEN_VALID=false
+          fi
+          export MODAL_TOKEN_VALID
           python - <<'PY'
           import json
           import os
@@ -91,13 +98,14 @@ jobs:
               "database": any(env.get(k, "").strip() for k in ("SUPABASE_DB_URL", "SUPABASE_DB_URL_SECRET", "DATABASE_URL")),
               "modal_id": bool(env.get("MODAL_TOKEN_ID", "").strip()),
               "modal_secret": bool(env.get("MODAL_TOKEN_SECRET", "").strip()),
+              "modal_valid": env.get("MODAL_TOKEN_VALID") == "true",
               "supabase_app_secret": bool(env.get("SUPABASE_SECRET_KEY", "").strip()),
               "supabase_service_role": bool(env.get("SUPABASE_SECRET", "").strip()),
           }
           filename = f"secret-scope-{env['PROBE_INDEX']}.json"
           with open(filename, "w", encoding="utf-8") as handle:
               json.dump(result, handle)
-          required = ("database", "modal_id", "modal_secret", "supabase_app_secret", "supabase_service_role")
+          required = ("database", "modal_id", "modal_secret", "modal_valid", "supabase_app_secret", "supabase_service_role")
           print(f"Environment '{result['environment']}' has required deployment secrets: {all(result[k] for k in required)}")
           PY
 
@@ -134,7 +142,7 @@ jobs:
           import json
           candidates = []
           seen = []
-          required = ("database", "modal_id", "modal_secret", "supabase_app_secret", "supabase_service_role")
+          required = ("database", "modal_id", "modal_secret", "modal_valid", "supabase_app_secret", "supabase_service_role")
           for path in glob.glob("probes/secret-scope-*.json"):
               with open(path, encoding="utf-8") as handle:
                   result = json.load(handle)
@@ -145,7 +153,7 @@ jobs:
           if candidates:
               print(candidates[0])
           else:
-              print("No single GitHub environment contains the required deployment secrets.", flush=True)
+              print("No GitHub environment contains the required deployment secrets with a valid Modal token.", flush=True)
               for row in seen:
                   ready = ",".join(key for key in required if row.get(key))
                   print(f"Environment '{row.get('environment', '?')}': available={ready or 'none'}", flush=True)
