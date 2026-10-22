@@ -312,8 +312,8 @@ jobs:
         with:
           name: makeupart-media-backup-${{ github.run_id }}
           path: |
-            $RUNNER_TEMP/makeupart-media-backup/*.tar.gz.gpg
-            $RUNNER_TEMP/makeupart-media-backup/*.tar.gz.gpg.sha256
+            ${ runner.temp }/makeupart-media-backup/*.tar.gz.gpg
+            ${ runner.temp }/makeupart-media-backup/*.tar.gz.gpg.sha256
           if-no-files-found: error
           retention-days: 14
 
