@@ -61,6 +61,28 @@ def test_required_mode_fails_closed_without_oauth_credentials(monkeypatch):
         drive._credentials()
 
 
+def test_production_mode_fails_closed_without_oauth_even_if_flag_is_false(monkeypatch):
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
+
+    with pytest.raises(drive.GoogleDriveMediaError, match="Durable media storage is required"):
+        drive._credentials()
+
+
+def test_partial_oauth_configuration_fails_closed(monkeypatch):
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "configured-client")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
+
+    with pytest.raises(drive.GoogleDriveMediaError, match="configuration is incomplete"):
+        drive._credentials()
+
+
 def test_media_key_rejects_paths_outside_media_root(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path / "media"))
     outside = tmp_path / "outside.png"
