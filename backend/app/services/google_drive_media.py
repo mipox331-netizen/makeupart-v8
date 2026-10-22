@@ -434,7 +434,7 @@ def ensure_local_file(path: str | Path) -> bool:
 
 
 def delete_media_file(path: str | Path) -> bool:
-    """Trash one matching private Drive object; false means local-only mode."""
+    """Permanently delete one matching private Drive object; false means local-only mode."""
     credentials = _credentials()
     if credentials is None:
         return False
@@ -446,21 +446,17 @@ def delete_media_file(path: str | Path) -> bool:
     if media is None:
         return True
 
+    # Privacy deletion must not merely move a client image into Drive Trash,
+    # where the central account owner could still restore/view it.
     response = _request(
-        "PATCH",
+        "DELETE",
         f"{_API}/files/{media['id']}",
         token=token,
-        params={"fields": "id,trashed"},
-        json={"trashed": True},
     )
-    try:
-        deleted = response.json()
-    except ValueError as exc:
+    # Drive files.delete normally returns HTTP 204 with an empty body. _request
+    # raises on every HTTP error, so a returned response confirms API success.
+    if response.status_code not in (200, 204):
         raise GoogleDriveMediaError(
-            "Google Drive returned invalid private-media deletion metadata."
-        ) from exc
-    if str(deleted.get("id") or "") != str(media["id"]) or deleted.get("trashed") is not True:
-        raise GoogleDriveMediaError(
-            "Google Drive did not confirm deletion of the matched private media object."
+            "Google Drive did not confirm permanent deletion of the matched private media object."
         )
     return True
