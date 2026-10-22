@@ -59,7 +59,7 @@ jobs:
           echo "Changed paths:"
           cat "$RUNNER_TEMP/changed-files.txt"
 
-          if grep -Eq '^(backend/|modal_app\.py$|\.github/workflows/modal-deploy\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(backend/|modal_app\.py$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "backend_changed=true" >> "$GITHUB_OUTPUT"
             echo "Backend/runtime changed; wait for Render deployment, then dispatch this workflow manually."
           else
