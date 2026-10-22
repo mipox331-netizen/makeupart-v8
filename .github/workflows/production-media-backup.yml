@@ -168,7 +168,7 @@ jobs:
               relative = PurePosixPath(path_key)
               if not file_id or not path_key or relative.is_absolute() or "\\" in path_key:
                   abort("A Drive media item has an invalid private path index; backup stopped.")
-              if any(part in ("", ".", "..") for part in relative.parts):
+              if relative.as_posix() != path_key or any(part in ("", ".", "..") for part in relative.parts):
                   abort("A Drive media item has an unsafe private path index; backup stopped.")
               if path_key in seen_paths:
                   abort("Duplicate private media path indexes were found; backup stopped.")
@@ -213,6 +213,8 @@ jobs:
                               output.write(chunk)
               except requests.RequestException:
                   abort("A private media download failed; Google Drive identifiers and contents were withheld.")
+              if size == 0:
+                  abort("An empty media object was found; refusing a backup that cannot be restored by the app.")
               if expected_size and size != expected_size:
                   abort("Private media size verification failed; refusing to back up a truncated file.")
               expected_md5 = str(record.get("md5Checksum") or "").lower()
