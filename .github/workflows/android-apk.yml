@@ -24,8 +24,56 @@ on:
     types: [completed]
 
 jobs:
+  # Avoid racing Modal deployment when backend/runtime files change. Build from
+  # the exact deployed commit after a successful deployment; frontend-only pushes
+  # can build directly if the existing production API passes health checks.
+  classify-push:
+    runs-on: ubuntu-latest
+    outputs:
+      backend_changed: ${{ steps.detect.outputs.backend_changed }}
+    steps:
+      - name: Checkout push history
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect whether this push needs a backend deployment first
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != "push" ]]; then
+            echo "backend_changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # If the prior revision is unavailable, fail closed: publish only
+          # after the deployment workflow succeeds.
+          if [[ -z "$EVENT_BEFORE" || "$EVENT_BEFORE" =~ ^0+$ ]]; then
+            echo "backend_changed=true" >> "$GITHUB_OUTPUT"
+            echo "No valid before-SHA; defer release until deployment succeeds."
+            exit 0
+          fi
+
+          git diff --name-only "$EVENT_BEFORE" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          echo "Changed paths:"
+          cat "$RUNNER_TEMP/changed-files.txt"
+
+          if grep -Eq '^(backend/|modal_app\.py$|\.github/workflows/modal-deploy\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+            echo "backend_changed=true" >> "$GITHUB_OUTPUT"
+            echo "Backend/runtime changed; wait for the production deployment workflow."
+          else
+            echo "backend_changed=false" >> "$GITHUB_OUTPUT"
+            echo "No backend/runtime changes; a direct APK build may proceed if production health checks pass."
+          fi
+
   build-android-apk:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    needs: classify-push
+    if: ${{ (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') && (github.event_name != 'push' || needs.classify-push.outputs.backend_changed != 'true') }}
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -37,6 +85,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # A deploy-completion event must build the revision that actually deployed.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
