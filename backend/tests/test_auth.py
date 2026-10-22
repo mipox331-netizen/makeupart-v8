@@ -62,6 +62,21 @@ def test_register_race_returns_conflict_instead_of_server_error(client, monkeypa
     assert response.json()["detail"] == "Email already registered"
 
 
+def test_public_registration_cannot_claim_reserved_platform_admin_email(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "PlatformAdmin@salon.com")
+
+    response = register(client, email="platformadmin@SALON.com")
+
+    assert response.status_code == 403
+    assert "trusted administrative process" in response.json()["detail"]
+    assert client.get(
+        f"{API}/admin/users",
+        headers={},
+    ).status_code == 401
+
+
 def test_register_rejects_short_password(client):
     response = client.post(
         f"{API}/auth/register",
