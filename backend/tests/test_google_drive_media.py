@@ -61,6 +61,28 @@ def test_required_mode_fails_closed_without_oauth_credentials(monkeypatch):
         drive._credentials()
 
 
+def test_production_mode_fails_closed_without_oauth_even_if_flag_is_false(monkeypatch):
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
+
+    with pytest.raises(drive.GoogleDriveMediaError, match="Durable media storage is required"):
+        drive._credentials()
+
+
+def test_partial_oauth_configuration_fails_closed(monkeypatch):
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "configured-client")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
+
+    with pytest.raises(drive.GoogleDriveMediaError, match="configuration is incomplete"):
+        drive._credentials()
+
+
 def test_media_key_rejects_paths_outside_media_root(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path / "media"))
     outside = tmp_path / "outside.png"
@@ -100,7 +122,17 @@ def test_upload_uses_private_app_folder_and_resumable_drive_upload(monkeypatch, 
             return make_response(url, headers={"Location": "https://www.googleapis.com/upload/session"})
         if method == "PUT" and url == "https://www.googleapis.com/upload/session":
             uploaded_chunks.extend(list(kwargs["content"]))
-            return make_response(url, body={"id": "saved-file", "name": "after.png"})
+            return make_response(
+                url,
+                body={
+                    "id": "saved-file",
+                    "name": "after.png",
+                    "size": str(len(b"private-makeup-image")),
+                    "md5Checksum": hashlib.md5(
+                        b"private-makeup-image", usedforsecurity=False
+                    ).hexdigest(),
+                },
+            )
         raise AssertionError(f"Unexpected Google Drive API request: {method} {url}")
 
     monkeypatch.setattr(drive.httpx, "post", fake_token_post)
@@ -222,6 +254,46 @@ def test_delete_trashes_only_the_matched_private_drive_file(monkeypatch, tmp_pat
     assert recorded["method"] == "PATCH"
     assert recorded["url"].endswith("/files/matched-file")
     assert recorded["json"] == {"trashed": True}
+
+
+def test_upload_rejects_media_when_drive_checksum_does_not_match(monkeypatch, tmp_path):
+    configure_drive(monkeypatch, tmp_path)
+    media_path = settings.media_root_path / "salons" / "salon-123" / "outputs" / "after.png"
+    media_path.parent.mkdir(parents=True)
+    media_path.write_bytes(b"private-makeup-image")
+    monkeypatch.setattr(
+        drive,
+        "_access_token",
+        lambda: "test-token",
+    )
+    monkeypatch.setattr(drive, "_root_folder_id", lambda _token: "private-root")
+    monkeypatch.setattr(drive, "_find_media_object", lambda *_args: None)
+
+    def fake_request(method, url, **kwargs):
+        if method == "GET" and url.endswith("/files"):
+            if "makeupart_root" in kwargs["params"]["q"]:
+                return make_response(url, body={"files": [{"id": "private-root"}]})
+            return make_response(url, body={"files": []})
+        if method == "POST" and url == f"{drive._UPLOAD_API}/files":
+            return make_response(url, headers={"Location": "https://www.googleapis.com/upload/session"})
+        if method == "PUT" and url == "https://www.googleapis.com/upload/session":
+            return make_response(
+                url,
+                body={
+                    "id": "saved-file",
+                    "name": "after.png",
+                    "size": str(len(b"private-makeup-image")),
+                    "md5Checksum": hashlib.md5(
+                        b"different-image", usedforsecurity=False
+                    ).hexdigest(),
+                },
+            )
+        raise AssertionError(f"Unexpected Google Drive API request: {method} {url}")
+
+    monkeypatch.setattr(drive, "_request", fake_request)
+
+    with pytest.raises(drive.GoogleDriveMediaError, match="checksum verification failed"):
+        drive.persist_media_file(media_path)
 
 
 def test_rejects_upload_session_url_outside_google_hosts(monkeypatch, tmp_path):

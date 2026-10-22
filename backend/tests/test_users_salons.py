@@ -176,8 +176,8 @@ def test_owner_delete_protection_remains_enforced(client):
 
 
 def test_platform_admin_can_list_and_block_users(client, monkeypatch):
-    monkeypatch.setattr("app.core.config.settings.PLATFORM_ADMIN_EMAILS", "owner@salon.com")
     register(client)
+    monkeypatch.setattr("app.core.config.settings.PLATFORM_ADMIN_EMAILS", "owner@salon.com")
     other = register(client, email="other@salon.com", salon_name="Other Salon")
     admin_headers = auth_headers(client, "owner@salon.com")
     other_tokens = login(client, "other@salon.com").json()
@@ -219,8 +219,8 @@ def test_platform_admin_can_list_and_block_users(client, monkeypatch):
 
 
 def test_non_platform_admin_cannot_manage_platform_users(client, monkeypatch):
-    monkeypatch.setattr("app.core.config.settings.PLATFORM_ADMIN_EMAILS", "owner@salon.com")
     register(client)
+    monkeypatch.setattr("app.core.config.settings.PLATFORM_ADMIN_EMAILS", "owner@salon.com")
     register(client, email="other@salon.com", salon_name="Other Salon")
     headers = auth_headers(client, "other@salon.com")
     assert client.get(f"{API}/admin/users", headers=headers).status_code == 403

@@ -244,7 +244,9 @@ jobs:
           )
           print(f"Private Google Drive inventory captured: files={len(entries)}, bytes={total_bytes}. File paths, IDs, tokens and image contents were not logged.")
           if not entries:
-              print("::warning::The MakeUpArt private media folder is empty. Backup mechanics can be verified, but recovery of customer photos/logos is not yet proven.")
+              abort(
+                  "The MakeUpArt private media inventory is empty. Refusing to report a customer-media backup as successful when there are no photos or logos to recover."
+              )
           PY
 
       - name: Encrypt archive and verify a complete isolated restore

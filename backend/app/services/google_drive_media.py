@@ -55,7 +55,10 @@ def _credentials() -> tuple[str, str, str] | None:
         settings.GOOGLE_DRIVE_REFRESH_TOKEN.strip(),
     )
     if not any(values):
-        if settings.REQUIRE_DURABLE_MEDIA:
+        # Production containers can have ephemeral local disks. Never silently
+        # downgrade customer media to local-only storage in a live environment,
+        # even if an old/missing env var leaves REQUIRE_DURABLE_MEDIA disabled.
+        if settings.REQUIRE_DURABLE_MEDIA or settings.ENVIRONMENT.lower() == "production":
             raise GoogleDriveMediaError(
                 "Durable media storage is required but Google Drive OAuth is not configured."
             )
@@ -336,6 +339,31 @@ def persist_media_file(path: str | Path) -> bool:
         raise GoogleDriveMediaError(
             f"Google Drive media upload failed (HTTP {response.status_code})."
         )
+
+    # A 2xx response alone is not enough to prove the stored photo/logo matches
+    # the source. Verify Google's final resumable-upload metadata before the
+    # calling API commits database rows that reference this media object.
+    try:
+        uploaded = response.json()
+        uploaded_size = int(uploaded.get("size", -1))
+        uploaded_md5 = str(uploaded.get("md5Checksum") or "").strip().lower()
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise GoogleDriveMediaError(
+            "Google Drive returned invalid media-upload verification metadata."
+        ) from exc
+
+    expected_size = candidate.stat().st_size
+    expected_md5 = hashlib.md5(usedforsecurity=False)
+    for chunk in _read_chunks(candidate):
+        expected_md5.update(chunk)
+    if uploaded_size != expected_size:
+        raise GoogleDriveMediaError(
+            "Google Drive media upload size verification failed."
+        )
+    if not uploaded_md5 or uploaded_md5 != expected_md5.hexdigest().lower():
+        raise GoogleDriveMediaError(
+            "Google Drive media upload checksum verification failed."
+        )
     return True
 
 
@@ -418,11 +446,21 @@ def delete_media_file(path: str | Path) -> bool:
     if media is None:
         return True
 
-    _request(
+    response = _request(
         "PATCH",
         f"{_API}/files/{media['id']}",
         token=token,
         params={"fields": "id,trashed"},
         json={"trashed": True},
     )
+    try:
+        deleted = response.json()
+    except ValueError as exc:
+        raise GoogleDriveMediaError(
+            "Google Drive returned invalid private-media deletion metadata."
+        ) from exc
+    if str(deleted.get("id") or "") != str(media["id"]) or deleted.get("trashed") is not True:
+        raise GoogleDriveMediaError(
+            "Google Drive did not confirm deletion of the matched private media object."
+        )
     return True

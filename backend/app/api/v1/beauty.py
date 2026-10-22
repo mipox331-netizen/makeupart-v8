@@ -475,12 +475,18 @@ def process_beauty_upload(
         logo_path = settings.media_root_path / "salons" / str(current_user.salon_id) / "branding" / "logo.png"
         if watermark.logo_url and not logo_path.is_file():
             try:
-                google_drive_media.ensure_local_file(logo_path)
+                restored = google_drive_media.ensure_local_file(logo_path)
             except GoogleDriveMediaError as exc:
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Salon logo storage is temporarily unavailable. The photo was not saved.",
                 ) from exc
+            if not restored or not logo_path.is_file():
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="The saved salon logo could not be restored. The photo was not saved.",
+                )
+            commit_media_volume()
         try:
             watermark_applied = apply_watermark(generated_output, salon, watermark)
         except (OSError, ValueError) as exc:
