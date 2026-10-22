@@ -17,11 +17,7 @@ on:
       - "backend/**"
       - "modal_app.py"
       - ".github/workflows/android-apk.yml"
-      - ".github/workflows/modal-deploy.yml"
   workflow_dispatch:
-  workflow_run:
-    workflows: ["MakeupArt V8 Modal Production Deploy"]
-    types: [completed]
 
 jobs:
   # Avoid racing Modal deployment when backend/runtime files change. Build from
@@ -65,7 +61,7 @@ jobs:
 
           if grep -Eq '^(backend/|modal_app\.py$|\.github/workflows/modal-deploy\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "backend_changed=true" >> "$GITHUB_OUTPUT"
-            echo "Backend/runtime changed; wait for the production deployment workflow."
+            echo "Backend/runtime changed; wait for Render deployment, then dispatch this workflow manually."
           else
             echo "backend_changed=false" >> "$GITHUB_OUTPUT"
             echo "No backend/runtime changes; a direct APK build may proceed if production health checks pass."
@@ -73,11 +69,11 @@ jobs:
 
   build-android-apk:
     needs: classify-push
-    if: ${{ (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') && (github.event_name != 'push' || needs.classify-push.outputs.backend_changed != 'true') }}
+    if: ${{ github.event_name != 'push' || needs.classify-push.outputs.backend_changed != 'true' }}
     runs-on: ubuntu-latest
     environment: production
     env:
-      PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
+      PRODUCTION_API_BASE_URL: https://makeupart-api.onrender.com/api/v1
     defaults:
       run:
         working-directory: makeup_art_v8
@@ -86,8 +82,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # A deploy-completion event must build the revision that actually deployed.
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          # Build the selected push/dispatch commit. Backend updates are manually dispatched after Render deploys.
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2

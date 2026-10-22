@@ -1,15 +1,9 @@
 name: MakeupArt V8 Modal Production Deploy
 # Retry after refreshed Supabase database credentials
 # Trigger production validation
-# Production deployment workflow
+# Manual-only fallback. Production currently uses Render Free because Modal's free credits are exhausted.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "backend/**"
-      - "modal_app.py"
-      - ".github/workflows/modal-deploy.yml"
   workflow_dispatch:
     inputs:
       secret_environment:
