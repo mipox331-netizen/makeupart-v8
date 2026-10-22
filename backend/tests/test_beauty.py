@@ -593,6 +593,61 @@ def test_generative_upload_requires_external_provider_consent(
 
 
 
+def test_upload_fails_when_saved_salon_logo_cannot_be_restored(
+    client, monkeypatch, tmp_path
+):
+    registration = register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+
+    def fake_classic_process(self, image_path, options=None):
+        output_dir = Path(options["output_dir"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output = output_dir / "classic-test.png"
+        assert cv2.imwrite(str(output), np.full((256, 256, 3), 120, dtype=np.uint8))
+        return {
+            "identity_similarity": 0.99,
+            "skin_tone": "medium",
+            "undertone": "neutral",
+            "foundation_match": "medium-neutral",
+            "processed": True,
+            "output_path": str(output),
+        }
+
+    monkeypatch.setattr(BeautyProvider, "process", fake_classic_process)
+    monkeypatch.setattr(
+        beauty_api,
+        "get_or_create_watermark",
+        lambda _db, _salon: SimpleNamespace(
+            logo_url="/api/v1/watermarks/me/logo",
+            position="bottom-right",
+            size=12,
+            opacity=0.5,
+            phone=False,
+            instagram=False,
+            tiktok=False,
+        ),
+    )
+    monkeypatch.setattr(
+        beauty_api.google_drive_media, "ensure_local_file", lambda _path: False
+    )
+
+    image_bytes = cv2.imencode(
+        ".png", np.full((256, 256, 3), 120, dtype=np.uint8)
+    )[1].tobytes()
+    response = client.post(
+        f"{API}/beauty/process-upload?engine=classic&consent_confirmed=true",
+        headers=headers,
+        files={"file": ("portrait.png", image_bytes, "image/png")},
+    )
+
+    assert response.status_code == 503
+    assert "logo could not be restored" in response.json()["detail"]
+    assert not list((media_root / "salons" / salon_id / "inputs").glob("*"))
+
+
 def test_generative_upload_saves_watermarked_result_without_fake_identity_score(
     client, monkeypatch, tmp_path
 ):
