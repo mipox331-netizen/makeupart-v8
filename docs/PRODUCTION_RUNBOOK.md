@@ -6,13 +6,11 @@ The latest public Android APK is [v8.0.169](https://github.com/mipox331-netizen/
 
 `https://makeupart-api.onrender.com/api/v1`
 
-The current source/release workflow targets the intended Modal API:
+**Current free hosting target:** the Render Free service `makeupart-api` at `https://makeupart-api.onrender.com/api/v1`. The latest observed Render deployment for commit `45d9179694264f773bd63347dc6129bcd957dd58` succeeded on 22 October 2026, and its logs showed `/health/ready` returning HTTP 200. Render Free may cold-start after idle periods.
 
-`https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1`
+Do not confuse a published APK with a fully production-verified release. Modal's free-credit limit has been reached, so Modal is no longer the active hosting target. The latest public APK is still the older release `v8.0.169`; a replacement must pass APK signature checks, production health checks and a real-device smoke test before being called verified.
 
-Do not confuse a published old APK with a verified build of the current source. The latest Modal deploy attempt failed at token authentication (`Token not found`), and the latest APK run failed because Android signing secrets were incomplete. Until deploy/migration/runtime/readiness checks pass and a replacement APK passes signature checks plus a real-device smoke test, production is **not verified**.
-
-The Modal workflow checks Modal authentication and Supabase connectivity, provisions the production secret, deploys FastAPI, runs Alembic migrations, verifies migration head/runtime/media-volume persistence and checks health. A valid `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` are required in the selected GitHub environment; non-empty but invalid tokens must fail. The workflow now validates each candidate environment's token before selecting it.
+Render deploys the backend from the repository's `main` branch using the `backend` directory. Supabase remains the database. `.github/workflows/modal-deploy.yml` is manual-only while Modal credits are exhausted; do not treat a successful local CI run as proof that the production database or media recovery is verified.
 
 **Data boundary:** the old APK's Render URL does not prove which backend or database is active, and local `MEDIA_ROOT` is not durable customer-photo storage. Verify runtime and backup URLs point to the same actual Supabase database before depending on recovery.
 
@@ -34,17 +32,17 @@ Never commit secret values or paste them into chat.
 
 ### Google Drive private media storage
 
-The API has an optional private Google Drive adapter for salon logos and customer before/after photos. It uses the Google account owner's OAuth refresh token (not a service account), the `drive.file` scope, and a private folder created by the app. It does not create public sharing links.
+The API has a private Google Drive adapter for salon logos and customer before/after photos. Google Drive stores files; it does not run the FastAPI API. The adapter uses the Google account owner's OAuth refresh token (not a service account), the `drive.file` scope, and a private folder created by the app. It does not create public sharing links.
 
 Enable the Google Drive API in Google Cloud, configure the OAuth consent screen, and create a **Web application** OAuth client. Add `https://developers.google.com/oauthplayground` as an authorized redirect URI. In the [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground/), open Settings, enable **Use your own OAuth credentials**, enter that client ID/secret, request `https://www.googleapis.com/auth/drive.file`, use offline access, authorize your Google account, then exchange the code for a refresh token. Do not paste credentials into chat or commit them to Git. The `drive.file` scope is the narrow per-file scope recommended by Google; it avoids granting the app broad access to every Drive file. See [Drive API scope guidance](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
 
-Set these GitHub secrets in the `production` environment so the Modal deploy workflow can pass them into the production service:
+Because the active backend runs on Render, set these values under **Render Dashboard → `makeupart-api` → Environment**, then save and deploy. Do not paste credential values into GitHub issues or chat:
 
 - `GOOGLE_DRIVE_CLIENT_ID`
 - `GOOGLE_DRIVE_CLIENT_SECRET`
 - `GOOGLE_DRIVE_REFRESH_TOKEN`
 
-Keep the GitHub environment variable `REQUIRE_DURABLE_MEDIA=false` during setup. Change it to `true` only after OAuth is configured and a real upload plus restore after restart has passed.
+Keep `REQUIRE_DURABLE_MEDIA=false` during setup. Set it as a Render environment variable to `true` only after OAuth is configured and a real photo/logo upload plus restore after service restart has passed.
 
 The example environment leaves `REQUIRE_DURABLE_MEDIA=false` so setup does not unexpectedly disable photo processing. Once the OAuth values are configured, test a new image upload and restore after a service restart, then enable required mode. If Drive authentication or persistence fails, processing returns a storage error rather than treating a local-only save as durable. Existing photos that are available only on an earlier Render filesystem are not automatically backfilled by this adapter.
 
@@ -64,7 +62,7 @@ The most recent database and media backup workflows failed secret validation bec
 
 The artifact is an encrypted database export; it is not proof of recoverability until a restore to a clean staging database has been tested. To inspect an archive after authorized download, decrypt it with the same offline passphrase and use `pg_restore --list` to check its contents.
 
-**Important:** database exports do not include image files. The Modal `makeupart-v8-media` volume and the new Google Drive adapter are separate. The Google Drive adapter must be configured and cold-start restore tested before treating the live Render photos as durable; database dump success alone is not a complete disaster-recovery plan.
+**Important:** database exports do not include image files. Render Free's local filesystem is ephemeral. The Google Drive adapter must be configured and cold-start restore tested before treating customer photos as durable; database dump success alone is not a complete disaster-recovery plan.
 
 Supabase Free projects do not receive the Pro/Team/Enterprise daily-backup feature and should maintain their own exports. See [Supabase database backups](https://supabase.com/docs/guides/platform/backups).
 
