@@ -47,6 +47,16 @@ def _issue_tokens(user: User, db: Session) -> Token:
 def register(register_in: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
     if get_user_by_email(db, register_in.email) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    # Platform-admin privilege is granted by the configured email allowlist.
+    # Public signup must never be able to claim a reserved admin address before
+    # its real account is provisioned (email ownership is not verified here).
+    if register_in.email.strip().lower() in settings.platform_admin_emails:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin accounts must be provisioned through a trusted administrative process.",
+        )
+
     try:
         salon = create_salon(
             db,
