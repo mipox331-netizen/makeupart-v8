@@ -124,7 +124,17 @@ jobs:
           manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
           if manifest.get("format") != "makeupart-google-drive-media-backup-v1":
               raise SystemExit("Unknown media backup manifest format.")
-          expected = {row["path"]: row for row in manifest.get("files", [])}
+          expected_rows = manifest.get("files", [])
+          expected = {
+              row["path"]: {
+                  "path": row["path"],
+                  "size": row["size"],
+                  "sha256": row["sha256"],
+              }
+              for row in expected_rows
+          }
+          if len(expected) != len(expected_rows):
+              raise SystemExit("Media restore drill failed: duplicate paths in manifest.")
           actual = {}
           for item in root.rglob("*"):
               if item.is_symlink():
@@ -144,5 +154,8 @@ jobs:
           total = sum(row["size"] for row in actual.values())
           if len(actual) != manifest.get("file_count") or total != manifest.get("total_bytes"):
               raise SystemExit("Media restore drill failed: manifest totals differ.")
-          print(f"Media restore drill passed: files={len(actual)}, bytes={total}. Production volume was not changed; customer paths and image contents were not logged.")
+          if not actual:
+              print("::warning::Media restore mechanics passed, but the backup contains zero photos/logos; real customer-media recovery is not proven.")
+          else:
+              print(f"Media restore drill passed: files={len(actual)}, bytes={total}. Production Drive was not modified; customer paths and image contents were not logged.")
           PY
