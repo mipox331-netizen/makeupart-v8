@@ -168,13 +168,16 @@ jobs:
               relative = PurePosixPath(path_key)
               if not file_id or not path_key or relative.is_absolute() or "\\" in path_key:
                   abort("A Drive media item has an invalid private path index; backup stopped.")
+              if len(path_key.encode("utf-8")) > 105:
+                  abort("A Drive media item has an unsupported private path length; backup stopped.")
               if relative.as_posix() != path_key or any(part in ("", ".", "..") for part in relative.parts):
                   abort("A Drive media item has an unsafe private path index; backup stopped.")
               if path_key in seen_paths:
                   abort("Duplicate private media path indexes were found; backup stopped.")
               seen_paths.add(path_key)
-              if record.get("mimeType") == "application/vnd.google-apps.folder":
-                  abort("Unexpected subfolder found in the MakeUpArt media root; backup stopped safely.")
+              mime_type = str(record.get("mimeType") or "")
+              if mime_type.startswith("application/vnd.google-apps."):
+                  abort("Unsupported Google Workspace item found in the media root; backup stopped safely.")
               try:
                   expected_size = int(record.get("size") or 0)
               except (ValueError, TypeError):
