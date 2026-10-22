@@ -122,7 +122,7 @@ jobs:
 
           root = Path(sys.argv[1]).resolve()
           manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-          if manifest.get("format") != "makeupart-media-backup-v1":
+          if manifest.get("format") != "makeupart-google-drive-media-backup-v1":
               raise SystemExit("Unknown media backup manifest format.")
           expected = {row["path"]: row for row in manifest.get("files", [])}
           actual = {}
