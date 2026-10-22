@@ -71,10 +71,7 @@ def test_public_registration_cannot_claim_reserved_platform_admin_email(client, 
 
     assert response.status_code == 403
     assert "trusted administrative process" in response.json()["detail"]
-    assert client.get(
-        f"{API}/admin/users",
-        headers={},
-    ).status_code == 401
+    assert login(client, "platformadmin@salon.com").status_code == 401
 
 
 def test_register_rejects_short_password(client):
