@@ -55,7 +55,10 @@ def _credentials() -> tuple[str, str, str] | None:
         settings.GOOGLE_DRIVE_REFRESH_TOKEN.strip(),
     )
     if not any(values):
-        if settings.REQUIRE_DURABLE_MEDIA:
+        # Production containers can have ephemeral local disks. Never silently
+        # downgrade customer media to local-only storage in a live environment,
+        # even if an old/missing env var leaves REQUIRE_DURABLE_MEDIA disabled.
+        if settings.REQUIRE_DURABLE_MEDIA or settings.ENVIRONMENT.lower() == "production":
             raise GoogleDriveMediaError(
                 "Durable media storage is required but Google Drive OAuth is not configured."
             )
