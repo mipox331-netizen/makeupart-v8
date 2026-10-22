@@ -21,8 +21,8 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     env:
-      # Match the API and deployment validated by the Modal production workflow.
-      PRODUCTION_API_BASE_URL: https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1
+      # Match the active production backend hosted on Render.
+      PRODUCTION_API_BASE_URL: https://makeupart-api.onrender.com/api/v1
 
     steps:
       - name: Checkout
