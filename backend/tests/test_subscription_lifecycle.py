@@ -6,8 +6,8 @@ from tests.utils import API, auth_headers, register
 
 
 def test_subscription_expiry_suspends_without_deleting_access(client, monkeypatch):
-    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
     registration = register(client)
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
     headers = auth_headers(client, "owner@salon.com")
 
     initial = client.get(f"{API}/subscriptions/me", headers=headers)
@@ -36,8 +36,8 @@ def test_subscription_expiry_suspends_without_deleting_access(client, monkeypatc
 
 
 def test_platform_admin_can_reactivate_suspended_salon(client, monkeypatch):
-    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
     registration = register(client)
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
     headers = auth_headers(client, "owner@salon.com")
     salon_id = registration.json()["salon"]["id"]
 
@@ -63,8 +63,8 @@ def test_platform_admin_can_reactivate_suspended_salon(client, monkeypatch):
 
 
 def test_non_platform_admin_cannot_manage_subscriptions(client, monkeypatch):
-    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
     register(client)
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
     other = register(client, email="other@salon.com", salon_name="Other Salon")
     other_headers = auth_headers(client, "other@salon.com")
     assert other.status_code == 201
