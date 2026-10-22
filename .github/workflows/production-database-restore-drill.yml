@@ -243,11 +243,10 @@ jobs:
           }
 
           if [[ "$application_data_state" == "empty" ]]; then
-            echo "Restore drill passed: checksum valid, decryption valid, public-schema PostgreSQL restore valid, required_tables=$table_count, migration_head=$revision, core application tables are empty, orphaned_subscriptions=$inconsistent_subscriptions."
-            echo "::notice::The selected backup has no user/salon/subscription rows. This verifies an empty-database restore; row-data recovery cannot be proven until the source contains real application data."
-          else
-            echo "Restore drill passed: checksum valid, decryption valid, public-schema PostgreSQL restore valid, required_tables=$table_count, migration_head=$revision, core application data present, orphaned_subscriptions=$inconsistent_subscriptions."
+            echo "::error::Database restore drill failed: the backup has no users, salons, or subscriptions. Schema restore passed, but production row-data recovery is not proven."
+            exit 1
           fi
+          echo "Restore drill passed: checksum valid, decryption valid, public-schema PostgreSQL restore valid, required_tables=$table_count, migration_head=$revision, core application data present, orphaned_subscriptions=$inconsistent_subscriptions."
           echo "The restored temporary database is isolated to this workflow job and is discarded automatically when the job ends."
 
       - name: Remove decrypted backup material
