@@ -171,8 +171,8 @@ jobs:
       run:
         working-directory: makeup_art_v8
     env:
-      # Modal deploy workflow owns the production API; Render was retired from the release path.
-      PRODUCTION_API_BASE_URL: ${{ inputs.api_base_url || 'https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1' }}
+      # Render Free hosts the FastAPI API; Supabase remains the production database.
+      PRODUCTION_API_BASE_URL: ${{ inputs.api_base_url || 'https://makeupart-api.onrender.com/api/v1' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
