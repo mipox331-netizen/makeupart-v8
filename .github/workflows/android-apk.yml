@@ -82,8 +82,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # A deploy-completion event must build the revision that actually deployed.
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          # Build the selected push/dispatch commit. Backend updates are manually dispatched after Render deploys.
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
