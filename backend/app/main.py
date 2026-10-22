@@ -125,7 +125,9 @@ def readiness_check() -> dict[str, str]:
             settings.GOOGLE_DRIVE_REFRESH_TOKEN,
         )
     )
-    if settings.REQUIRE_DURABLE_MEDIA or drive_configured:
+    # A production readiness probe must not report healthy when media is
+    # only local on an ephemeral container filesystem.
+    if settings.ENVIRONMENT.lower() == "production" or settings.REQUIRE_DURABLE_MEDIA or drive_configured:
         try:
             google_drive_media.verify_connection()
         except GoogleDriveMediaError:
