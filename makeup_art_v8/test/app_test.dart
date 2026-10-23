@@ -111,7 +111,7 @@ void _useTallViewport(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets('MOOG 343 app boots with branded startup', (tester) async {
+  testWidgets('MakeupArt V8 identifies MOOG 343 as creator', (tester) async {
     await tester.pumpWidget(const MakeupArtApp());
     await tester.pump();
     expect(find.byType(MakeupArtApp), findsOneWidget);
