@@ -141,8 +141,54 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
   @override
   Widget build(BuildContext context) {
     if (!ready) {
-      return const MaterialApp(
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'MOOG 343',
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.dark,
+          colorSchemeSeed: const Color(0xFFB66DFF),
+          scaffoldBackgroundColor: const Color(0xFF090B12),
+        ),
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 88,
+                  height: 88,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF171B2B),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Image.network(
+                    'https://www.google.com/s2/favicons?domain=moog-digital.blogspot.com&sz=256',
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) =>
+                        const Icon(Icons.auto_awesome, size: 64),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'MOOG 343',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 20),
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
