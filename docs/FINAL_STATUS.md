@@ -1,44 +1,31 @@
-# Final Status
+# MakeupArt V8 — Current Engineering Status
 
-Status verified against GitHub Actions and the connected Render workspace on 15 October 2026. This report separates a published APK and passing code checks from remaining production-operability risks.
+Status checked: 23 October 2026. This document separates verified checks from unproven production behavior.
 
-## Delivered and verified
+## Verified
 
-- FastAPI + PostgreSQL + Alembic backend, salon-scoped authentication, user administration and subscription enforcement.
-- Customer records, consultations, stored consent, job history, privacy deletion and authenticated salon-isolated media routes.
-- Image validation, embedded metadata removal, retention cleanup, request IDs and security response headers.
-- Flutter registration/login, token refresh, customer controls, consent, camera/gallery flow, before/after view and gallery export.
-- Salon branding/watermark settings and before/after image outputs.
-- Admin deactivation revokes refresh sessions and rejects stale access tokens via `token_version`.
-- Production health monitor and release workflows use liveness/readiness checks and retry transient network/gateway failures once.
-- Public Android APK release [v8.0.164](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.164). [Direct APK download](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.164/MakeupArt-V8.apk).
-- Optional app update checker prompts for newer GitHub Releases; Android installation still requires user approval.
-- Database backup and isolated restore automation is configured and recent database backup/restore jobs passed.
-- InsightFace runtime/weights were removed; the classic image path uses MediaPipe + OpenCV. Its structure-preservation score is not biometric identity recognition.
-- Original source licensing notice and third-party dependency inventory workflow are present.
+- Current main commit at audit start: [`8b2aee9269628e58089a89cf3486bb385932179f`](https://github.com/mipox331-netizen/makeupart-v8/commit/8b2aee9269628e58089a89cf3486bb385932179f).
+- Main CI [#604 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39814335892) on that commit.
+- Production monitor [#508 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39906865481): `/health/live` reported `alive` and `/health/ready` reported `ready` for the Render API at the probe time.
+- Encrypted database backup [#44 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39892512971), and isolated restore drill [#54 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39892567266).
+- Source includes FastAPI/PostgreSQL/Alembic, salon-scoped authentication and media, login rate limiting and token revocation, consent checks, client records, classic MediaPipe/OpenCV beauty effects, before/after output, salon watermarks, Gallery export, recent-image handling, subscriptions and platform-admin operations.
+- The Classic pipeline runs without a paid external image-provider key. Generative editing is optional, requires server-side provider access and separate external-processing consent, and is not verified as enabled.
 
-## Latest verified evidence
+## Not yet proven / blockers
 
-- Android APK workflow [#164 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699306152): Flutter analysis/tests, production `/health/live` and `/health/ready`, release APK build, APK verification and public GitHub Release succeeded.
-- APK SHA-256: `b048bd80ba5611c1ee9a78eb716d331736ed3495268ab7e2f2d93f8a6389cbba`.
-- **Signing limitation:** the release job explicitly reported that Android release-signing secrets are not configured, then used Flutter's debug signing key. This build supports manual installation; it is not a Play Store-signed release.
-- Production monitor [#140 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699306251). Earlier monitor [#135 timed out](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38685000956) during API startup; subsequent checks succeeded.
-- Latest completed full CI before the ops-only change was [#515, passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38575788229). CI workflows for the latest operational commits were still queued/running when this report was updated.
-- Encrypted database backup [#22 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38673627849) and isolated database restore drill [#29 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38673699725). They prove that the workflow can create and restore an archive, not yet that the backup URL equals the database used by the live Render API.
-- Encrypted media backup [#25 failed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699417171); its paired [restore drill #24 was skipped](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699465088). The job retries the Modal volume download and withholds raw CLI output to protect paths and credentials, but the volume download still fails.
-- The connected Render workspace lists `makeupart-api` as a free web service and also exposes a free PostgreSQL resource with an expiry date of 31 October 2026. The runtime's actual database URL is not visible from service metadata, so confirm which DB is in use before any resource removal or final disaster-recovery claim.
+- **Current APK:** [v8.0.195](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.195) is the latest public artifact. It was built from commit `6ac6233`, not the latest main commit, and used Flutter's debug signing key because `ANDROID_KEYSTORE_BASE64` was absent. Android workflow [#196](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39814335881) skipped the APK build job after classifying the latest backend change; a green workflow did not mean a new APK was produced.
+- **Photo/logo recovery:** encrypted media backup [#48 failed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39893692218) because the private Google Drive inventory had 0 files / 0 bytes. Its restore drill was skipped. Durable customer-media backup and restart recovery are not proven.
+- **Runtime source identity:** the scheduled monitor proved health/readiness but did not report the current Render commit, so health does not prove that the latest repository commit is deployed.
+- **Database source agreement:** the encrypted backup and restore drill passed, but the live Render `DATABASE_URL` has not been independently confirmed to be the same database URL used by GitHub backup.
+- **Real-device operation:** no successful end-to-end device smoke test is recorded for registration, login, photo processing, logo/watermark, gallery export, update compatibility and logout on the latest source.
+- **Android signing/Play Store:** no persistent release keystore was present in the latest public build, and no successful Google Play rollout is verified. No signed iOS/App Store release is verified.
+- **Branch protection and licensing:** `main` is not branch-protected; this repository is public while its original-source license is proprietary. Review both the branch settings and intended distribution model.
+- **Commercial AI:** no free production-ready generative model was activated; do not advertise Classic effects as FaceApp-equivalent reference-image transfer.
 
-## Release blockers
+## Current fixes being prepared
 
-1. **Photo durability:** The live API writes image files under `MEDIA_ROOT`; the media backup job downloads a separate Modal volume. A successful backup/restore of that volume would not prove recovery of photos that exist only on Render. Connect the live API to durable object storage, back up that same storage, then restore a populated archive.
-2. **Database source agreement:** Confirm that live Render `DATABASE_URL` and the database backup secret refer to the same production database; test row-level recovery on an isolated target containing test data.
-3. **Android store signing:** Configure the Android release keystore/secrets before publishing to Play Console. Current v8.0.164 uses the debug signing key.
-4. **Commercial clearance:** Review the generated Python, Flutter/Dart, native Android/iOS, container and asset/model license terms before claiming full commercial clearance.
-5. **Store availability:** No successful Google Play rollout, signed iOS IPA, TestFlight build or App Store submission is verified.
-6. **Independent incident alerting:** GitHub Actions health checks exist; independent SMS/pager incident alerts are not verified.
+The production-readiness branch adds `RENDER_GIT_COMMIT` to the ready health response, tests that behavior, and changes the Android release workflow to wait for the live API to report the exact expected backend commit before building/publishing. This prevents the previous “green but skipped APK” ambiguity and guards against packaging against a stale backend. Documentation has been aligned with current workflow evidence.
 
-## AI capabilities and limitations
+## Release decision
 
-Classic MediaPipe/OpenCV effects run without a paid image-generation key. This is deterministic local image processing and shade estimation, not a FaceApp-equivalent diffusion makeup transfer. The optional OpenAI image-edit provider exists in code but remains disabled unless configured server-side; it adds provider cost and requires explicit external-processing consent. Generated facial details are not guaranteed to preserve identity and should be reviewed.
-
-A green APK workflow does not itself prove the complete live customer workflow, photo durability, paid-provider readiness, store approval or commercial licensing.
+**Not yet production-ready for a full public launch.** The source checks and database restore mechanics are healthy, but photo/logo durability, current-source APK build, persistent signing, database-source agreement, and real-device smoke test remain release gates. Do not mark a gate complete until its corresponding evidence is available.
