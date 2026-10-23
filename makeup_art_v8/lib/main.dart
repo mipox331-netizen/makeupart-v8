@@ -156,25 +156,7 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 88,
-                  height: 88,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF171B2B),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Image.network(
-                    'https://www.google.com/s2/favicons?domain=moog-digital.blogspot.com&sz=256',
-                    width: 72,
-                    height: 72,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.auto_awesome, size: 64),
-                  ),
-                ),
+                const Icon(Icons.auto_awesome, size: 64),
                 const SizedBox(height: 16),
                 const Text(
                   'MakeupArt V8',
