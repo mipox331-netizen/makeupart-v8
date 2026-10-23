@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
 import '../widgets/license_page_button.dart';
+import '../widgets/developer_branding.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key, required this.api, required this.onLogout});
@@ -148,7 +149,7 @@ class _AdminPageState extends State<AdminPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MOOG 343 Admin'),
+        title: const Text('MakeupArt Admin'),
         actions: [
           const LicensePageButton(),
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
@@ -162,6 +163,11 @@ class _AdminPageState extends State<AdminPage> {
               child: ListView(
                 padding: const EdgeInsets.all(18),
                 children: [
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: DeveloperBranding(compact: true),
+                  ),
+                  const SizedBox(height: 8),
                   if (error != null) ...[
                     Text(
                       error!,
