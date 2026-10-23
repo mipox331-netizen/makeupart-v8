@@ -74,14 +74,20 @@ def _reset_usage_period(subscription: Subscription) -> bool:
 
 
 def _expire_if_due(subscription: Subscription) -> bool:
-    # Free plans never expire automatically. The one-time migration
-    # 0011_reopen_free_plan repairs legacy 30-day expiries; after that,
-    # a suspended free plan may represent an explicit platform-admin action.
-    # Never overwrite that administrative decision while reading a snapshot.
+    # Free plans never expire. If an old row still carries an expiry date,
+    # it came from the legacy 30-day free-plan lifecycle and should be reopened.
+    # Explicit admin suspensions clear that date in suspend_subscription(),
+    # so ordinary reads must not undo a deliberate suspension.
     if subscription.plan.lower() == SubscriptionPlan.FREE.value:
         changed = False
         if subscription.current_period_end is not None:
             subscription.current_period_end = None
+            changed = True
+            if subscription.status.lower() != "active":
+                subscription.status = "active"
+                changed = True
+        elif subscription.status.lower() == "trialing":
+            subscription.status = "active"
             changed = True
         return changed
 
@@ -203,6 +209,10 @@ def activate_subscription(db: Session, salon_id, *, plan: SubscriptionPlan, days
 def suspend_subscription(db: Session, salon_id) -> Subscription:
     subscription = _get_subscription(db, salon_id, lock=True)
     subscription.status = "suspended"
+    # Free plans have no billing expiry; clear legacy dates so a later read
+    # can distinguish an explicit admin suspension from an expired legacy row.
+    if subscription.plan.lower() == SubscriptionPlan.FREE.value:
+        subscription.current_period_end = None
     db.commit()
     db.refresh(subscription)
     return subscription
