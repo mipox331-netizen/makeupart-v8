@@ -111,7 +111,7 @@ void _useTallViewport(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets('MakeupArt V8 app boots', (tester) async {
+  testWidgets('MOOG 343 app boots', (tester) async {
     await tester.pumpWidget(const MakeupArtApp());
     await tester.pump();
     expect(find.byType(MakeupArtApp), findsOneWidget);
