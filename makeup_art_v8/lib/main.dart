@@ -82,7 +82,7 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
       barrierDismissible: true,
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.system_update_alt_rounded, size: 36),
-        title: const Text('Sasisho jipya la MakeupArt V8'),
+        title: const Text('Sasisho jipya la MOOG 343'),
         content: Text(
           'Toleo ${update.version} linapatikana. Pakua sasisho ili upate '
           'marekebisho mapya. Android itakuomba uthibitishe kusakinisha.',
@@ -149,7 +149,7 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
     return MaterialApp(
       navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
-      title: 'MakeupArt V8',
+      title: 'MOOG 343',
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
@@ -205,7 +205,7 @@ class _SessionGateState extends State<SessionGate> {
       return 'The server could not load your account. Try again later.';
     }
     if (exception.response == null) {
-      return 'Cannot reach the MakeupArt server. Check your internet connection and try again.';
+      return 'Cannot reach the MOOG 343 server. Check your internet connection and try again.';
     }
     if (detail is String && detail.trim().isNotEmpty) {
       return detail.trim();
