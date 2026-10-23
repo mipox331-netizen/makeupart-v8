@@ -479,7 +479,7 @@ class _BeautyPageState extends State<BeautyPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MakeupArt Studio'),
+        title: const Text('MOOG 343'),
         actions: [
           if (widget.canManageBranding)
             IconButton(
