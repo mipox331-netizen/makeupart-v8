@@ -45,14 +45,20 @@ android {
         }
     }
 
+    // Release APKs must use the persistent upload keystore. Never silently
+    // publish an artifact signed with the per-run debug key.
+    def releaseRequested = gradle.startParameter.taskNames.any { taskName ->
+        taskName.toLowerCase().contains("release")
+    }
+    if (releaseRequested && !keystorePropertiesFile.exists()) {
+        throw new GradleException(
+            "Missing android/key.properties: release builds require the persistent Android signing keystore."
+        )
+    }
+
     buildTypes {
         release {
-            // Use the configured upload key when available. For the public CI APK,
-            // fall back to Flutter's debug signing key so CI can always produce an
-            // installable release-mode APK when Play signing secrets are unavailable.
-            signingConfig keystorePropertiesFile.exists()
-                ? signingConfigs.release
-                : signingConfigs.debug
+            signingConfig signingConfigs.release
         }
     }
 }
