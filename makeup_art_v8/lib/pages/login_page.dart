@@ -53,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
       return 'The server encountered an error. Please try again shortly.';
     }
     if (exception.response == null) {
-      return 'Cannot reach the MakeupArt server. Check your internet connection and try again.';
+      return 'Cannot reach the MOOG 343 server. Check your internet connection and try again.';
     }
     if (detail is String && detail.trim().isNotEmpty) {
       return detail.trim();
@@ -95,10 +95,28 @@ class _LoginPageState extends State<LoginPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.auto_awesome, size: 64),
+                  Container(
+                    width: 88,
+                    height: 88,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF171B2B),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: Image.network(
+                      'https://www.google.com/s2/favicons?domain=moog-digital.blogspot.com&sz=256',
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.auto_awesome, size: 64),
+                    ),
+                  ),
                   const SizedBox(height: 18),
                   Text(
-                    'MakeupArt V8',
+                    'MOOG 343',
                     textAlign: TextAlign.center,
                     style: Theme.of(context)
                         .textTheme
@@ -106,7 +124,7 @@ class _LoginPageState extends State<LoginPage> {
                         ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  const Text('AI beauty studio', textAlign: TextAlign.center),
+                  const Text('MOOG DIGITAL', textAlign: TextAlign.center),
                   const SizedBox(height: 36),
                   TextField(
                     controller: email,
