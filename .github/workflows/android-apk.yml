@@ -9,84 +9,93 @@ concurrency:
   group: makeupart-v8-android-apk-${{ github.ref }}
   cancel-in-progress: false
 
+# A public APK is published only after the same main-branch commit passes full CI.
+# The production gate below then verifies whether Render has deployed that commit.
 on:
-  push:
+  workflow_run:
+    workflows: ["MakeupArt V8 CI"]
+    types: [completed]
     branches: [main]
-    paths:
-      - "makeup_art_v8/**"
-      - "backend/**"
-      - "modal_app.py"
-      - ".github/workflows/android-apk.yml"
-  workflow_dispatch:
 
 jobs:
   # Always build from the current source, but only after the same backend revision
   # is visible on the live Render API. A green workflow must not hide a skipped APK.
   classify-push:
+    # Do not release from a failed or cancelled CI run.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       backend_changed: ${{ steps.detect.outputs.backend_changed }}
       expected_backend_sha: ${{ steps.detect.outputs.expected_backend_sha }}
+      source_sha: ${{ steps.detect.outputs.source_sha }}
+      release_required: ${{ steps.detect.outputs.release_required }}
     steps:
-      - name: Checkout full git history
+      - name: Checkout the exact commit that passed CI
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      - name: Determine expected deployed backend revision
+      - name: Determine release scope and deployed backend revision
         id: detect
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_BEFORE: ${{ github.event.before || '' }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
         shell: bash
         run: |
           set -euo pipefail
-          # Render's RENDER_GIT_COMMIT identifies the complete Git revision it deployed,
-          # not merely the last commit touching a backend file. Compare the same full SHA
-          # that triggered this production-release workflow.
-          expected_backend_sha="$GITHUB_SHA"
-          if [[ ! "$expected_backend_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::Cannot determine the full source revision for this release."
+          source_sha="$SOURCE_SHA"
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Cannot determine the exact source commit that passed CI."
             exit 1
           fi
 
+          parent_sha="$(git rev-parse "${source_sha}^")"
+          git diff --name-only "$parent_sha" "$source_sha" > "$RUNNER_TEMP/changed-files.txt"
+          echo "Files changed in the CI-verified commit:"
+          cat "$RUNNER_TEMP/changed-files.txt"
+
           backend_changed=false
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+          release_required=false
+          expected_backend_sha=""
+          if grep -Eq '^(backend/|modal_app\.py$)' "$RUNNER_TEMP/changed-files.txt"; then
             backend_changed=true
-            echo "Manual release requires the latest backend revision to be verified live."
-          elif [[ -z "$EVENT_BEFORE" || "$EVENT_BEFORE" =~ ^0+$ ]]; then
-            backend_changed=true
-            echo "No valid before-SHA; require a live backend revision match."
-          else
-            git diff --name-only "$EVENT_BEFORE" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
-            echo "Changed paths:"
-            cat "$RUNNER_TEMP/changed-files.txt"
-            if grep -Eq '^(backend/|modal_app\.py$)' "$RUNNER_TEMP/changed-files.txt"; then
-              backend_changed=true
-            fi
+            expected_backend_sha="$source_sha"
+          fi
+          if grep -Eq '^(makeup_art_v8/|backend/|modal_app\.py$)' "$RUNNER_TEMP/changed-files.txt"; then
+            release_required=true
           fi
 
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "backend_changed=$backend_changed" >> "$GITHUB_OUTPUT"
           echo "expected_backend_sha=$expected_backend_sha" >> "$GITHUB_OUTPUT"
-          echo "Expected live backend commit: $expected_backend_sha"
+          echo "release_required=$release_required" >> "$GITHUB_OUTPUT"
+          echo "Source commit that passed CI: $source_sha"
           if [[ "$backend_changed" == "true" ]]; then
-            echo "The APK job will wait for Render to expose this exact commit before building."
+            echo "Backend/runtime changed; the APK job will require this exact commit on the live Render API."
+          else
+            echo "Backend/runtime unchanged; the APK job will require a healthy API but will not demand a backend redeploy."
           fi
-
+          if [[ "$release_required" != "true" ]]; then
+            echo "No mobile-app or backend source changes; skip creating an unnecessary APK release."
+          fi
   build-android-apk:
     needs: classify-push
+    if: ${{ needs.classify-push.outputs.release_required == 'true' }}
     runs-on: ubuntu-latest
     environment: production
     env:
       PRODUCTION_API_BASE_URL: https://makeupart-api.onrender.com/api/v1
       EXPECTED_BACKEND_SHA: ${{ needs.classify-push.outputs.expected_backend_sha }}
+      SOURCE_SHA: ${{ needs.classify-push.outputs.source_sha }}
     defaults:
       run:
         working-directory: makeup_art_v8
 
     steps:
-      - name: Checkout
+      - name: Checkout the exact commit that passed CI
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -182,7 +191,11 @@ jobs:
         run: |
           set -euo pipefail
           API_ROOT="${PRODUCTION_API_BASE_URL%/api/v1}"
-          EXPECTED="${EXPECTED_BACKEND_SHA:?Expected backend commit is required}"
+          EXPECTED="${EXPECTED_BACKEND_SHA:-}"
+          EXPECTED_LABEL="$EXPECTED"
+          if [[ -z "$EXPECTED_LABEL" ]]; then
+            EXPECTED_LABEL="<existing ready backend>"
+          fi
           live_body="$(mktemp)"
           ready_body="$(mktemp)"
           trap 'rm -f "$live_body" "$ready_body"' EXIT
@@ -215,21 +228,34 @@ jobs:
             ready_status="$(read_json_field "$ready_body" status)"
             deployed_sha="$(read_json_field "$ready_body" deployment_commit)"
 
-            if [[ "$live_code" == "200" && "$live_status" == "alive" && "$ready_code" == "200" && "$ready_status" == "ready" && "$deployed_sha" == "$EXPECTED" ]]; then
+            revision_matches=true
+            if [[ -n "$EXPECTED" && "$deployed_sha" != "$EXPECTED" ]]; then
+              revision_matches=false
+            fi
+            if [[ "$live_code" == "200" && "$live_status" == "alive" && "$ready_code" == "200" && "$ready_status" == "ready" && "$revision_matches" == "true" ]]; then
               echo "Production API liveness: $live_status"
               echo "Production API readiness: $ready_status"
-              echo "Production API deployed commit: $deployed_sha"
+              echo "Production API deployed commit: ${deployed_sha:-not reported}"
+              if [[ -n "$EXPECTED" ]]; then
+                echo "Production API commit matched the CI-verified source: $EXPECTED"
+              else
+                echo "Backend sources were unchanged; healthy live backend accepted."
+              fi
               exit 0
             fi
 
-            echo "Attempt $attempt/18: live_http=${live_code:-000}, live_status=${live_status:-unknown}, ready_http=${ready_code:-000}, ready_status=${ready_status:-unknown}, deployed_commit=${deployed_sha:-unknown}, expected_commit=$EXPECTED"
+            echo "Attempt $attempt/18: live_http=${live_code:-000}, live_status=${live_status:-unknown}, ready_http=${ready_code:-000}, ready_status=${ready_status:-unknown}, deployed_commit=${deployed_sha:-unknown}, expected_commit=$EXPECTED_LABEL"
             if [[ "$attempt" -lt 18 ]]; then
               sleep 20
             fi
           done
 
-          echo "::error::Refusing to publish an APK: production did not report a ready API running the expected backend commit."
-          echo "::error::Expected backend commit: $EXPECTED"
+          if [[ -n "$EXPECTED" ]]; then
+            echo "::error::Refusing to publish an APK: production did not report a ready API running the expected backend commit."
+            echo "::error::Expected backend commit: $EXPECTED"
+          else
+            echo "::error::Refusing to publish an APK: production API did not report healthy liveness and readiness."
+          fi
           echo "::error::Last observed live_http=${live_code:-000}, live_status=${live_status:-unknown}, ready_http=${ready_code:-000}, ready_status=${ready_status:-unknown}, deployed_commit=${deployed_sha:-unknown}"
           exit 1
 
@@ -278,8 +304,9 @@ jobs:
       - name: Publish public GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.classify-push.outputs.source_sha }}
         run: |
           TAG="v8.0.${{ github.run_number }}"
           gh release create "$TAG" ../artifacts/MakeupArt-V8.apk \
             --title "MakeupArt V8 Android APK $TAG" \
-            --notes "Installable MakeupArt V8 Android release APK built from commit $GITHUB_SHA."
+            --notes "Installable MakeupArt V8 Android release APK built from CI-verified commit $SOURCE_SHA."
