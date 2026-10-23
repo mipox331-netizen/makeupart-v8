@@ -155,17 +155,17 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
           body: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: const [
-                const Icon(Icons.auto_awesome, size: 64),
-                const SizedBox(height: 16),
-                const Text(
+              children: [
+                Icon(Icons.auto_awesome, size: 64),
+                SizedBox(height: 16),
+                Text(
                   'MakeupArt V8',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(height: 6),
-                const DeveloperBranding(centered: true),
-                const SizedBox(height: 20),
-                const SizedBox(
+                SizedBox(height: 6),
+                DeveloperBranding(centered: true),
+                SizedBox(height: 20),
+                SizedBox(
                   width: 28,
                   height: 28,
                   child: CircularProgressIndicator(strokeWidth: 2.5),
