@@ -72,7 +72,7 @@ class _RegisterPageState extends State<RegisterPage> {
       return 'The server could not create the account just now. Please try again shortly.';
     }
     if (exception.response == null) {
-      return 'Cannot reach the MakeupArt server. Check your internet connection and try again.';
+      return 'Cannot reach the MOOG 343 server. Check your internet connection and try again.';
     }
     if (detail is String && detail.trim().isNotEmpty) {
       return detail.trim();
@@ -154,7 +154,7 @@ class _RegisterPageState extends State<RegisterPage> {
             const Icon(Icons.storefront_outlined, size: 64),
             const SizedBox(height: 18),
             Text(
-              'Start with MakeupArt V8',
+              'Start with MOOG 343',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
