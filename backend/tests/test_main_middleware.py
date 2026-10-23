@@ -78,3 +78,35 @@ def test_readiness_fails_closed_when_durable_drive_storage_is_required(client, m
         "status": "not_ready",
         "reason": "media_storage_unavailable",
     }
+
+
+
+def test_readiness_reports_running_render_commit(client, monkeypatch):
+    import app.main as main_module
+    from app.core.config import settings
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, statement):
+            return None
+
+    monkeypatch.setattr(main_module.engine, "connect", lambda: FakeConnection())
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "test-deployment-commit")
+
+    response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "deployment_commit": "test-deployment-commit",
+    }
