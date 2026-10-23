@@ -97,6 +97,29 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
+      # Fail closed before consuming build minutes or publishing anything.
+      # An ephemeral runner debug key is not a valid release signing identity.
+      - name: Require persistent Android release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "${ANDROID_KEYSTORE_BASE64:-}" ]] || missing+=("ANDROID_KEYSTORE_BASE64")
+          [[ -n "${ANDROID_STORE_PASSWORD:-}" ]] || missing+=("ANDROID_STORE_PASSWORD")
+          [[ -n "${ANDROID_KEY_PASSWORD:-}" ]] || missing+=("ANDROID_KEY_PASSWORD")
+          [[ -n "${ANDROID_KEY_ALIAS:-}" ]] || missing+=("ANDROID_KEY_ALIAS")
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Required production Android signing secrets are missing: ${missing[*]}"
+            echo "::error::Refusing to build or publish an APK with an ephemeral debug signing key."
+            exit 1
+          fi
+          echo "All four persistent Android signing secrets are present."
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -122,29 +145,7 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Determine Android signing mode
-        id: signing
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -n "${ANDROID_KEYSTORE_BASE64:-}" && -n "${ANDROID_STORE_PASSWORD:-}" && -n "${ANDROID_KEY_PASSWORD:-}" && -n "${ANDROID_KEY_ALIAS:-}" ]]; then
-            echo "use_signing=true" >> "$GITHUB_OUTPUT"
-            echo "Configured Android release signing is available."
-          elif [[ -z "${ANDROID_KEYSTORE_BASE64:-}" ]]; then
-            echo "use_signing=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::ANDROID_KEYSTORE_BASE64 is absent. Building a release-mode APK with Flutter's debug signing key and ignoring any orphaned signing metadata secrets. This is for manual sideloading only, cannot be published to Play Store, and may not update an existing APK signed with a different key. Back up/export local-only photos before uninstalling an older installation."
-          else
-            echo "::error::ANDROID_KEYSTORE_BASE64 exists but one or more signing password/alias secrets are missing. Configure all four signing secrets together."
-            exit 1
-          fi
-
       - name: Configure Android signing
-        if: steps.signing.outputs.use_signing == 'true'
         working-directory: makeup_art_v8/android
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -280,7 +281,22 @@ jobs:
           unzip -p "$APK" AndroidManifest.xml >/dev/null
           SDK_BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
           "$SDK_BUILD_TOOLS/apksigner" verify "$APK"
-          "$SDK_BUILD_TOOLS/apksigner" verify --print-certs "$APK"
+          signing_report="$("$SDK_BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>&1)"
+          printf '%s\n' "$signing_report"
+          keytool -exportcert \
+            -keystore android/app/upload-keystore.jks \
+            -storepass "$ANDROID_STORE_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" \
+            -file "$RUNNER_TEMP/expected-release-cert.der" >/dev/null
+          expected_cert_sha="$(sha256sum "$RUNNER_TEMP/expected-release-cert.der" | cut -d' ' -f1)"
+          actual_cert_sha="$(printf '%s\n' "$signing_report" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+          if [[ -z "$actual_cert_sha" || "$actual_cert_sha" != "$expected_cert_sha" ]]; then
+            echo "::error::APK signing certificate does not match the configured persistent upload keystore."
+            echo "::error::Expected certificate SHA-256: $expected_cert_sha"
+            echo "::error::Actual certificate SHA-256: ${actual_cert_sha:-not found}"
+            exit 1
+          fi
+          echo "Verified APK signature matches the configured persistent Android upload keystore."
           ls -lh "$APK"
 
       - name: Prepare APK
