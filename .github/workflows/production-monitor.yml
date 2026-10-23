@@ -34,14 +34,15 @@ jobs:
             local expected="$2"
             local body http_code actual preview
             body="$(mktemp)"
-            for attempt in 1 2; do
+            for attempt in 1 2 3; do
               http_code="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
-                --connect-timeout 10 --max-time 90 "$API_ROOT$endpoint" || true)"
+                --connect-timeout 10 --max-time 60 "$API_ROOT$endpoint" || true)"
               [[ "$http_code" == "200" ]] && break
               if [[ "$http_code" == "000" || "$http_code" == "502" || "$http_code" == "503" || "$http_code" == "504" ]]; then
-                if [[ "$attempt" -lt 2 ]]; then
-                  echo "::warning::Production endpoint $endpoint returned HTTP ${http_code:-000}; retrying once for a possible free-tier cold start."
-                  sleep 5
+                if [[ "$attempt" -lt 3 ]]; then
+                  delay=$((attempt * 5))
+                  echo "::warning::Production endpoint $endpoint returned HTTP ${http_code:-000}; retrying in ${delay}s (attempt $attempt/3) for a possible Render free-tier cold start."
+                  sleep "$delay"
                   continue
                 fi
               fi
