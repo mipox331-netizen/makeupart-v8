@@ -1,4 +1,4 @@
-name: MOOG 343 CI
+name: MakeupArt V8 CI
 
 on:
   push:
@@ -184,13 +184,6 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Apply MOOG 343 website favicon to Android launcher icon
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m pip install --disable-pip-version-check --quiet Pillow
-          python ../.github/scripts/apply_moog343_icon.py
-
       - name: Install dependencies from committed lockfile
         shell: bash
         run: |
@@ -232,7 +225,7 @@ jobs:
         if: ${{ hashFiles('makeup_art_v8/android/**') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: moog343-android-debug
+          name: makeupart-v8-android-debug
           path: makeup_art_v8/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
