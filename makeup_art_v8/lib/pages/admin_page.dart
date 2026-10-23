@@ -148,7 +148,7 @@ class _AdminPageState extends State<AdminPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MakeupArt Admin'),
+        title: const Text('MOOG 343 Admin'),
         actions: [
           const LicensePageButton(),
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
