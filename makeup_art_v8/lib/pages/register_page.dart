@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
 import '../widgets/license_page_button.dart';
+import '../widgets/developer_branding.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({
@@ -160,6 +161,8 @@ class _RegisterPageState extends State<RegisterPage> {
                     fontWeight: FontWeight.bold,
                   ),
             ),
+            const SizedBox(height: 10),
+            const DeveloperBranding(centered: true),
             const SizedBox(height: 28),
             TextField(
               controller: salonName,

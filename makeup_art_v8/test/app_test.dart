@@ -111,10 +111,13 @@ void _useTallViewport(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets('MakeupArt V8 app boots', (tester) async {
+  testWidgets('MakeupArt V8 identifies MOOG 343 as creator', (tester) async {
     await tester.pumpWidget(const MakeupArtApp());
     await tester.pump();
     expect(find.byType(MakeupArtApp), findsOneWidget);
+    expect(find.text('MakeupArt V8'), findsOneWidget);
+    expect(find.text('MOOG 343'), findsOneWidget);
+    expect(find.text('Imetengenezwa na'), findsOneWidget);
   });
 
   testWidgets('expired session returns to sign-in instead of a stuck error', (tester) async {

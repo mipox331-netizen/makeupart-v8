@@ -8,6 +8,7 @@ import 'pages/login_page.dart';
 import 'pages/subscription_page.dart';
 import 'services/api_client.dart';
 import 'services/update_service.dart';
+import 'widgets/developer_branding.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -141,8 +142,38 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
   @override
   Widget build(BuildContext context) {
     if (!ready) {
-      return const MaterialApp(
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'MakeupArt V8',
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.dark,
+          colorSchemeSeed: const Color(0xFFB66DFF),
+          scaffoldBackgroundColor: const Color(0xFF090B12),
+        ),
+        home: const Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.auto_awesome, size: 64),
+                SizedBox(height: 16),
+                Text(
+                  'MakeupArt V8',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                ),
+                SizedBox(height: 6),
+                DeveloperBranding(centered: true),
+                SizedBox(height: 20),
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../widgets/license_page_button.dart';
+import '../widgets/developer_branding.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -107,6 +108,8 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 8),
                   const Text('AI beauty studio', textAlign: TextAlign.center),
+                  const SizedBox(height: 14),
+                  const DeveloperBranding(centered: true),
                   const SizedBox(height: 36),
                   TextField(
                     controller: email,

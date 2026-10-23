@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import time
 import uuid
@@ -137,4 +138,8 @@ def readiness_check() -> dict[str, str]:
                 content={"status": "not_ready", "reason": "media_storage_unavailable"},
             )
 
-    return {"status": "ready"}
+    return {
+        "status": "ready",
+        # Render sets this to the exact source commit running in production.
+        "deployment_commit": os.getenv("RENDER_GIT_COMMIT", ""),
+    }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../widgets/license_page_button.dart';
+import '../widgets/developer_branding.dart';
 
 class SubscriptionPage extends StatelessWidget {
   const SubscriptionPage({
@@ -88,6 +89,8 @@ class SubscriptionPage extends StatelessWidget {
                       icon: const Icon(Icons.logout),
                       label: const Text('Sign out'),
                     ),
+                    const SizedBox(height: 18),
+                    const DeveloperBranding(centered: true),
                   ],
                 ),
               ),

@@ -9,6 +9,7 @@ import '../services/gallery_exporter.dart';
 import '../services/photo_look_service.dart';
 import '../services/recent_image_store.dart';
 import '../widgets/license_page_button.dart';
+import '../widgets/developer_branding.dart';
 import '../widgets/before_after_comparison.dart';
 import 'branding_settings_page.dart';
 
@@ -554,6 +555,11 @@ class _BeautyPageState extends State<BeautyPage> {
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.white.withValues(alpha: .78),
                       ),
+                ),
+                const SizedBox(height: 12),
+                const Align(
+                  alignment: Alignment.centerRight,
+                  child: DeveloperBranding(compact: true),
                 ),
               ],
             ),
