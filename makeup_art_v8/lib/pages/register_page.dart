@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
 import '../widgets/license_page_button.dart';
+import '../widgets/developer_branding.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({
@@ -72,7 +73,7 @@ class _RegisterPageState extends State<RegisterPage> {
       return 'The server could not create the account just now. Please try again shortly.';
     }
     if (exception.response == null) {
-      return 'Cannot reach the MOOG 343 server. Check your internet connection and try again.';
+      return 'Cannot reach the MakeupArt server. Check your internet connection and try again.';
     }
     if (detail is String && detail.trim().isNotEmpty) {
       return detail.trim();
@@ -154,12 +155,14 @@ class _RegisterPageState extends State<RegisterPage> {
             const Icon(Icons.storefront_outlined, size: 64),
             const SizedBox(height: 18),
             Text(
-              'Start with MOOG 343',
+              'Start with MakeupArt V8',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
             ),
+            const SizedBox(height: 10),
+            const DeveloperBranding(centered: true),
             const SizedBox(height: 28),
             TextField(
               controller: salonName,
