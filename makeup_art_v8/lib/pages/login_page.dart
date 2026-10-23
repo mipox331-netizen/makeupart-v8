@@ -124,7 +124,7 @@ class _LoginPageState extends State<LoginPage> {
                         ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  const Text('MOOG DIGITAL', textAlign: TextAlign.center),
+                  const Text('AI beauty studio', textAlign: TextAlign.center),
                   const SizedBox(height: 36),
                   TextField(
                     controller: email,
