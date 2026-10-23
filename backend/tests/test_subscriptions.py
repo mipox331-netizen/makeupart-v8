@@ -133,3 +133,40 @@ def test_expired_free_trial_is_normalised_to_active():
 
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
+
+
+def test_suspended_free_plan_is_reopened():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from sqlalchemy.pool import StaticPool
+    from app.db.base import Base
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as session:
+        from app.models.salon import Salon
+
+        salon = Salon(name="Suspended Free Salon")
+        session.add(salon)
+        session.flush()
+        subscription = Subscription(
+            salon_id=salon.id,
+            plan="free",
+            status="suspended",
+            current_period_end=datetime.now(timezone.utc) - timedelta(days=2),
+        )
+        session.add(subscription)
+        session.commit()
+
+        changed = subscription_service._expire_if_due(subscription)
+        assert changed is True
+        assert subscription.status == "active"
+        assert subscription.current_period_end is None
+
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
