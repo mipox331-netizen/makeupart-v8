@@ -115,7 +115,9 @@ void main() {
     await tester.pumpWidget(const MakeupArtApp());
     await tester.pump();
     expect(find.byType(MakeupArtApp), findsOneWidget);
+    expect(find.text('MakeupArt V8'), findsOneWidget);
     expect(find.text('MOOG 343'), findsOneWidget);
+    expect(find.text('Imetengenezwa na'), findsOneWidget);
   });
 
   testWidgets('expired session returns to sign-in instead of a stuck error', (tester) async {
