@@ -8,6 +8,7 @@ import 'pages/login_page.dart';
 import 'pages/subscription_page.dart';
 import 'services/api_client.dart';
 import 'services/update_service.dart';
+import 'widgets/developer_branding.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,7 +83,7 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
       barrierDismissible: true,
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.system_update_alt_rounded, size: 36),
-        title: const Text('Sasisho jipya la MOOG 343'),
+        title: const Text('Sasisho jipya la MakeupArt V8'),
         content: Text(
           'Toleo ${update.version} linapatikana. Pakua sasisho ili upate '
           'marekebisho mapya. Android itakuomba uthibitishe kusakinisha.',
@@ -143,7 +144,7 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
     if (!ready) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'MOOG 343',
+        title: 'MakeupArt V8',
         theme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.dark,
@@ -176,9 +177,11 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'MOOG 343',
+                  'MakeupArt V8',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
                 ),
+                const SizedBox(height: 6),
+                const DeveloperBranding(centered: true),
                 const SizedBox(height: 20),
                 const SizedBox(
                   width: 28,
@@ -195,7 +198,7 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
     return MaterialApp(
       navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
-      title: 'MOOG 343',
+      title: 'MakeupArt V8',
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
@@ -251,7 +254,7 @@ class _SessionGateState extends State<SessionGate> {
       return 'The server could not load your account. Try again later.';
     }
     if (exception.response == null) {
-      return 'Cannot reach the MOOG 343 server. Check your internet connection and try again.';
+      return 'Cannot reach the MakeupArt server. Check your internet connection and try again.';
     }
     if (detail is String && detail.trim().isNotEmpty) {
       return detail.trim();
