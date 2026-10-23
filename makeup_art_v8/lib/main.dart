@@ -151,11 +151,11 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
           colorSchemeSeed: const Color(0xFFB66DFF),
           scaffoldBackgroundColor: const Color(0xFF090B12),
         ),
-        home: Scaffold(
+        home: const Scaffold(
           body: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: [
+              children: const [
                 const Icon(Icons.auto_awesome, size: 64),
                 const SizedBox(height: 16),
                 const Text(
