@@ -41,9 +41,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_backend_sha="$(git log -1 --format=%H -- backend/ modal_app.py)"
-          if [[ -z "$expected_backend_sha" ]]; then
-            echo "::error::Cannot determine the latest backend source revision."
+          # Render's RENDER_GIT_COMMIT identifies the complete Git revision it deployed,
+          # not merely the last commit touching a backend file. Compare the same full SHA
+          # that triggered this production-release workflow.
+          expected_backend_sha="$GITHUB_SHA"
+          if [[ ! "$expected_backend_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Cannot determine the full source revision for this release."
             exit 1
           fi
 
