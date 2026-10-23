@@ -111,10 +111,11 @@ void _useTallViewport(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets('MOOG 343 app boots', (tester) async {
+  testWidgets('MOOG 343 app boots with branded startup', (tester) async {
     await tester.pumpWidget(const MakeupArtApp());
     await tester.pump();
     expect(find.byType(MakeupArtApp), findsOneWidget);
+    expect(find.text('MOOG 343'), findsOneWidget);
   });
 
   testWidgets('expired session returns to sign-in instead of a stuck error', (tester) async {
