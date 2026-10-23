@@ -269,6 +269,9 @@ jobs:
             --dart-define=API_BASE_URL="$PRODUCTION_API_BASE_URL"
 
       - name: Verify APK
+        env:
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         shell: bash
         run: |
           set -euo pipefail
