@@ -21,10 +21,8 @@ class DeveloperBranding extends StatelessWidget {
     final captionSize = compact ? 10.0 : 12.0;
     final brandSize = compact ? 12.0 : 14.0;
 
-    return Row(
+    final row = Row(
       mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment:
-          centered ? MainAxisAlignment.center : MainAxisAlignment.start,
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(compact ? 6 : 9),
@@ -76,5 +74,6 @@ class DeveloperBranding extends StatelessWidget {
         ),
       ],
     );
+    return centered ? Center(child: row) : row;
   }
 }
