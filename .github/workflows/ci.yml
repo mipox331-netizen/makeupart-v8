@@ -1,4 +1,4 @@
-name: MakeupArt V8 CI
+name: MOOG 343 CI
 
 on:
   push:
@@ -183,6 +183,13 @@ jobs:
           flutter-version: '3.47.0'
           channel: stable
           cache: true
+
+      - name: Apply MOOG 343 website favicon to Android launcher icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet Pillow
+          python ../.github/scripts/apply_moog343_icon.py
 
       - name: Install dependencies from committed lockfile
         shell: bash
