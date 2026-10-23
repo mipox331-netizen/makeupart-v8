@@ -74,13 +74,12 @@ def _reset_usage_period(subscription: Subscription) -> bool:
 
 
 def _expire_if_due(subscription: Subscription) -> bool:
-    # Free never expires. Older databases stamped a 30-day period onto free
-    # rows and then suspended them when that date passed; keep those salons open.
+    # Free plans never expire automatically. The one-time migration
+    # 0011_reopen_free_plan repairs legacy 30-day expiries; after that,
+    # a suspended free plan may represent an explicit platform-admin action.
+    # Never overwrite that administrative decision while reading a snapshot.
     if subscription.plan.lower() == SubscriptionPlan.FREE.value:
         changed = False
-        if subscription.status.lower() != "active":
-            subscription.status = "active"
-            changed = True
         if subscription.current_period_end is not None:
             subscription.current_period_end = None
             changed = True
