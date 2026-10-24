@@ -676,7 +676,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'The 10 latest AI results stay in the app. Older results are moved to phone storage automatically.',
+                      'The 10 latest results stay in the app. On Android, older results are archived to a salon-specific app folder when phone storage is available. They are not added to the public Gallery, and Android may remove that app folder when MakeupArt is uninstalled. If archiving is unavailable, older results are kept rather than deleted.',
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
