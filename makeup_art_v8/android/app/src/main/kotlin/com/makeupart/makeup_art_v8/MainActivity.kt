@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -126,11 +127,18 @@ class MainActivity : FlutterActivity() {
                 val published = ContentValues().apply {
                     put(MediaStore.Images.Media.IS_PENDING, 0)
                 }
-                contentResolver.update(uri, published, null, null)
+                val updatedRows = contentResolver.update(uri, published, null, null)
+                if (updatedRows != 1) {
+                    throw IllegalStateException("The device did not publish the saved image to Gallery")
+                }
             }
             result.success(uri.toString())
         } catch (exception: Exception) {
-            uri?.let { contentResolver.delete(it, null, null) }
+            try {
+                uri?.let { contentResolver.delete(it, null, null) }
+            } catch (cleanupException: Exception) {
+                Log.w("MakeupArtGallery", "Could not remove an incomplete gallery image", cleanupException)
+            }
             result.error(
                 "GALLERY_SAVE_FAILED",
                 exception.message ?: "Could not save image to the gallery.",
