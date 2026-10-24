@@ -78,8 +78,40 @@ class RecentImageStore {
     final directory = await _directory();
     final safeJobId = (jobId ?? 'result')
         .replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '');
+
+    // Processing saves an image to history, and a later gallery export can
+    // save the selected photo finish again. Reuse the same job's history entry
+    // instead of creating duplicate tiles and archiving unrelated older photos.
+    if (jobId != null && safeJobId.isNotEmpty) {
+      final matches = await directory
+          .list()
+          .where((entity) => entity is File)
+          .cast<File>()
+          .where(
+            (file) => file.uri.pathSegments.last.endsWith('_$safeJobId.png'),
+          )
+          .toList();
+      matches.sort(
+        (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+      );
+      if (matches.isNotEmpty) {
+        final existing = matches.first;
+        await existing.writeAsBytes(bytes, flush: true);
+        for (final duplicate in matches.skip(1)) {
+          try {
+            await duplicate.delete();
+          } on FileSystemException {
+            // Keep a duplicate if cleanup fails; never risk losing the updated result.
+          }
+        }
+        await trim();
+        return existing;
+      }
+    }
+
+    final fileJobId = safeJobId.isEmpty ? 'result' : safeJobId;
     final filename =
-        'ai_${DateTime.now().microsecondsSinceEpoch}_$safeJobId.png';
+        'ai_${DateTime.now().microsecondsSinceEpoch}_$fileJobId.png';
     final file = File(
       '${directory.path}${Platform.pathSeparator}$filename',
     );
