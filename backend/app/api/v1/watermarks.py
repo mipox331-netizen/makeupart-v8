@@ -1,5 +1,7 @@
 import io
+import logging
 import os
+import shutil
 import uuid
 from pathlib import Path
 
@@ -19,6 +21,50 @@ from app.services import google_drive_media
 from app.services.google_drive_media import GoogleDriveMediaError
 
 router = APIRouter(prefix="/watermarks", tags=["watermarks"])
+logger = logging.getLogger("makeupart.watermarks")
+
+
+def _rollback_failed_logo_upload(
+    target: Path,
+    backup: Path,
+    *,
+    had_previous: bool,
+    target_replaced: bool,
+) -> bool:
+    """Restore local and durable logo state after a failed replacement."""
+    if not target_replaced:
+        return True
+
+    durable_required = (
+        settings.REQUIRE_DURABLE_MEDIA
+        or settings.ENVIRONMENT.lower() == "production"
+    )
+    try:
+        if had_previous:
+            if not backup.is_file():
+                raise OSError("The previous salon logo backup is unavailable.")
+            shutil.copy2(backup, target)
+            persisted = google_drive_media.persist_media_file(target)
+            if durable_required and not persisted:
+                raise GoogleDriveMediaError(
+                    "Could not confirm restoration of the previous logo in private storage."
+                )
+        else:
+            # Keep a first-time logo on disk until remote cleanup has succeeded;
+            # otherwise a failed cleanup could leave an unreferenced Drive copy.
+            deleted = google_drive_media.delete_media_file(target)
+            if durable_required and not deleted:
+                raise GoogleDriveMediaError(
+                    "Could not confirm cleanup of the failed logo upload in private storage."
+                )
+            target.unlink(missing_ok=True)
+
+        commit_media_volume()
+        return True
+    except Exception:
+        logger.exception("Failed to restore the prior salon-logo state after an upload error")
+        return False
+
 
 _MAX_LOGO_BYTES = 5 * 1024 * 1024
 _MAX_LOGO_PIXELS = 25_000_000
@@ -100,31 +146,91 @@ async def upload_watermark_logo(
         ) from exc
 
     target = _logo_path(current_user.salon_id)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name(f".logo-{uuid.uuid4().hex}.tmp")
-    try:
-        logo.save(temporary, format="PNG", optimize=True)
-        os.replace(temporary, target)
-        google_drive_media.persist_media_file(target)
-        commit_media_volume()
-    except GoogleDriveMediaError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Private Google Drive storage is unavailable. The logo was not confirmed saved.",
-        ) from exc
-    except OSError as exc:
-        temporary.unlink(missing_ok=True)
+    if target.is_symlink() or (target.exists() and not target.is_file()):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not save salon logo.",
-        ) from exc
+            detail="Salon logo storage path is not a regular file.",
+        )
 
-    watermark = get_or_create_watermark(db, current_user.salon)
-    watermark.logo_url = "/api/v1/watermarks/me/logo"
-    current_user.salon.logo_url = watermark.logo_url
-    db.commit()
-    db.refresh(watermark)
-    return watermark
+    temporary = target.with_name(f".logo-{uuid.uuid4().hex}.tmp")
+    backup = target.with_name(f".logo-{uuid.uuid4().hex}.rollback")
+    had_previous = target.is_file()
+    target_replaced = False
+    rollback_ok = True
+    db_committed = False
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if had_previous:
+            # Preserve the last known-good logo until cloud persistence and the
+            # database update both succeed.
+            shutil.copy2(target, backup)
+
+        logo.save(temporary, format="PNG", optimize=True)
+        os.replace(temporary, target)
+        target_replaced = True
+
+        persisted = google_drive_media.persist_media_file(target)
+        durable_required = (
+            settings.REQUIRE_DURABLE_MEDIA
+            or settings.ENVIRONMENT.lower() == "production"
+        )
+        if durable_required and not persisted:
+            raise GoogleDriveMediaError(
+                "Private media storage did not confirm that the salon logo was saved."
+            )
+        commit_media_volume()
+
+        watermark = get_or_create_watermark(db, current_user.salon)
+        watermark.logo_url = "/api/v1/watermarks/me/logo"
+        current_user.salon.logo_url = watermark.logo_url
+        db.commit()
+        db_committed = True
+        db.refresh(watermark)
+        return watermark
+    except Exception as exc:
+        if db_committed:
+            # Storage and database have committed. Do not roll them back merely
+            # because refreshing the response failed; a retry is idempotent.
+            logger.exception("Salon logo was saved but the response could not be refreshed")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="The logo was saved, but its response could not be refreshed. Reload the screen before retrying.",
+            ) from exc
+
+        db.rollback()
+        rollback_ok = _rollback_failed_logo_upload(
+            target,
+            backup,
+            had_previous=had_previous,
+            target_replaced=target_replaced,
+        )
+        if not rollback_ok:
+            detail = (
+                "The logo upload failed and automatic restoration was incomplete. "
+                "A recovery copy was retained where available; do not retry until storage is checked."
+            )
+        elif isinstance(exc, GoogleDriveMediaError):
+            detail = "Private Google Drive storage could not confirm the upload. The previous logo was restored."
+        elif isinstance(exc, OSError):
+            detail = "Could not save the salon logo. The previous logo was restored."
+        else:
+            logger.exception("Unexpected salon logo upload failure")
+            detail = "Could not save the salon logo. The previous logo was restored."
+
+        error_status = (
+            status.HTTP_503_SERVICE_UNAVAILABLE
+            if isinstance(exc, GoogleDriveMediaError) or not rollback_ok
+            else status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+        raise HTTPException(status_code=error_status, detail=detail) from exc
+    finally:
+        temporary.unlink(missing_ok=True)
+        # Keep the previous image as a recovery artifact if restoration was not
+        # fully confirmed. Otherwise remove the temporary backup.
+        if backup.exists() and (rollback_ok or db_committed or not target_replaced):
+            backup.unlink(missing_ok=True)
+
 
 
 @router.get("/me/logo")
