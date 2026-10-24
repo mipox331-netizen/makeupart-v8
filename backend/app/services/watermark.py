@@ -15,6 +15,23 @@ from app.models.watermark import Watermark
 _ALLOWED_POSITIONS = {"bottom-right", "bottom-left", "top-right", "top-left"}
 
 
+def salon_logo_path(salon_id: str) -> Path:
+    """Return a tenant-scoped logo path, rejecting symlink escapes."""
+    root = settings.media_root_path.resolve()
+    salons_dir = root / "salons"
+    salon_dir = salons_dir / str(salon_id)
+    branding_dir = salon_dir / "branding"
+    target = branding_dir / "logo.png"
+
+    if any(path.is_symlink() for path in (salons_dir, salon_dir, branding_dir, target)):
+        raise ValueError("Salon logo storage path failed tenant-isolation validation.")
+    try:
+        branding_dir.resolve().relative_to(root)
+    except ValueError as exc:
+        raise ValueError("Salon logo storage path is outside the private media root.") from exc
+    return target
+
+
 def get_or_create_watermark(db: Session, salon: Salon) -> Watermark:
     watermark = (
         db.query(Watermark)
@@ -136,13 +153,7 @@ def apply_watermark(
     # Compose the salon's uploaded transparent logo onto every generated image.
     # The actual file path is derived from the authenticated salon id, never from
     # a client-controlled URL or path stored in the database.
-    logo_path = (
-        settings.media_root_path
-        / "salons"
-        / str(salon.id)
-        / "branding"
-        / "logo.png"
-    )
+    logo_path = salon_logo_path(str(salon.id))
     if watermark.logo_url and logo_path.is_file():
         logo = cv2.imread(str(logo_path), cv2.IMREAD_UNCHANGED)
         if logo is not None:
