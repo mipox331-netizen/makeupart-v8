@@ -14,7 +14,7 @@ from app.api.deps import get_current_active_user, require_roles
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User, UserRole
-from app.services.watermark import get_or_create_watermark
+from app.services.watermark import get_or_create_watermark, salon_logo_path
 from app.schemas.watermark import WatermarkOut, WatermarkUpdate
 from app.services.media_volume import commit_media_volume
 from app.services import google_drive_media
@@ -72,31 +72,13 @@ _ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/webp"}
 
 
 def _logo_path(salon_id: uuid.UUID) -> Path:
-    root = settings.media_root_path.resolve()
-    salons_dir = root / "salons"
-    salon_dir = salons_dir / str(salon_id)
-    branding_dir = salon_dir / "branding"
-    target = branding_dir / "logo.png"
-
-    # Reject symlinks at each salon-controlled path segment. This prevents a
-    # malformed local directory from redirecting one salon's logo write/read to
-    # another salon's files or outside MEDIA_ROOT.
-    if any(
-        path.is_symlink()
-        for path in (salons_dir, salon_dir, branding_dir, target)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Salon logo storage path failed tenant-isolation validation.",
-        )
     try:
-        branding_dir.resolve().relative_to(root)
+        return salon_logo_path(str(salon_id))
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Salon logo storage path is outside the private media root.",
+            detail="Salon logo storage path failed tenant-isolation validation.",
         ) from exc
-    return target
 
 
 @router.get("/me", response_model=WatermarkOut)
