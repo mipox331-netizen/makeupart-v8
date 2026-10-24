@@ -92,6 +92,24 @@ def test_media_key_rejects_paths_outside_media_root(monkeypatch, tmp_path):
         drive._relative_key(outside)
 
 
+def test_root_folder_refuses_duplicate_private_media_roots(monkeypatch, tmp_path):
+    configure_drive(monkeypatch, tmp_path)
+
+    def fake_request(method, url, **kwargs):
+        assert method == "GET"
+        assert url.endswith("/files")
+        assert kwargs["params"]["pageSize"] == 2
+        return make_response(
+            url,
+            body={"files": [{"id": "private-root-a"}, {"id": "private-root-b"}]},
+        )
+
+    monkeypatch.setattr(drive, "_request", fake_request)
+
+    with pytest.raises(drive.GoogleDriveMediaError, match="Multiple private media root folders"):
+        drive._root_folder_id("test-token")
+
+
 def test_upload_uses_private_app_folder_and_resumable_drive_upload(monkeypatch, tmp_path):
     configure_drive(monkeypatch, tmp_path)
     media_path = settings.media_root_path / "salons" / "salon-123" / "outputs" / "after.png"
