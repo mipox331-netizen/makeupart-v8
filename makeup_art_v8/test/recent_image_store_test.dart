@@ -55,6 +55,28 @@ void main() {
     }
   });
 
+  test('updates the existing history item when a job is saved again', () async {
+    final root = await Directory.systemTemp.createTemp('makeupart_recent_dedupe_');
+    final store = RecentImageStore(rootOverride: root, scope: 'test-salon');
+
+    try {
+      final original = await store.save(
+        Uint8List.fromList([1, 2, 3]),
+        jobId: 'same-job',
+      );
+      final updated = await store.save(
+        Uint8List.fromList([7, 8, 9]),
+        jobId: 'same-job',
+      );
+
+      expect(updated.path, original.path);
+      expect(await store.list(), hasLength(1));
+      expect(await updated.readAsBytes(), equals([7, 8, 9]));
+    } finally {
+      await root.delete(recursive: true);
+    }
+  });
+
   test('preserves overflow when external phone storage is unavailable', () async {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_fallback_');
     final store = RecentImageStore(rootOverride: root);
