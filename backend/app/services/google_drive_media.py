@@ -500,9 +500,8 @@ def delete_media_file(path: str | Path) -> bool:
     token = _access_token()
     folder_id = _root_folder_id(token)
 
-    # Google Drive's files.list omits trashed files unless the query explicitly
-    # asks for them. Search active files and Trash separately so legacy entries
-    # left by the old PATCH(trashed=true) implementation are removed as well.
+    # Search active files and Trash separately so legacy entries left by
+    # the old PATCH(trashed=true) implementation are removed as well.
     matching_files = [
         *_find_media_objects(path_key, token, folder_id, trashed=False),
         *_find_media_objects(path_key, token, folder_id, trashed=True),
