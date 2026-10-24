@@ -43,7 +43,15 @@ def _rollback_failed_logo_upload(
         if had_previous:
             if not backup.is_file():
                 raise OSError("The previous salon logo backup is unavailable.")
-            shutil.copy2(backup, target)
+            restore_temporary = target.with_name(f".logo-{uuid.uuid4().hex}.restore")
+            try:
+                shutil.copy2(backup, restore_temporary)
+                os.replace(restore_temporary, target)
+            finally:
+                try:
+                    restore_temporary.unlink(missing_ok=True)
+                except OSError:
+                    logger.exception("Could not remove temporary salon-logo restoration file")
             persisted = google_drive_media.persist_media_file(target)
             if durable_required and not persisted:
                 raise GoogleDriveMediaError(
@@ -237,11 +245,21 @@ async def upload_watermark_logo(
             logger.exception("Could not remove temporary salon-logo upload file")
         # Keep the previous image as a recovery artifact if restoration was not
         # fully confirmed. Otherwise remove the temporary backup.
+        backup_removed = False
         if backup.exists() and (rollback_ok or db_committed or not target_replaced):
             try:
                 backup.unlink(missing_ok=True)
+                backup_removed = True
             except OSError:
                 logger.exception("Could not remove temporary salon-logo rollback backup")
+        # The first volume snapshot happens before the DB commit so the old
+        # logo can still be recovered. Snapshot again after removing the backup
+        # so the transient rollback copy is not retained on the persistent volume.
+        if backup_removed and target_replaced:
+            try:
+                commit_media_volume()
+            except Exception:
+                logger.exception("Could not persist salon-logo rollback-file cleanup")
 
 
 
