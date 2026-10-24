@@ -228,7 +228,7 @@ def test_restore_rejects_corrupt_content_without_publishing_partial_file(monkeyp
     assert list(media_path.parent.glob(".after.png.*.tmp")) == []
 
 
-def test_delete_trashes_only_the_matched_private_drive_file(monkeypatch, tmp_path):
+def test_delete_permanently_removes_only_the_matched_private_drive_file(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path / "media"))
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "delete-client")
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "delete-secret")
@@ -246,14 +246,14 @@ def test_delete_trashes_only_the_matched_private_drive_file(monkeypatch, tmp_pat
 
     def fake_request(method, url, **kwargs):
         recorded.update(method=method, url=url, **kwargs)
-        return make_response(url, body={"id": "matched-file", "trashed": True})
+        return make_response(url, status=204)
 
     monkeypatch.setattr(drive, "_request", fake_request)
 
     assert drive.delete_media_file(media_path) is True
-    assert recorded["method"] == "PATCH"
+    assert recorded["method"] == "DELETE"
     assert recorded["url"].endswith("/files/matched-file")
-    assert recorded["json"] == {"trashed": True}
+    assert "json" not in recorded
 
 
 def test_upload_rejects_media_when_drive_checksum_does_not_match(monkeypatch, tmp_path):
