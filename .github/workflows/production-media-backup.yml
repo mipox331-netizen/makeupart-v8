@@ -122,7 +122,7 @@ jobs:
               response = session.get(
                   API + "/files",
                   headers=headers,
-                  params={"q": query, "pageSize": 2, "fields": "files(id,mimeType)"},
+                  params={"q": query, "pageSize": 2, "fields": "nextPageToken,files(id,mimeType)"},
                   timeout=(10, 30),
               )
           except requests.RequestException:
@@ -131,7 +131,7 @@ jobs:
           roots = root_payload.get("files", []) if isinstance(root_payload, dict) else None
           if response.status_code != 200 or not isinstance(roots, list) or not roots:
               abort("MakeUpArt private media folder was not found or is not accessible. No backup was uploaded.")
-          if len(roots) != 1 or not isinstance(roots[0], dict):
+          if len(roots) != 1 or root_payload.get("nextPageToken") or not isinstance(roots[0], dict):
               abort("Multiple or invalid MakeUpArt private media roots were found. Refusing an ambiguous or incomplete backup.")
           root_id = str(roots[0].get("id", "")).strip()
           if not root_id:
