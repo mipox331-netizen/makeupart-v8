@@ -9,9 +9,9 @@ from pydantic import ValidationError
 
 from app.models.salon import Salon
 from app.models.watermark import Watermark
-from app.services.watermark import apply_watermark
-from app.services.google_drive_media import GoogleDriveMediaError
 from app.schemas.watermark import WatermarkUpdate
+from app.services.google_drive_media import GoogleDriveMediaError
+from app.services.watermark import apply_watermark
 from tests.utils import API, auth_headers, register
 
 
@@ -202,6 +202,32 @@ def test_failed_first_logo_upload_removes_unreferenced_local_logo(client, tmp_pa
     assert not list(target.parent.glob("*.rollback")) if target.parent.exists() else True
     retrieved = client.get(f"{API}/watermarks/me/logo", headers=headers)
     assert retrieved.status_code == 404
+
+
+def test_logo_upload_rejects_salon_directory_symlink(client, tmp_path, monkeypatch):
+    registration = register(client)
+    assert registration.status_code == 201
+    headers = auth_headers(client, "owner@salon.com")
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.watermarks.settings.MEDIA_ROOT", str(media_root))
+
+    salon_id = registration.json()["salon"]["id"]
+    salons_dir = media_root / "salons"
+    salons_dir.mkdir(parents=True)
+    outside_dir = media_root / "other-salon"
+    outside_dir.mkdir()
+    (salons_dir / salon_id).symlink_to(outside_dir, target_is_directory=True)
+
+    buffer = io.BytesIO()
+    Image.new("RGBA", (64, 32), (200, 30, 40, 255)).save(buffer, format="PNG")
+    response = client.post(
+        f"{API}/watermarks/me/logo",
+        headers=headers,
+        files={"file": ("logo.png", buffer.getvalue(), "image/png")},
+    )
+
+    assert response.status_code == 500
+    assert not (outside_dir / "branding" / "logo.png").exists()
 
 
 def test_logo_upload_rejects_non_images(client):
