@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from app.models.salon import Salon
 from app.models.watermark import Watermark
 from app.services.watermark import apply_watermark
+from app.services.google_drive_media import GoogleDriveMediaError
 from app.schemas.watermark import WatermarkUpdate
 from tests.utils import API, auth_headers, register
 
@@ -119,6 +120,88 @@ def test_owner_can_upload_and_retrieve_salon_logo(client, tmp_path, monkeypatch)
     assert settings_response.json()["opacity"] == pytest.approx(0.8)
     assert settings_response.json()["size"] == 24
     assert settings_response.json()["phone"] is True
+
+
+def test_failed_logo_replacement_restores_previous_local_logo(client, tmp_path, monkeypatch):
+    registration = register(client)
+    assert registration.status_code == 201
+    headers = auth_headers(client, "owner@salon.com")
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.watermarks.settings.MEDIA_ROOT", str(media_root))
+
+    first_buffer = io.BytesIO()
+    Image.new("RGBA", (64, 32), (220, 30, 60, 255)).save(first_buffer, format="PNG")
+    first_payload = first_buffer.getvalue()
+    first = client.post(
+        f"{API}/watermarks/me/logo",
+        headers=headers,
+        files={"file": ("old-logo.png", first_payload, "image/png")},
+    )
+    assert first.status_code == 200, first.text
+
+    salon_id = registration.json()["salon"]["id"]
+    target = media_root / "salons" / salon_id / "branding" / "logo.png"
+    old_bytes = target.read_bytes()
+
+    second_buffer = io.BytesIO()
+    Image.new("RGBA", (64, 32), (20, 100, 220, 255)).save(second_buffer, format="PNG")
+    calls = 0
+
+    def fail_replacement_once(_path):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise GoogleDriveMediaError("simulated Drive write failure")
+        # Development mode does not require durable Drive storage.
+        return False
+
+    monkeypatch.setattr(
+        "app.api.v1.watermarks.google_drive_media.persist_media_file",
+        fail_replacement_once,
+    )
+    failed = client.post(
+        f"{API}/watermarks/me/logo",
+        headers=headers,
+        files={"file": ("new-logo.png", second_buffer.getvalue(), "image/png")},
+    )
+
+    assert failed.status_code == 503
+    assert target.read_bytes() == old_bytes
+    retrieved = client.get(f"{API}/watermarks/me/logo", headers=headers)
+    assert retrieved.status_code == 200
+    assert retrieved.content == old_bytes
+    assert list(target.parent.glob("*.rollback")) == []
+
+
+def test_failed_first_logo_upload_removes_unreferenced_local_logo(client, tmp_path, monkeypatch):
+    registration = register(client)
+    assert registration.status_code == 201
+    headers = auth_headers(client, "owner@salon.com")
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.watermarks.settings.MEDIA_ROOT", str(media_root))
+
+    buffer = io.BytesIO()
+    Image.new("RGBA", (64, 32), (40, 180, 90, 255)).save(buffer, format="PNG")
+
+    monkeypatch.setattr(
+        "app.api.v1.watermarks.google_drive_media.persist_media_file",
+        lambda _path: (_ for _ in ()).throw(
+            GoogleDriveMediaError("simulated Drive write failure")
+        ),
+    )
+    failed = client.post(
+        f"{API}/watermarks/me/logo",
+        headers=headers,
+        files={"file": ("first-logo.png", buffer.getvalue(), "image/png")},
+    )
+
+    assert failed.status_code == 503
+    salon_id = registration.json()["salon"]["id"]
+    target = media_root / "salons" / salon_id / "branding" / "logo.png"
+    assert not target.exists()
+    assert not list(target.parent.glob("*.rollback")) if target.parent.exists() else True
+    retrieved = client.get(f"{API}/watermarks/me/logo", headers=headers)
+    assert retrieved.status_code == 404
 
 
 def test_logo_upload_rejects_non_images(client):
