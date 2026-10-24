@@ -185,11 +185,33 @@ def _root_folder_id(token: str) -> str:
             "GET",
             f"{_API}/files",
             token=token,
-            params={"q": query, "pageSize": 1, "fields": "files(id,name,mimeType)"},
+            params={"q": query, "pageSize": 2, "fields": "nextPageToken,files(id,name,mimeType)"},
         )
-        folders = response.json().get("files", [])
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GoogleDriveMediaError(
+                "Google Drive returned invalid private media-root search data."
+            ) from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("files", []), list):
+            raise GoogleDriveMediaError(
+                "Google Drive returned an invalid private media-root search response."
+            )
+        folders = payload.get("files", [])
+        if any(not isinstance(folder, dict) for folder in folders):
+            raise GoogleDriveMediaError(
+                "Google Drive returned an invalid private media-root record."
+            )
+        if len(folders) > 1 or payload.get("nextPageToken"):
+            # Choosing an arbitrary root could split uploads, deletion and backups
+            # across different folders. Fail closed until the duplicate is reconciled.
+            raise GoogleDriveMediaError(
+                "Multiple private media root folders were found; refusing ambiguous storage."
+            )
         if folders:
-            folder_id = str(folders[0]["id"])
+            folder_id = str(folders[0].get("id") or "").strip()
+            if not folder_id:
+                raise GoogleDriveMediaError("Google Drive returned a media-root record without an ID.")
         else:
             response = _request(
                 "POST",
@@ -207,7 +229,13 @@ def _root_folder_id(token: str) -> str:
                     "ignoreDefaultVisibility": "true",
                 },
             )
-            folder_id = str(response.json().get("id", ""))
+            try:
+                created = response.json()
+            except ValueError as exc:
+                raise GoogleDriveMediaError(
+                    "Google Drive returned invalid private media-root creation data."
+                ) from exc
+            folder_id = str(created.get("id", "")).strip() if isinstance(created, dict) else ""
             if not folder_id:
                 raise GoogleDriveMediaError("Google Drive did not return a media folder ID.")
         _ROOT_CACHE[cache_key] = folder_id
@@ -224,23 +252,81 @@ def verify_connection() -> None:
     _root_folder_id(token)
 
 
-def _find_media_object(path_key: str, token: str, folder_id: str) -> dict | None:
+def _find_media_objects(
+    path_key: str,
+    token: str,
+    folder_id: str | None,
+    *,
+    trashed: bool,
+) -> list[dict]:
+    """Find every app-owned Drive object for a path, including legacy Trash entries when asked."""
     escaped_key = _escaped_query_value(path_key)
+    parent_filter = f"'{folder_id}' in parents and " if folder_id else ""
     query = (
-        f"'{folder_id}' in parents and trashed = false and "
+        f"{parent_filter}trashed = {'true' if trashed else 'false'} and "
         f"appProperties has {{ key='{_PATH_PROPERTY}' and value='{escaped_key}' }}"
     )
-    response = _request(
-        "GET",
-        f"{_API}/files",
-        token=token,
-        params={
+    files: list[dict] = []
+    page_token: str | None = None
+    seen_page_tokens: set[str] = set()
+
+    # A logical media path should map to one file. Deletion also searches Trash
+    # because older app versions only marked files as trashed. Paginate all
+    # results so a duplicate/legacy record cannot be left behind silently.
+    while True:
+        params = {
             "q": query,
-            "pageSize": 2,
-            "fields": "files(id,name,mimeType,size,md5Checksum)",
-        },
-    )
-    files = response.json().get("files", [])
+            "pageSize": 100,
+            "fields": "nextPageToken,files(id,name,mimeType,size,md5Checksum,trashed)",
+        }
+        if page_token is not None:
+            if page_token in seen_page_tokens:
+                raise GoogleDriveMediaError(
+                    "Google Drive repeated a media-search page token; refusing incomplete results."
+                )
+            seen_page_tokens.add(page_token)
+            params["pageToken"] = page_token
+
+        response = _request(
+            "GET",
+            f"{_API}/files",
+            token=token,
+            params=params,
+        )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GoogleDriveMediaError(
+                "Google Drive returned invalid private-media search data."
+            ) from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("files", []), list):
+            raise GoogleDriveMediaError(
+                "Google Drive returned an invalid private-media search response."
+            )
+
+        batch = payload.get("files", [])
+        if any(not isinstance(item, dict) for item in batch):
+            raise GoogleDriveMediaError(
+                "Google Drive returned an invalid private-media record."
+            )
+        files.extend(batch)
+        if len(files) > 1000:
+            raise GoogleDriveMediaError(
+                "Too many Drive records match one private media path; refusing an unsafe deletion."
+            )
+
+        next_token = payload.get("nextPageToken")
+        if next_token is None or next_token == "":
+            return files
+        if not isinstance(next_token, str):
+            raise GoogleDriveMediaError(
+                "Google Drive returned an invalid media-search page token."
+            )
+        page_token = next_token
+
+
+def _find_media_object(path_key: str, token: str, folder_id: str) -> dict | None:
+    files = _find_media_objects(path_key, token, folder_id, trashed=False)
     if len(files) > 1:
         raise GoogleDriveMediaError(
             "Duplicate private media records were found; refusing ambiguous restoration."
@@ -434,29 +520,45 @@ def ensure_local_file(path: str | Path) -> bool:
 
 
 def delete_media_file(path: str | Path) -> bool:
-    """Permanently delete one matching private Drive object; false means local-only mode."""
+    """Permanently delete matching private Drive objects; false means local-only mode."""
     credentials = _credentials()
     if credentials is None:
         return False
 
     path_key = _relative_key(path)
     token = _access_token()
-    folder_id = _root_folder_id(token)
-    media = _find_media_object(path_key, token, folder_id)
-    if media is None:
+
+    # Delete by the app-private path index across all app-visible Drive roots.
+    # This also catches legacy copies whose root folder changed or was duplicated.
+    # Search active files and Trash separately so old PATCH(trashed=true) items
+    # are permanently removed rather than left recoverable.
+    matching_files = [
+        *_find_media_objects(path_key, token, None, trashed=False),
+        *_find_media_objects(path_key, token, None, trashed=True),
+    ]
+    unique_files: dict[str, dict] = {}
+    for media in matching_files:
+        media_id = str(media.get("id") or "").strip()
+        if not media_id:
+            raise GoogleDriveMediaError(
+                "Google Drive returned a private-media record without an ID."
+            )
+        unique_files[media_id] = media
+
+    if not unique_files:
         return True
 
-    # Privacy deletion must not merely move a client image into Drive Trash,
-    # where the central account owner could still restore or view it.
-    response = _request(
-        "DELETE",
-        f"{_API}/files/{media['id']}",
-        token=token,
-    )
-    # Drive files.delete normally returns HTTP 204 with an empty body.
-    # _request raises for HTTP errors, so no response body needs to be parsed.
-    if response.status_code not in (200, 204):
-        raise GoogleDriveMediaError(
-            "Google Drive did not confirm permanent deletion of the matched private media object."
+    # appProperties are private to this OAuth app; the exact path index binds
+    # every selected ID to managed salon media, even if an old copy was moved.
+    # A 204 empty response is normal; _request raises for every HTTP error.
+    for media_id in unique_files:
+        response = _request(
+            "DELETE",
+            f"{_API}/files/{media_id}",
+            token=token,
         )
+        if response.status_code not in (200, 204):
+            raise GoogleDriveMediaError(
+                "Google Drive did not confirm permanent deletion of the matched private media object."
+            )
     return True
