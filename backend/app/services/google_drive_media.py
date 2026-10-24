@@ -185,7 +185,7 @@ def _root_folder_id(token: str) -> str:
             "GET",
             f"{_API}/files",
             token=token,
-            params={"q": query, "pageSize": 2, "fields": "files(id,name,mimeType)"},
+            params={"q": query, "pageSize": 2, "fields": "nextPageToken,files(id,name,mimeType)"},
         )
         try:
             payload = response.json()
@@ -202,7 +202,7 @@ def _root_folder_id(token: str) -> str:
             raise GoogleDriveMediaError(
                 "Google Drive returned an invalid private media-root record."
             )
-        if len(folders) > 1:
+        if len(folders) > 1 or payload.get("nextPageToken"):
             # Choosing an arbitrary root could split uploads, deletion and backups
             # across different folders. Fail closed until the duplicate is reconciled.
             raise GoogleDriveMediaError(
