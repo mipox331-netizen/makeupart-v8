@@ -255,14 +255,15 @@ def verify_connection() -> None:
 def _find_media_objects(
     path_key: str,
     token: str,
-    folder_id: str,
+    folder_id: str | None,
     *,
     trashed: bool,
 ) -> list[dict]:
     """Find every app-owned Drive object for a path, including legacy Trash entries when asked."""
     escaped_key = _escaped_query_value(path_key)
+    parent_filter = f"'{folder_id}' in parents and " if folder_id else ""
     query = (
-        f"'{folder_id}' in parents and trashed = {'true' if trashed else 'false'} and "
+        f"{parent_filter}trashed = {'true' if trashed else 'false'} and "
         f"appProperties has {{ key='{_PATH_PROPERTY}' and value='{escaped_key}' }}"
     )
     files: list[dict] = []
@@ -526,13 +527,14 @@ def delete_media_file(path: str | Path) -> bool:
 
     path_key = _relative_key(path)
     token = _access_token()
-    folder_id = _root_folder_id(token)
 
-    # Search active files and Trash separately so legacy entries left by
-    # the old PATCH(trashed=true) implementation are removed as well.
+    # Delete by the app-private path index across all app-visible Drive roots.
+    # This also catches legacy copies whose root folder changed or was duplicated.
+    # Search active files and Trash separately so old PATCH(trashed=true) items
+    # are permanently removed rather than left recoverable.
     matching_files = [
-        *_find_media_objects(path_key, token, folder_id, trashed=False),
-        *_find_media_objects(path_key, token, folder_id, trashed=True),
+        *_find_media_objects(path_key, token, None, trashed=False),
+        *_find_media_objects(path_key, token, None, trashed=True),
     ]
     unique_files: dict[str, dict] = {}
     for media in matching_files:
@@ -546,7 +548,8 @@ def delete_media_file(path: str | Path) -> bool:
     if not unique_files:
         return True
 
-    # Only delete IDs whose appProperties path and private root folder match.
+    # appProperties are private to this OAuth app; the exact path index binds
+    # every selected ID to managed salon media, even if an old copy was moved.
     # A 204 empty response is normal; _request raises for every HTTP error.
     for media_id in unique_files:
         response = _request(
