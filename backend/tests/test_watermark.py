@@ -204,6 +204,32 @@ def test_failed_first_logo_upload_removes_unreferenced_local_logo(client, tmp_pa
     assert retrieved.status_code == 404
 
 
+def test_apply_watermark_rejects_logo_symlink_escape(tmp_path, monkeypatch):
+    salon_id = uuid.uuid4()
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.services.watermark.settings.MEDIA_ROOT", str(media_root))
+
+    salons_dir = media_root / "salons"
+    salons_dir.mkdir(parents=True)
+    outside_dir = media_root / "outside-salon"
+    outside_dir.mkdir()
+    (salons_dir / str(salon_id)).symlink_to(outside_dir, target_is_directory=True)
+
+    image_path = tmp_path / "output.png"
+    assert cv2.imwrite(str(image_path), np.full((120, 160, 3), 240, dtype=np.uint8))
+    salon = Salon(id=salon_id, name="Tony Beauty Studio")
+    watermark = Watermark(
+        logo_url="/api/v1/watermarks/me/logo",
+        salon_name=True,
+        position="bottom-right",
+        opacity=0.5,
+        size=12,
+    )
+
+    with pytest.raises(ValueError, match="tenant-isolation"):
+        apply_watermark(image_path, salon, watermark)
+
+
 def test_logo_upload_rejects_salon_directory_symlink(client, tmp_path, monkeypatch):
     registration = register(client)
     assert registration.status_code == 201
