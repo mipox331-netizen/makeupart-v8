@@ -109,8 +109,9 @@ class RecentImageStore {
       }
     }
 
+    final fileJobId = safeJobId.isEmpty ? 'result' : safeJobId;
     final filename =
-        'ai_${DateTime.now().microsecondsSinceEpoch}_${safeJobId.isEmpty ? 'result' : safeJobId}.png';
+        'ai_${DateTime.now().microsecondsSinceEpoch}_$fileJobId.png';
     final file = File(
       '${directory.path}${Platform.pathSeparator}$filename',
     );
