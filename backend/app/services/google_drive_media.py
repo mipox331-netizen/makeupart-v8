@@ -185,11 +185,33 @@ def _root_folder_id(token: str) -> str:
             "GET",
             f"{_API}/files",
             token=token,
-            params={"q": query, "pageSize": 1, "fields": "files(id,name,mimeType)"},
+            params={"q": query, "pageSize": 2, "fields": "files(id,name,mimeType)"},
         )
-        folders = response.json().get("files", [])
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GoogleDriveMediaError(
+                "Google Drive returned invalid private media-root search data."
+            ) from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("files", []), list):
+            raise GoogleDriveMediaError(
+                "Google Drive returned an invalid private media-root search response."
+            )
+        folders = payload.get("files", [])
+        if any(not isinstance(folder, dict) for folder in folders):
+            raise GoogleDriveMediaError(
+                "Google Drive returned an invalid private media-root record."
+            )
+        if len(folders) > 1:
+            # Choosing an arbitrary root could split uploads, deletion and backups
+            # across different folders. Fail closed until the duplicate is reconciled.
+            raise GoogleDriveMediaError(
+                "Multiple private media root folders were found; refusing ambiguous storage."
+            )
         if folders:
-            folder_id = str(folders[0]["id"])
+            folder_id = str(folders[0].get("id") or "").strip()
+            if not folder_id:
+                raise GoogleDriveMediaError("Google Drive returned a media-root record without an ID.")
         else:
             response = _request(
                 "POST",
@@ -207,7 +229,13 @@ def _root_folder_id(token: str) -> str:
                     "ignoreDefaultVisibility": "true",
                 },
             )
-            folder_id = str(response.json().get("id", ""))
+            try:
+                created = response.json()
+            except ValueError as exc:
+                raise GoogleDriveMediaError(
+                    "Google Drive returned invalid private media-root creation data."
+                ) from exc
+            folder_id = str(created.get("id", "")).strip() if isinstance(created, dict) else ""
             if not folder_id:
                 raise GoogleDriveMediaError("Google Drive did not return a media folder ID.")
         _ROOT_CACHE[cache_key] = folder_id
