@@ -228,7 +228,7 @@ def test_restore_rejects_corrupt_content_without_publishing_partial_file(monkeyp
     assert list(media_path.parent.glob(".after.png.*.tmp")) == []
 
 
-def test_delete_permanently_removes_only_the_matched_private_drive_file(monkeypatch, tmp_path):
+def test_delete_permanently_removes_active_and_legacy_trashed_drive_files(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path / "media"))
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "delete-client")
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "delete-secret")
@@ -237,23 +237,40 @@ def test_delete_permanently_removes_only_the_matched_private_drive_file(monkeypa
     media_path = settings.media_root_path / "salons" / "salon-123" / "inputs" / "before.jpg"
     monkeypatch.setattr(drive, "_access_token", lambda: "test-token")
     monkeypatch.setattr(drive, "_root_folder_id", lambda _token: "private-root")
-    monkeypatch.setattr(
-        drive,
-        "_find_media_object",
-        lambda *_args: {"id": "matched-file"},
-    )
-    recorded = {}
+    recorded_deletes = []
+    recorded_queries = []
 
     def fake_request(method, url, **kwargs):
-        recorded.update(method=method, url=url, **kwargs)
-        return make_response(url, status=204)
+        if method == "GET" and url.endswith("/files"):
+            query = kwargs["params"]["q"]
+            recorded_queries.append(query)
+            if "trashed = true" in query:
+                return make_response(
+                    url,
+                    body={"files": [{"id": "legacy-trashed-file", "trashed": True}]},
+                )
+            return make_response(
+                url,
+                body={"files": [{"id": "current-file", "trashed": False}]},
+            )
+        if method == "DELETE":
+            recorded_deletes.append(url)
+            return make_response(url, status=204)
+        raise AssertionError(f"Unexpected Google Drive request: {method} {url}")
 
     monkeypatch.setattr(drive, "_request", fake_request)
 
     assert drive.delete_media_file(media_path) is True
-    assert recorded["method"] == "DELETE"
-    assert recorded["url"].endswith("/files/matched-file")
-    assert "json" not in recorded
+    assert len(recorded_queries) == 2
+    assert any("trashed = false" in query for query in recorded_queries)
+    assert any("trashed = true" in query for query in recorded_queries)
+    assert recorded_deletes == [
+        f"{drive._API}/files/current-file",
+        f"{drive._API}/files/legacy-trashed-file",
+    ] or set(recorded_deletes) == {
+        f"{drive._API}/files/current-file",
+        f"{drive._API}/files/legacy-trashed-file",
+    }
 
 
 def test_upload_rejects_media_when_drive_checksum_does_not_match(monkeypatch, tmp_path):
