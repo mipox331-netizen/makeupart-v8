@@ -127,10 +127,13 @@ jobs:
               )
           except requests.RequestException:
               abort("Google Drive media-root lookup could not reach Google.")
-          roots = checked_json(response, "Google Drive media-root lookup").get("files", [])
-          if response.status_code != 200 or not roots:
+          root_payload = checked_json(response, "Google Drive media-root lookup")
+          roots = root_payload.get("files", []) if isinstance(root_payload, dict) else None
+          if response.status_code != 200 or not isinstance(roots, list) or not roots:
               abort("MakeUpArt private media folder was not found or is not accessible. No backup was uploaded.")
-          root_id = str(roots[0].get("id", ""))
+          if len(roots) != 1 or not isinstance(roots[0], dict):
+              abort("Multiple or invalid MakeUpArt private media roots were found. Refusing an ambiguous or incomplete backup.")
+          root_id = str(roots[0].get("id", "")).strip()
           if not root_id:
               abort("Google Drive returned an invalid media-root record.")
 
