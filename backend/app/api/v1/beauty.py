@@ -551,19 +551,21 @@ def process_beauty_upload(
                 watermark_applied=watermark_applied,
             )
         )
-        # Persist image files before committing database rows that reference them.
-        # Modal injects this volume hook; local runs and tests leave it as a no-op.
-        commit_media_volume()
-        db.commit()
-        quota_reserved = False
-
-        return BeautyUploadResponse(
+        # Validate the full response before the database commit.
+        # If validation fails, the handler can still roll back the job and release quota.
+        upload_response = BeautyUploadResponse(
             **response.model_dump(),
             job_id=job.id,
             before_image_url=job.before_image_url,
             after_image_url=job.after_image_url,
             watermark_applied=watermark_applied,
         )
+
+        # Persist image files before committing rows that reference them.
+        commit_media_volume()
+        db.commit()
+        quota_reserved = False
+        return upload_response
     except HTTPException:
         db.rollback()
         if quota_reserved:
