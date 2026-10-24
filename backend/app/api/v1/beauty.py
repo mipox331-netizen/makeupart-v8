@@ -38,7 +38,7 @@ from app.services.google_drive_media import GoogleDriveMediaError
 from app.services.generative_makeup import GenerativeMakeupProvider
 from app.services.media_volume import commit_media_volume
 from app.services.subscription import release_beauty_job_quota, reserve_beauty_job_quota
-from app.services.watermark import apply_watermark, get_or_create_watermark
+from app.services.watermark import apply_watermark, get_or_create_watermark, salon_logo_path
 
 logger = logging.getLogger("makeupart.beauty")
 
@@ -472,7 +472,13 @@ def process_beauty_upload(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon not found")
 
         watermark = get_or_create_watermark(db, salon)
-        logo_path = settings.media_root_path / "salons" / str(current_user.salon_id) / "branding" / "logo.png"
+        try:
+            logo_path = salon_logo_path(str(current_user.salon_id))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Salon logo storage path failed tenant-isolation validation.",
+            ) from exc
         if watermark.logo_url and not logo_path.is_file():
             try:
                 restored = google_drive_media.ensure_local_file(logo_path)
