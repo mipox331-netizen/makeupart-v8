@@ -254,7 +254,6 @@ def test_delete_permanently_removes_active_and_legacy_trashed_drive_files(monkey
     monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", True)
     media_path = settings.media_root_path / "salons" / "salon-123" / "inputs" / "before.jpg"
     monkeypatch.setattr(drive, "_access_token", lambda: "test-token")
-    monkeypatch.setattr(drive, "_root_folder_id", lambda _token: "private-root")
     recorded_deletes = []
     recorded_queries = []
 
@@ -280,6 +279,9 @@ def test_delete_permanently_removes_active_and_legacy_trashed_drive_files(monkey
 
     assert drive.delete_media_file(media_path) is True
     assert len(recorded_queries) == 2
+    assert all("appProperties has" in query for query in recorded_queries)
+    assert all("makeupart_path" in query for query in recorded_queries)
+    assert all("in parents" not in query for query in recorded_queries)
     assert any("trashed = false" in query for query in recorded_queries)
     assert any("trashed = true" in query for query in recorded_queries)
     assert recorded_deletes == [
