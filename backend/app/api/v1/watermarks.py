@@ -72,7 +72,31 @@ _ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/webp"}
 
 
 def _logo_path(salon_id: uuid.UUID) -> Path:
-    return settings.media_root_path / "salons" / str(salon_id) / "branding" / "logo.png"
+    root = settings.media_root_path.resolve()
+    salons_dir = root / "salons"
+    salon_dir = salons_dir / str(salon_id)
+    branding_dir = salon_dir / "branding"
+    target = branding_dir / "logo.png"
+
+    # Reject symlinks at each salon-controlled path segment. This prevents a
+    # malformed local directory from redirecting one salon's logo write/read to
+    # another salon's files or outside MEDIA_ROOT.
+    if any(
+        path.is_symlink()
+        for path in (salons_dir, salon_dir, branding_dir, target)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Salon logo storage path failed tenant-isolation validation.",
+        )
+    try:
+        branding_dir.resolve().relative_to(root)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Salon logo storage path is outside the private media root.",
+        ) from exc
+    return target
 
 
 @router.get("/me", response_model=WatermarkOut)
@@ -225,11 +249,17 @@ async def upload_watermark_logo(
         )
         raise HTTPException(status_code=error_status, detail=detail) from exc
     finally:
-        temporary.unlink(missing_ok=True)
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Could not remove temporary salon-logo upload file")
         # Keep the previous image as a recovery artifact if restoration was not
         # fully confirmed. Otherwise remove the temporary backup.
         if backup.exists() and (rollback_ok or db_committed or not target_replaced):
-            backup.unlink(missing_ok=True)
+            try:
+                backup.unlink(missing_ok=True)
+            except OSError:
+                logger.exception("Could not remove temporary salon-logo rollback backup")
 
 
 
