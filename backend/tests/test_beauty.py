@@ -356,6 +356,67 @@ def test_beauty_upload_persists_and_secures_images(client, monkeypatch, tmp_path
     assert detail.json()["status"] == "completed"
 
 
+def test_beauty_upload_rolls_back_before_commit_if_response_validation_fails(
+    client, monkeypatch, tmp_path
+):
+    registration = register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+
+    def fake_process(self, image_path, options=None):
+        output = media_root / "salons" / salon_id / "outputs" / "generated.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
+        return {
+            "identity_similarity": 0.99,
+            "skin_tone": "medium",
+            "undertone": "neutral",
+            "foundation_match": "medium-neutral",
+            "processed": True,
+            "output_path": str(output),
+        }
+
+    def invalid_response(**_kwargs):
+        raise ValueError("simulated response schema validation failure")
+
+    monkeypatch.setattr(BeautyProvider, "process", fake_process)
+    monkeypatch.setattr(beauty_api, "BeautyUploadResponse", invalid_response)
+
+    before_usage = client.get(f"{API}/subscriptions/me", headers=headers)
+    assert before_usage.status_code == 200
+    usage_before = before_usage.json()["used"]
+
+    response = client.post(
+        f"{API}/beauty/process-upload?intensity=0.8&consent_confirmed=true",
+        headers=headers,
+        files={
+            "file": (
+                "portrait.png",
+                cv2.imencode(".png", np.full((16, 16, 3), 120, dtype=np.uint8))[1].tobytes(),
+                "image/png",
+            )
+        },
+    )
+
+    assert response.status_code == 500
+    jobs = client.get(f"{API}/beauty/jobs", headers=headers)
+    assert jobs.status_code == 200
+    assert jobs.json() == []
+
+    after_usage = client.get(f"{API}/subscriptions/me", headers=headers)
+    assert after_usage.status_code == 200
+    assert after_usage.json()["used"] == usage_before
+
+    salon_media = media_root / "salons" / salon_id
+    remaining_media = [
+        path for path in salon_media.rglob("*")
+        if path.is_file() and not path.name.endswith(".rollback")
+    ]
+    assert remaining_media == []
+
+
 def test_beauty_upload_rejects_unsupported_type(client):
     register(client)
     headers = auth_headers(client, "owner@salon.com")
