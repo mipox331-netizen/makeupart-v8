@@ -177,6 +177,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Gradle 8.14 is not compatible with the Java 25 default on GitHub-hosted runners.
+      # Pin the same supported JDK as the release workflow so CI and release builds agree.
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
