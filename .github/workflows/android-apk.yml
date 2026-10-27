@@ -371,6 +371,20 @@ jobs:
         working-directory: makeup_art_v8/android
         run: rm -f key.properties app/upload-keystore.jks
 
+      - name: Re-check source is still current main before publishing
+        env:
+          SOURCE_SHA: ${{ needs.classify-push.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse refs/remotes/origin/main)"
+          if [[ "$SOURCE_SHA" != "$current_main_sha" ]]; then
+            echo "::error::Refusing to publish an APK built from stale source $SOURCE_SHA; current main is $current_main_sha."
+            exit 1
+          fi
+          echo "Final release freshness check passed for $SOURCE_SHA."
+
       - name: Publish public GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
