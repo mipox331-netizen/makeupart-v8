@@ -54,7 +54,7 @@ jobs:
           # A successful workflow_run can still come from a CI run whose
           # freshness job deliberately skipped backend/Flutter jobs. Never
           # publish an APK from a commit that is no longer the main-branch tip.
-          git fetch --no-tags origin main
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
           current_main_sha="$(git rev-parse refs/remotes/origin/main)"
           if [[ "$source_sha" != "$current_main_sha" ]]; then
             echo "::notice::Skipping stale CI commit $source_sha; current main is $current_main_sha. The newer commit's own CI run will handle any release."
@@ -377,7 +377,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags origin main
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
           current_main_sha="$(git rev-parse refs/remotes/origin/main)"
           if [[ "$SOURCE_SHA" != "$current_main_sha" ]]; then
             echo "::error::Refusing to publish an APK built from stale source $SOURCE_SHA; current main is $current_main_sha."
