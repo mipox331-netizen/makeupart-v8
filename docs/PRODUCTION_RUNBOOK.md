@@ -1,6 +1,6 @@
 # MakeupArt V8 Production Runbook
 
-Last checked: 23 October 2026.
+Last checked: 27 October 2026.
 
 ## 1. Active services and deployment source
 
@@ -8,9 +8,9 @@ The Android client targets the Render API at:
 
 `https://makeupart-api.onrender.com/api/v1`
 
-Supabase is the intended PostgreSQL database. The current `main` source at audit time is commit `8b2aee9269628e58089a89cf3486bb385932179f`. Production monitor [#508](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39906865481) returned `alive` and `ready`, but that monitor did not identify the running source commit. A health check proves reachability/readiness only; it does not prove that the most recent source was deployed.
+Supabase is the intended PostgreSQL database. Current `main` is commit [`ac9921f`](https://github.com/mipox331-netizen/makeupart-v8/commit/ac9921fbc7367c2c311026c7361c489a4be7eff4); Main CI [#678 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40121282729) on that commit. Production monitor [#701](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40563215368) returned healthy liveness/readiness on 27 October, but it does not log the running source commit. A health check proves reachability/readiness only; it does not prove that the most recent source was deployed.
 
-The public Android APK is [v8.0.195](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.195), built from commit `6ac6233cb1ef1e5e88c3d4009f9c26618c37a9d9`. Its workflow fell back to Flutter's debug signing key because the persistent signing keystore secret was absent. This is for manual sideloading only and can fail to update an older copy signed with a different key. The APK workflow is being hardened to wait for the live Render API to report the expected backend SHA before packaging a new build.
+The latest public Android APK is [v8.0.201](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.201), built from commit `3a666d4ff610c30fcc6342a71204cba2b288ada1` on 23 October. Its workflow [#201](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39967233385) explicitly reports that `ANDROID_KEYSTORE_BASE64` was absent and the APK was signed with the Android Debug certificate. It is manual-sideload-only and may not update a copy signed with another key. PR [#40](https://github.com/mipox331-netizen/makeupart-v8/pull/40) proposes a stale-commit and same-commit security/license release gate; it is not merged yet.
 
 The old Modal deployment workflow is not the active hosting path while its free credits are exhausted. Do not regard Modal deploy success, a public APK, or a Render health check as proof that they all use the same current backend and Supabase database.
 
@@ -29,7 +29,7 @@ Use a Google OAuth client with the narrow `drive.file` scope. Keep the media fol
 
 ## 3. Verify durable customer media
 
-The latest encrypted media backup [#48](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39893692218) failed deliberately because Google Drive returned an empty inventory (0 files / 0 bytes). Its restore drill was skipped. Do not override that failure or call it a successful backup.
+The latest encrypted media backup [#53](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40442965971) failed deliberately because Google Drive returned an empty inventory (0 files / 0 bytes). Its paired restore drill [#53](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40442985353) was skipped. Do not override that failure or call it a successful backup.
 
 Required proof:
 1. Use a test portrait and/or salon logo for which you have permission.
@@ -42,7 +42,7 @@ Existing files that were only on a lost ephemeral filesystem cannot be recreated
 
 ## 4. Database backup and restore
 
-As of 23 October, encrypted database backup [#44](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39892512971) and isolated restore drill [#54](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39892567266) passed. The workflow writes an encrypted PostgreSQL export and a checksum to a GitHub Actions artifact with a limited retention period. Keep the encryption passphrase safe offline, separate from the artifact.
+As of 27 October, encrypted database backup [#48](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441672336) and isolated restore drill [#58](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441747764) passed. The workflow writes an encrypted PostgreSQL export and a checksum to a GitHub Actions artifact with a limited retention period. Keep the encryption passphrase safe offline, separate from the artifact.
 
 The GitHub `production` environment must contain a database URL that points to the same Supabase database used by the running Render API, along with the unique `BACKUP_ENCRYPTION_PASSPHRASE` (at least 24 characters) and any required workflow secrets. Render environment variables and GitHub Actions environment secrets are separate and must be managed separately.
 
@@ -50,7 +50,7 @@ A successful archive restore verifies that the selected backup can be decrypted 
 
 ## 5. Android release and updates
 
-The latest public APK is [v8.0.195](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.195/MakeupArt-V8.apk). It was built with the debug signing key and from an older source commit; treat it as sideload-only.
+The latest public APK is [v8.0.201](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.201/MakeupArt-V8.apk). Run [#201](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39967233385) confirms it was debug-signed and built from an older source commit; treat it as sideload-only.
 
 For subsequent releases that must update an already-installed app, configure these four GitHub `production` environment secrets from the same persistent keystore:
 
