@@ -88,7 +88,7 @@ jobs:
             local workflow_file="$1"
             local workflow_name="$2"
             local attempt payload run status conclusion
-            for attempt in $(seq 1 30); do
+            for attempt in $(seq 1 60); do
               if ! payload="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_file}/runs?head_sha=${source_sha}&branch=main&event=push&per_page=10")"; then
                 echo "::error::Could not inspect ${workflow_name} for source commit ${source_sha}."
                 return 1
@@ -104,7 +104,7 @@ jobs:
                 echo "::error::${workflow_name} finished with conclusion ${conclusion:-unknown} for ${source_sha}."
                 return 1
               fi
-              echo "Waiting for ${workflow_name} on ${source_sha} (status=${status}, attempt ${attempt}/30)."
+              echo "Waiting for ${workflow_name} on ${source_sha} (status=${status}, attempt ${attempt}/60)."
               sleep 10
             done
             echo "::error::Timed out waiting for ${workflow_name} on ${source_sha}."
