@@ -3,10 +3,6 @@ name: Python Dependency Security Audit
 on:
   push:
     branches: [main]
-    paths:
-      - "backend/requirements*.txt"
-      - "backend/Dockerfile"
-      - ".github/workflows/python-security-audit.yml"
   pull_request:
     branches: [main]
   workflow_dispatch:
