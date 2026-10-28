@@ -133,7 +133,11 @@ jobs:
         run: docker compose run --rm backend alembic check
 
       - name: Run backend tests
-        run: docker compose run --rm backend pytest -q
+        # The concurrency regression must use the local CI PostgreSQL service;
+        # the general unit suite still uses its isolated SQLite fixtures.
+        env:
+          TEST_POSTGRESQL_URL: postgresql+psycopg2://makeupart:makeupart@db:5432/makeupart
+        run: docker compose run --rm -e TEST_POSTGRESQL_URL backend pytest -q
 
       - name: Start backend
         run: |
