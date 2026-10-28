@@ -1,6 +1,6 @@
 # MakeupArt V8 release readiness
 
-Status checked on 27 October 2026. Repository CI, a live health probe, an update-compatible APK, database recovery, and recovery of actual customer media are separate release gates.
+Status checked on 28 October 2026. Repository CI, a live health probe, an update-compatible APK, database recovery, and recovery of actual customer media are separate release gates.
 
 | Area | Latest observed evidence | Assessment |
 |---|---|---|
