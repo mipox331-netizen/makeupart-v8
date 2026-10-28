@@ -36,6 +36,20 @@ def _normalise_dt(value: datetime | None) -> datetime | None:
 
 
 def _get_subscription(db: Session, salon_id, *, lock: bool = False) -> Subscription:
+    # A FOR UPDATE on a missing subscription row locks nothing. During first
+    # use, simultaneous requests could therefore both try to insert the salon's
+    # one allowed subscription and one would fail the unique salon_id constraint.
+    # Lock the stable parent salon row before creating a missing subscription.
+    # This also protects callers that do not otherwise need the subscription row
+    # locked. Every first-creation path must take this parent lock and recheck.
+    salon: Salon | None = None
+    if lock:
+        salon = db.execute(
+            select(Salon).where(Salon.id == salon_id).with_for_update()
+        ).scalars().first()
+        if salon is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon not found")
+
     statement = select(Subscription).where(Subscription.salon_id == salon_id)
     if lock:
         statement = statement.with_for_update()
@@ -43,9 +57,19 @@ def _get_subscription(db: Session, salon_id, *, lock: bool = False) -> Subscript
     if subscription is not None:
         return subscription
 
-    salon = db.get(Salon, salon_id)
     if salon is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon not found")
+        # A missing child row cannot be locked, so serialize creation through the
+        # parent row, then re-read to observe a subscription created by a request
+        # that held this lock before us.
+        salon = db.execute(
+            select(Salon).where(Salon.id == salon_id).with_for_update()
+        ).scalars().first()
+        if salon is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon not found")
+        statement = select(Subscription).where(Subscription.salon_id == salon_id)
+        subscription = db.execute(statement).scalars().first()
+        if subscription is not None:
+            return subscription
 
     subscription = Subscription(
         salon_id=salon_id,
