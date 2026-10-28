@@ -1,25 +1,46 @@
-# Encrypted production media backup and restore drill
+# Encrypted production Google Drive media backup and restore drill
 
-## What runs
+Status checked: 28 October 2026.
 
-The **MakeupArt V8 Encrypted Production Media Backup** workflow backs up the named Modal volume `makeupart-v8-media` separately from PostgreSQL. It runs daily at 02:45 UTC, after a successful Modal production deployment, and on manual dispatch.
+## What the active workflow backs up
 
-The workflow downloads the volume to a short-lived GitHub Actions runner, refuses symbolic links and fails safely if the source volume exceeds 3 GiB, then builds a file manifest containing relative paths, sizes and SHA-256 checksums. It packages the media directory plus the manifest, encrypts the archive with GPG symmetric AES-256 using `BACKUP_ENCRYPTION_PASSPHRASE`, decrypts and verifies a copy, and uploads only the encrypted archive and its checksum as an Actions artifact. Artifact retention is 14 days.
+The active workflow [`.github/workflows/production-media-backup.yml`](https://github.com/mipox331-netizen/makeupart-v8/blob/main/.github/workflows/production-media-backup.yml) backs up objects in the app's **private Google Drive media root**. It does not snapshot the old Modal volume and does not automatically back up files that exist only on Render's local/ephemeral filesystem.
 
-An automatically triggered **MakeupArt V8 Encrypted Media Restore Drill** downloads the matching artifact, verifies its SHA-256 checksum, decrypts it and restores it into a temporary directory. It re-hashes every restored file and compares the file list, sizes and checksums with the encrypted manifest. The drill never writes back to the production Modal volume.
+It runs daily at 02:45 UTC, on manual dispatch, and when this workflow file changes on `main`. The encrypted archive is uploaded as a GitHub Actions artifact with a 14-day retention period.
 
-Unencrypted staging content and temporary passphrase/decryption files are removed from the ephemeral runner in cleanup steps. The GPG passphrase must remain in GitHub Secrets / the `production` environment and should also have an offline recovery copy. Never place it in source code, workflow inputs or logs.
+## Required GitHub production secrets
 
-## Current verified evidence (12 October 2026)
+The workflow reads these from the GitHub `production` environment. Values must never be printed in logs or committed.
 
-- [Encrypted media backup run 38272705211](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38272705211): succeeded.
-- [Isolated media restore drill 38272747093](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38272747093): succeeded.
-- The source volume contained **0 files and 0 bytes**. These runs verify the encryption/archive/checksum/restore mechanics for an empty volume. They do **not** prove recovery of actual customer photos.
+- `GOOGLE_DRIVE_CLIENT_ID` or the established alias `GDRIVE_CLIENT_ID`.
+- `GOOGLE_DRIVE_CLIENT_SECRET` or `GDRIVE_CLIENT_SECRET`.
+- `GOOGLE_DRIVE_REFRESH_TOKEN` or `GDRIVE_REFRESH_TOKEN`.
+- `BACKUP_ENCRYPTION_PASSPHRASE`, at least 24 characters, with an offline recovery copy.
 
-When real production photos exist, the next successful scheduled backup will include them and the paired restore drill will verify every archived file. If the media volume is larger than 3 GiB, the workflow fails rather than uploading a partial archive; use a larger/resumable backup destination before increasing that operational limit.
+The live Render service has separate environment variables. Configuring GitHub Actions does not configure the Render runtime automatically.
 
-## Retention and limitations
+## Integrity and safety behavior
 
-Encrypted artifacts expire after 14 days. This provides a short-term off-volume recovery window, not indefinite archival. Keep a separate offline passphrase recovery copy and monitor the scheduled backup and restore runs. This workflow covers media files only; PostgreSQL records use the separate encrypted database backup and restore workflows.
+The workflow refreshes a Google OAuth access token, finds exactly one non-trashed folder indexed with private app property `makeupart_root=v1`, then enumerates files directly inside it using pagination. Each object must have a valid, unique `makeupart_path` index. The workflow fails closed for a missing/ambiguous root, invalid or unsafe paths, duplicate paths, empty objects, unsupported Google Workspace files, incomplete downloads, checksum mismatch, files larger than 512 MiB, or a total archive above 3 GiB. It does not log media IDs, private paths, OAuth tokens or image contents.
 
-A successful empty-volume drill is not evidence that customer-photo recovery has been tested. The first populated-media restore should be reviewed from the workflow output before treating the media disaster-recovery gate as complete.
+It builds a manifest with each relative path, size, SHA-256 and MD5. Files and manifest are packed into a deterministic tar archive and encrypted with GPG symmetric AES-256. Before uploading, the workflow decrypts a copy into isolated temporary storage and compares the restored file set, byte counts and SHA-256 values with the manifest. Only the encrypted archive and its SHA-256 sidecar are uploaded. Temporary decrypted media and passphrase files are removed from the runner.
+
+The paired workflow [`.github/workflows/production-media-restore-drill.yml`](https://github.com/mipox331-netizen/makeupart-v8/blob/main/.github/workflows/production-media-restore-drill.yml) runs after a successful backup or manually against a selected successful run. It verifies the artifact, decrypts it and checks its contents in temporary storage. It does not modify production Google Drive.
+
+## Latest observed result
+
+- [Media backup run #53](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40442965971) was rerun on 28 October and failed because the private Drive inventory contained **0 files / 0 bytes**.
+- [Media restore drill run #55](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40732934379) was skipped because no successful non-empty backup artifact exists.
+
+This means the workflow reached the private Drive inventory, but no media objects were available to back up. The empty archive is deliberately not treated as success. A successful OAuth request, a green API health check, or a successful database backup does not prove that salon photos and logos can be restored.
+
+## Required proof before using real customer media
+
+1. Use an explicitly authorized test salon/client/photo; do not upload a real customer's image without consent.
+2. Upload a test portrait and salon logo through the live app. Confirm both are present under the private Drive root and have the expected app-private path indexes.
+3. Restart Render. Retrieve both images through the authenticated app/API and compare SHA-256 checksums against the originals.
+4. Rerun media backup; it must complete with a non-zero file count and total bytes.
+5. Run the paired isolated restore drill and verify its file list, sizes and checksums.
+6. Keep the encryption passphrase separately offline. Artifacts expire after 14 days and are not indefinite archival.
+
+Until this sequence succeeds, customer-photo/logo durability and recovery remain **unverified**.

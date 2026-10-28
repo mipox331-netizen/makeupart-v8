@@ -1,83 +1,60 @@
 # MakeupArt V8 Production Runbook
 
-Last checked: 27 October 2026.
+Last checked: 28 October 2026.
 
-## 1. Active services and deployment source
+## 1. Active services and deployed source
 
-The Android client targets the Render API at:
+The Flutter Android app and release workflows target the Render API:
 
-`https://makeupart-api.onrender.com/api/v1`
+[`https://makeupart-api.onrender.com/api/v1`](https://makeupart-api.onrender.com/api/v1)
 
-Supabase is the intended PostgreSQL database. Current `main` is commit [`ac9921f`](https://github.com/mipox331-netizen/makeupart-v8/commit/ac9921fbc7367c2c311026c7361c489a4be7eff4); Main CI [#678 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40121282729) on that commit. Production monitor [#701](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40563215368) returned healthy liveness/readiness on 27 October, but it does not log the running source commit. A health check proves reachability/readiness only; it does not prove that the most recent source was deployed.
+Current application/release source is merge commit [`460b923`](https://github.com/mipox331-netizen/makeupart-v8/commit/460b923cc62a3b87d4d30a8b6d769826f5879eb0). Main CI [#705](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738076624), dependency audit [#222](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738076774) and license inventory [#241](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738076643) all passed on that exact merge SHA. CI includes backend tests/migrations, Flutter analysis/tests, the release-version selector shell check and an Android debug APK build.
 
-The latest public Android APK is [v8.0.201](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.201), built from commit `3a666d4ff610c30fcc6342a71204cba2b288ada1` on 23 October. Its workflow [#201](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39967233385) explicitly reports that `ANDROID_KEYSTORE_BASE64` was absent and the APK was signed with the Android Debug certificate. It is manual-sideload-only and may not update a copy signed with another key. PR [#40](https://github.com/mipox331-netizen/makeupart-v8/pull/40) proposes a stale-commit and same-commit security/license release gate; it is not merged yet.
+Render deployment [`dep-dbh2mdq9lscs73806vlg`](https://dashboard.render.com/web/srv-dav25so473hc73d7ee0g) is live on backend commit [`c3b7532`](https://github.com/mipox331-netizen/makeupart-v8/commit/c3b7532f3786dde98e4a2209480adfaf56d77dfa) and its configured [`/health/ready`](https://makeupart-api.onrender.com/health/ready) check passed on 28 October. The current main commit adds app version and release-workflow changes; it does not change backend runtime code. Health readiness proves availability, not customer-media durability or database backup target parity.
 
-The old Modal deployment workflow is not the active hosting path while its free credits are exhausted. Do not regard Modal deploy success, a public APK, or a Render health check as proof that they all use the same current backend and Supabase database.
+Modal is not the current production host. Do not point mobile builds back to the historical Modal URL.
 
-## 2. Required Render environment
+## 2. Android release and update compatibility
 
-Open Render Dashboard → service `makeupart-api` → Environment. Configure values without putting secrets in source control or chat:
+The Flutter manifest declares [`8.0.202+202`]. The Android release workflow selects the next unused version from published [`v8.0.N`] tags, not GitHub Actions run numbers. CI extracts the version-selector step and validates its Bash syntax to prevent a broken selector from silently passing tests.
 
-- `DATABASE_URL`: connection string for the intended Supabase PostgreSQL database.
-- `SECRET_KEY`: high-entropy secret of at least 32 characters.
-- `ENVIRONMENT=production`.
-- `CORS_ORIGINS`: explicit trusted origins; never use `*` in production.
-- `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, and `GOOGLE_DRIVE_REFRESH_TOKEN`: OAuth credentials for the private media folder.
-- `REQUIRE_DURABLE_MEDIA=true` only after Google Drive is configured and the upload/restart/restore flow succeeds. The backend now fails closed in production if durable media is missing, regardless of a false legacy flag.
+The latest public APK remains [v8.0.201](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.201), published on 23 October and signed by Android Debug. It is older than current source and may not update an app signed with another key. Current-source release workflow [#215](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738596006) failed closed because [`ANDROID_KEYSTORE_BASE64`] is missing.
 
-Use a Google OAuth client with the narrow `drive.file` scope. Keep the media folder private. The Google account and applicable Workspace administrators can access customer images, so obtain appropriate customer/salon authorization and disclose this storage arrangement in the privacy notice. Google OAuth apps left in External / Testing mode may issue refresh tokens that expire after seven days; follow Google's current OAuth guidance before relying on unattended uploads.
+For update-compatible releases configure these GitHub [`production`] environment secrets from the **same persistent keystore** used for the installed release:
 
-## 3. Verify durable customer media
+- [`ANDROID_KEYSTORE_BASE64`]
+- [`ANDROID_STORE_PASSWORD`]
+- [`ANDROID_KEY_PASSWORD`]
+- [`ANDROID_KEY_ALIAS`]
 
-The latest encrypted media backup [#53](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40442965971) failed deliberately because Google Drive returned an empty inventory (0 files / 0 bytes). Its paired restore drill [#53](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40442985353) was skipped. Do not override that failure or call it a successful backup.
+Do not bypass the signing guard or replace the key just to make a workflow green. Release also requires exact-source CI/security/license checks, live API liveness/readiness and expected backend commit, certificate verification, and the last-minute current-main check.
 
-Required proof:
-1. Use a test portrait and/or salon logo for which you have permission.
-2. Upload/process it through the live app; confirm a successful API response.
-3. Confirm both input and watermarked output exist in the private Drive folder.
-4. Restart the Render service and download/open both images again; verify checksums.
-5. Rerun encrypted media backup and its isolated restore drill. Both must pass with a non-zero file count and matching checksums.
+## 3. Google Drive customer media and restore
 
-Existing files that were only on a lost ephemeral filesystem cannot be recreated by code. The backfill script can upload only local media that still exists and is accessible.
+The active workflow [`.github/workflows/production-media-backup.yml`](https://github.com/mipox331-netizen/makeupart-v8/blob/main/.github/workflows/production-media-backup.yml) backs up the app's private Google Drive media root—not the old Modal volume. It requires [`GOOGLE_DRIVE_CLIENT_ID`], [`GOOGLE_DRIVE_CLIENT_SECRET`], [`GOOGLE_DRIVE_REFRESH_TOKEN`] (or established [`GDRIVE_*`] aliases) and [`BACKUP_ENCRYPTION_PASSPHRASE`] of at least 24 characters in GitHub's [`production`] environment. Render environment values are separate from GitHub Actions secrets.
+
+Backup [#53](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40442965971) failed again on 28 October with **0 files / 0 bytes** in the private Drive inventory. Restore drill [#55](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40732934379) was skipped. Do not call customer-media backup complete.
+
+To close this gate, use an authorized test salon and a test portrait/logo; upload through the live app; confirm both in private Drive; restart Render; retrieve both and compare SHA-256 checksums; then rerun backup and its isolated restore drill with a non-zero file count. The restore workflow must not modify production files during the drill.
 
 ## 4. Database backup and restore
 
-As of 27 October, encrypted database backup [#48](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441672336) and isolated restore drill [#58](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441747764) passed. The workflow writes an encrypted PostgreSQL export and a checksum to a GitHub Actions artifact with a limited retention period. Keep the encryption passphrase safe offline, separate from the artifact.
+Encrypted PostgreSQL backup [#48](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441672336) and isolated restore drill [#58](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441747764) passed on 27 October. They verify the URL supplied to the backup workflow; they do not independently prove that the live Render database was the backup source.
 
-The GitHub `production` environment must contain a database URL that points to the same Supabase database used by the running Render API, along with the unique `BACKUP_ENCRYPTION_PASSPHRASE` (at least 24 characters) and any required workflow secrets. Render environment variables and GitHub Actions environment secrets are separate and must be managed separately.
+Verify that Render's runtime [`DATABASE_URL`] and the GitHub [`production`] backup URL point to the same Supabase project, without pasting full URLs/passwords into chat, source code or logs. Retain encrypted artifacts and checksums; store the passphrase separately offline.
 
-A successful archive restore verifies that the selected backup can be decrypted and restored; it does not prove the backup came from the live database. Confirm source agreement and keep recurring backups running.
+## 5. Security, authentication and app operations
 
-## 5. Android release and updates
+- Backend uses FastAPI/PostgreSQL/Alembic, salon-scoped records/media, refresh-session revocation, consent enforcement, quota controls and a platform-admin allowlist.
+- PR #41 fixed concurrent first-use subscription creation by locking the parent salon row and rechecking the subscription. PostgreSQL concurrency regression and the backend test suite passed in CI.
+- Python dependency audit has a documented exception for [`PYSEC-2026-1805`] under the pinned MediaPipe/protobuf constraint and the stated unused JSON parser path. Treat this as residual dependency risk, not as zero vulnerabilities.
+- Classic MediaPipe/OpenCV is the no-provider mode. Generative processing requires configured external provider access and explicit consent; it is not confirmed enabled.
+- Before launch, test registration/login, consent resets, salon isolation, camera/gallery, image processing, logo/watermark, before/after, gallery export and update compatibility on a physical Android device.
 
-The latest public APK is [v8.0.201](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.201/MakeupArt-V8.apk). Run [#201](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39967233385) confirms it was debug-signed and built from an older source commit; treat it as sideload-only.
+## 6. Repository and commercial release controls
 
-For subsequent releases that must update an already-installed app, configure these four GitHub `production` environment secrets from the same persistent keystore:
+The connected integration could not read [`main`] branch protection; the accessible repository rulesets endpoint returned an empty list. An administrator should require CI, dependency-security and license checks before merge and restrict direct pushes in GitHub settings. Do not claim Google Play or App Store publication without verifiable rollout/build evidence. Review the proprietary project license and all third-party asset/model terms before commercial distribution.
 
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_STORE_PASSWORD`
-- `ANDROID_KEY_PASSWORD`
-- `ANDROID_KEY_ALIAS`
+## 7. Monitoring and incident response
 
-Do not replace or regenerate the key for routine updates. The new workflow should only publish after the live API reports the expected backend commit, `/health/live` is `alive`, `/health/ready` is `ready`, Flutter analysis/tests pass, and the APK signature is verified. Then install on a real Android device and test sign-in, processing, watermark, export and sign-out. The app can prompt users for a newer APK, but Android still requires the user to approve installation.
-
-No successful Google Play rollout or signed iOS/App Store distribution is verified.
-
-## 6. Admin, authentication and subscription operations
-
-The platform admin dashboard can list platform users, block/unblock non-admin users, list salon subscriptions, activate plans for a number of days, and suspend subscriptions. Blocking an account invalidates its refresh sessions and stale access tokens. Admin access depends on the server-side `PLATFORM_ADMIN_EMAILS` allowlist; public registration is prohibited from claiming a reserved platform-admin address.
-
-New salons start on the free plan with the configured processing quota. Generative image editing is an optional paid-provider feature and remains off until server-side credentials, schema checks, explicit external-processing consent and provider cost controls are ready. The existing MediaPipe/OpenCV Classic pipeline is the intended no-provider mode for a $0 budget.
-
-## 7. Privacy, licensing and repository controls
-
-- Keep customer media private and serve it through authenticated salon-scoped endpoints.
-- Do not disable consent resets or salon isolation to work around processing failures.
-- Review retention and deletion behavior before production changes.
-- The GitHub `main` branch was observed without branch protection. Configure required CI/security/license checks and prevent unreviewed direct pushes.
-- The repository is public while its `LICENSE` declares original project code proprietary. Decide whether to make source private, considering that private-repository release assets and user download/update links require a compatible distribution plan.
-- Review `docs/THIRD_PARTY_LICENSE_AUDIT.md` and all model/asset terms before making a commercial-clearance claim.
-
-## 8. Monitoring and incident response
-
-The scheduled monitor checks Render liveness/readiness every 15 minutes and retries transient cold-start/gateway responses. GitHub Actions reporting does not constitute independent SMS/pager alerting. During an incident, correlate the API response's `X-Request-ID` with server logs; do not log access/refresh tokens, customer images, or provider secrets.
+The scheduled monitor checks Render liveness/readiness every 15 minutes. A green health monitor is not proof of successful photo upload or restore and does not provide independent SMS/pager alerting. During an incident, correlate [`X-Request-ID`] with server logs; never log access/refresh tokens, customer photos or provider secrets.
