@@ -39,7 +39,7 @@ jobs:
           selector="$RUNNER_TEMP/android-release-version-selector.sh"
           awk '
             /^      - name: Calculate next unused Android release version$/ { step=1; next }
-            step && /^        run: \|$/ { body=1; next }
+            step && /^        run: [|]$/ { body=1; next }
             body && /^      [^ ]/ { exit }
             body { sub(/^          /, ""); print }
           ' .github/workflows/android-apk.yml > "$selector"
