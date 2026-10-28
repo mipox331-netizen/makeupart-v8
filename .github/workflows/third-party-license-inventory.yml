@@ -3,15 +3,6 @@ name: Third-party License Inventory
 on:
   push:
     branches: [main]
-    paths:
-      - "backend/requirements*.txt"
-      - "backend/Dockerfile"
-      - "backend/docker-compose*.yml"
-      - "makeup_art_v8/pubspec.yaml"
-      - "makeup_art_v8/LICENSE"
-      - "makeup_art_v8/pubspec.lock"
-      - "LICENSE"
-      - ".github/workflows/third-party-license-inventory.yml"
   pull_request:
     branches: [main]
   workflow_dispatch:

@@ -1,31 +1,27 @@
 # MakeupArt V8 — Current Engineering Status
 
-Status checked: 23 October 2026. This document separates verified checks from unproven production behavior.
+Status checked: 27 October 2026. This report separates verified source checks from production behaviors that still lack evidence.
 
 ## Verified
 
-- Current main commit at audit start: [`8b2aee9269628e58089a89cf3486bb385932179f`](https://github.com/mipox331-netizen/makeupart-v8/commit/8b2aee9269628e58089a89cf3486bb385932179f).
-- Main CI [#604 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39814335892) on that commit.
-- Production monitor [#508 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39906865481): `/health/live` reported `alive` and `/health/ready` reported `ready` for the Render API at the probe time.
-- Encrypted database backup [#44 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39892512971), and isolated restore drill [#54 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39892567266).
-- Source includes FastAPI/PostgreSQL/Alembic, salon-scoped authentication and media, login rate limiting and token revocation, consent checks, client records, classic MediaPipe/OpenCV beauty effects, before/after output, salon watermarks, Gallery export, recent-image handling, subscriptions and platform-admin operations.
-- The Classic pipeline runs without a paid external image-provider key. Generative editing is optional, requires server-side provider access and separate external-processing consent, and is not verified as enabled.
+- Current `main`: [`ac9921fbc7367c2c311026c7361c489a4be7eff4`](https://github.com/mipox331-netizen/makeupart-v8/commit/ac9921fbc7367c2c311026c7361c489a4be7eff4).
+- Main CI [#678 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40121282729) for that commit on 24 October.
+- Production monitor [#701 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40563215368) on 27 October, reporting healthy liveness/readiness; it does not log the currently deployed source SHA.
+- Encrypted database backup [#48](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441672336) and isolated restore drill [#58](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441747764) passed on 27 October.
+- PRs [#38](https://github.com/mipox331-netizen/makeupart-v8/pull/38) and [#39](https://github.com/mipox331-netizen/makeupart-v8/pull/39) are merged. Their source changes cover Gallery publication confirmation/history deduplication and upload response validation before media/job/quota completion. Their PR CI runs passed.
 
-## Not yet proven / blockers
+## Blockers and residual risks
 
-- **Current APK:** [v8.0.195](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.195) is the latest public artifact. It was built from commit `6ac6233`, not the latest main commit, and used Flutter's debug signing key because `ANDROID_KEYSTORE_BASE64` was absent. Android workflow [#196](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39814335881) skipped the APK build job after classifying the latest backend change; a green workflow did not mean a new APK was produced.
-- **Photo/logo recovery:** encrypted media backup [#48 failed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39893692218) because the private Google Drive inventory had 0 files / 0 bytes. Its restore drill was skipped. Durable customer-media backup and restart recovery are not proven.
-- **Runtime source identity:** the scheduled monitor proved health/readiness but did not report the current Render commit, so health does not prove that the latest repository commit is deployed.
-- **Database source agreement:** the encrypted backup and restore drill passed, but the live Render `DATABASE_URL` has not been independently confirmed to be the same database URL used by GitHub backup.
-- **Real-device operation:** no successful end-to-end device smoke test is recorded for registration, login, photo processing, logo/watermark, gallery export, update compatibility and logout on the latest source.
-- **Android signing/Play Store:** no persistent release keystore was present in the latest public build, and no successful Google Play rollout is verified. No signed iOS/App Store release is verified.
-- **Branch protection and licensing:** `main` is not branch-protected; this repository is public while its original-source license is proprietary. Review both the branch settings and intended distribution model.
-- **Commercial AI:** no free production-ready generative model was activated; do not advertise Classic effects as FaceApp-equivalent reference-image transfer.
-
-## Current fixes being prepared
-
-The production-readiness branch adds `RENDER_GIT_COMMIT` to the ready health response, tests that behavior, and changes the Android release workflow to wait for the live API to report the exact expected backend commit before building/publishing. This prevents the previous “green but skipped APK” ambiguity and guards against packaging against a stale backend. Documentation has been aligned with current workflow evidence.
+- **Public APK is stale and debug-signed.** Latest public artifact is [v8.0.201](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.201), built from `3a666d4ff610c30fcc6342a71204cba2b288ada1` on 23 October. Release run [#201](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39967233385) explicitly reports missing `ANDROID_KEYSTORE_BASE64` and the Android Debug signing certificate. It is not Play Store-ready and may not update previously installed copies signed with another key.
+- **Latest-source release hardening is proposed, not merged.** PR [#40](https://github.com/mipox331-netizen/makeupart-v8/pull/40) guards against stale CI commits publishing APKs and gates releases on same-commit dependency-security and license checks. Its CI/security/license runs are the remaining PR checks.
+- **Photo/logo recovery is not proven.** Media backup [#53 failed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40442965971) on 27 October because Google Drive inventory was empty (0 files / 0 bytes); media restore drill [#53 was skipped](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40442985353).
+- **Database source agreement is unverified.** The database backup/restore workflow passes, but the live Render `DATABASE_URL` has not been independently matched to the backup URL.
+- **Device smoke test is missing.** No evidence in the repository proves complete latest-source registration/login, consent, camera/gallery, image processing, salon logo/watermark, before/after, gallery export and update compatibility on a physical Android device.
+- **Branch protection is not reverified.** The previous audit recorded `main` as unprotected; current branch protection could not be read through the connected GitHub integration.
+- **Dependency security exception remains.** `PYSEC-2026-1805` is explicitly excluded from the Python audit because of MediaPipe/protobuf compatibility constraints and a documented unused code path. Treat it as residual risk until the vision stack can be upgraded and retested.
+- **Generative AI is not verified enabled.** Classic MediaPipe/OpenCV processing is the available no-provider mode. Generative editing needs provider credentials and consent; no paid provider or zero-cost production model is confirmed.
+- **Distribution claims remain limited.** No successful Play Store rollout or signed iOS/App Store release is verified.
 
 ## Release decision
 
-**Not yet production-ready for a full public launch.** The source checks and database restore mechanics are healthy, but photo/logo durability, current-source APK build, persistent signing, database-source agreement, and real-device smoke test remain release gates. Do not mark a gate complete until its corresponding evidence is available.
+**Not yet production-ready for a full public launch.** Source CI and database restore mechanics have passed, but a fresh keystore-signed APK, same-commit release gates, durable customer-media recovery, database-source agreement and real-device smoke tests remain unresolved. Keep each gate open until its evidence is recorded.
