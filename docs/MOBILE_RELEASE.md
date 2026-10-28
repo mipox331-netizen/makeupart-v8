@@ -1,49 +1,49 @@
 # Mobile Release Notes
 
-Status verified against GitHub and the connected Render workspace on 15 October 2026.
+Status checked: 28 October 2026 against GitHub Actions and the connected Render workspace.
 
-## Android APK
+## Version and APK state
 
-The latest published Android artifact is [MakeupArt V8 v8.0.164](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.164).
+- Flutter manifest is now [`8.0.202+202`], merged in [PR #43](https://github.com/mipox331-netizen/makeupart-v8/pull/43).
+- The Android release workflow selects the next unused [`v8.0.N`] from published release tags rather than consuming GitHub Actions run numbers. The current CI workflow extracts that selector from [`.github/workflows/android-apk.yml`](https://github.com/mipox331-netizen/makeupart-v8/blob/main/.github/workflows/android-apk.yml) and runs [`bash -n`] on it.
+- Latest public release remains [MakeupArt V8 v8.0.201](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.201), published 23 October. It was built from older source and signed by Android Debug. It is for sideload testing, not Play Store release, and may not update an installation signed with a different certificate.
+- Main CI [#705](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738076624) passed on current merge commit [`460b923`](https://github.com/mipox331-netizen/makeupart-v8/commit/460b923cc62a3b87d4d30a8b6d769826f5879eb0). It includes backend tests/migrations, Flutter analysis/tests, the version-selector shell check and Android debug APK build/artifact upload.
+- The verified debug APK from this run has SHA-256 [`5f2b0cb7c04e528f615b76c5200072c84b3659142746361de155572b5914582e`]. It is **debug-signed**, for testing only.
+- Current-source release workflow [#215](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738596006) failed safely because [`ANDROID_KEYSTORE_BASE64`] was missing. It did not build or publish a release APK.
 
-[Download MakeupArt-V8.apk](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.164/MakeupArt-V8.apk).
+## Required signing configuration
 
-The APK SHA-256 is `b048bd80ba5611c1ee9a78eb716d331736ed3495268ab7e2f2d93f8a6389cbba`. The [Android workflow #164 succeeded](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699306152), including Flutter analysis/tests, API liveness/readiness, APK build, APK verification and publication.
+Configure the following GitHub [`production`] environment secrets from the same persistent keystore as the installed release:
 
-**Signing limit:** the workflow explicitly said Android release-signing secrets are not configured and used Flutter's debug signing key. This APK is intended for manual installation, not Google Play publication.
+- [`ANDROID_KEYSTORE_BASE64`]
+- [`ANDROID_STORE_PASSWORD`]
+- [`ANDROID_KEY_PASSWORD`]
+- [`ANDROID_KEY_ALIAS`]
 
-The APK is configured to use the Render endpoint:
+Never generate a replacement signing key merely to make an update workflow pass. Preserve the signing-secret guard, exact-source CI/security/license gates, backend source/revision and readiness checks, certificate verification, and final current-main check.
 
-```text
-https://makeupart-api.onrender.com/api/v1
-```
+## Active API and deployment
 
-The app checks GitHub Releases and prompts when a newer version is published. The user must still open the download and approve Android's installation prompt; updates do not install silently.
+The mobile client and release workflows target:
 
-## Production API and deployment paths
+[`https://makeupart-api.onrender.com/api/v1`](https://makeupart-api.onrender.com/api/v1)
 
-The connected Render workspace shows the `makeupart-api` web service on the free plan. The most recent production monitor [#140 passed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699306251), while earlier monitor [#135 timed out](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38685000956) during a startup/cold-start check. Health checks in the monitor and Android release workflow now retry transient network/gateway failures once; persistent errors still block release.
+Render backend deployment [`dep-dbh2mdq9lscs73806vlg`](https://dashboard.render.com/web/srv-dav25so473hc73d7ee0g) is live on backend commit [`c3b7532`](https://github.com/mipox331-netizen/makeupart-v8/commit/c3b7532f3786dde98e4a2209480adfaf56d77dfa); its configured [`/health/ready`](https://makeupart-api.onrender.com/health/ready) check passed. This does not prove customer-media durability.
 
-The repository retains a separate Modal deployment and media-volume backup workflow. These are **not** the endpoint/storage used by the current APK. The Modal deployment has previously failed on a workspace spend-limit issue. Do not switch the APK back to Modal until that workspace and deployment path are intentionally restored and verified.
+## Google Drive media durability
 
-## Media durability — production blocker
+The active media workflow backs up the app's private Google Drive media root, not the old Modal volume. Backup [#53](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40442965971) failed again on 28 October with [`0 files / 0 bytes`]; restore drill [#55](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40732934379) was skipped. OAuth connectivity and [`/health/ready`](https://makeupart-api.onrender.com/health/ready) do not prove customer media is durable.
 
-The API stores uploaded and processed files below its configured `MEDIA_ROOT`. The media-backup workflow tries to download the separate Modal volume `makeupart-v8-media`; it does not back up files stored only on the Render service's local filesystem. The latest [media-backup run #25 failed](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699417171), and its paired [restore drill #24 was skipped](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38699465088).
+Before using real customer photographs, upload an authorized test portrait and salon logo through the live app, verify both objects in private Drive, restart Render, retrieve both with matching checksums, then run a non-empty encrypted backup and isolated restore drill.
 
-Before relying on the app for real customer photographs, connect the live API to a durable object store and back up that same source, then verify a populated backup restore.
+## Database recovery
 
-## Database and backups
+Encrypted PostgreSQL backup [#48](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441672336) and isolated restore drill [#58](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441747764) passed on 27 October. The live Render database URL and GitHub backup URL still need independent confirmation that they target the same Supabase database.
 
-The latest encrypted PostgreSQL backup [#22](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38673627849) and isolated restore drill [#29](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/38673699725) passed. The backup workflow uses a Supabase database URL secret; the connected Render workspace also contains a free PostgreSQL resource expiring on 31 October 2026. The runtime Render service's actual `DATABASE_URL` target has not been exposed by the available service metadata, so verify that the runtime and backup workflow point to the same production database before declaring customer-row recovery complete.
+## Google Play and iOS
 
-## Google Play Store
+No successful Google Play rollout is verified. Play publication needs the persistent release key, Play Console credentials and a confirmed successful rollout. The iOS compile workflow builds an unsigned artifact only; App Store distribution still requires Apple signing, provisioning and App Store Connect configuration.
 
-No successful Google Play publication is verified. The current APK uses the debug signing key. Play publication needs a proper release keystore/signing secrets and a configured Play Console service account. Confirm the release track and rollout in Play Console before announcing store availability.
+## AI scope and cost
 
-## iOS / App Store
-
-The repository contains the iOS Flutter/Xcode project, but an unsigned build is not a distributable IPA. App Store distribution still needs valid Apple Developer signing, provisioning and App Store Connect configuration.
-
-## AI engines
-
-Classic MediaPipe/OpenCV processing runs without an external image-generation API key. It provides face-landmark-aware local cosmetics and image enhancement, not a diffusion-based FaceApp-equivalent makeover. The optional OpenAI image-edit path is disabled without server-side credentials and can incur per-use costs. For the current $0 operating constraint, keep classic mode as the default and do not enable paid generation without deliberate budget approval.
+Classic MediaPipe/OpenCV processing runs without a paid image-generation key. It is not equivalent to a diffusion-based FaceApp-style reference-image transfer. Generative editing stays disabled until provider credentials, explicit external-processing consent, safety controls and budget are approved. For a $0 operating budget, keep Classic as the default.
