@@ -29,7 +29,7 @@ Use the computer's LAN address instead of `10.0.2.2` on a physical device.
 
 ## Current production and Android release
 
-Status checked on 27 October 2026.
+Status checked on 28 October 2026.
 
 The latest public APK is [MakeupArt V8 v8.0.201](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.201), published on 23 October 2026. [Download MakeupArt-V8.apk](https://github.com/mipox331-netizen/makeupart-v8/releases/download/v8.0.201/MakeupArt-V8.apk). The release workflow [#201](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/39967233385) built it from commit `3a666d4ff610c30fcc6342a71204cba2b288ada1`. Its logs explicitly show that `ANDROID_KEYSTORE_BASE64` was absent and the APK was signed with Flutter's **Android Debug** certificate. It is for manual sideloading only; it is not Play Store-ready and may not update an app signed with another key.
 
