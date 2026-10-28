@@ -32,6 +32,20 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Validate Android release version selector
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector="$RUNNER_TEMP/android-release-version-selector.sh"
+          awk '
+            /^      - name: Calculate next unused Android release version$/ { step=1; next }
+            step && /^        run: \|$/ { body=1; next }
+            body && /^      [^ ]/ { exit }
+            body { sub(/^          /, ""); print }
+          ' .github/workflows/android-apk.yml > "$selector"
+          test -s "$selector"
+          bash -n "$selector"
+          echo "Android release-version selector shell syntax passed."
       - name: Check commit freshness
         id: check
         shell: bash
