@@ -4,8 +4,8 @@ permissions:
   actions: read
   contents: write
 
-# Keep APK releases in build-number order so overlapping pushes cannot publish
-# a lower build after a higher build and confuse release consumers.
+# Serialize Android release jobs and derive the next app version from published tags.
+# Failed/skipped workflow runs must not consume a customer-facing version number.
 concurrency:
   group: makeupart-v8-android-apk-${{ github.ref }}
   cancel-in-progress: false
@@ -147,8 +147,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
 
-      # Fail closed before consuming build minutes or publishing anything.
+      - name: Calculate next unused Android release version
+        id: release_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          latest_tag="$(git tag --list 'v8.0.*' | grep -E '^v8\\.0\\.[0-9]+
       # An ephemeral runner debug key is not a valid release signing identity.
       - name: Require persistent Android release signing
         env:
@@ -312,13 +319,12 @@ jobs:
           exit 1
 
       - name: Build Android release APK
+        env:
+          RELEASE_VERSION_NAME: ${{ steps.release_version.outputs.version_name }}
+          RELEASE_VERSION_CODE: ${{ steps.release_version.outputs.version_code }}
         run: |
-          flutter build apk --release \
-            --build-name="8.0.${GITHUB_RUN_NUMBER}" \
-            --build-number="$GITHUB_RUN_NUMBER" \
-            --split-debug-info=build/symbols \
-            --dart-define=API_BASE_URL="$PRODUCTION_API_BASE_URL"
-
+          set -euo pipefail
+          flutter build apk --release --build-name="$RELEASE_VERSION_NAME" --build-number="$RELEASE_VERSION_CODE" --split-debug-info=build/symbols --dart-define=API_BASE_URL="$PRODUCTION_API_BASE_URL"
       - name: Verify APK
         env:
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
@@ -389,8 +395,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ needs.classify-push.outputs.source_sha }}
+          RELEASE_TAG: ${{ steps.release_version.outputs.tag }}
         run: |
-          TAG="v8.0.${{ github.run_number }}"
-          gh release create "$TAG" ../artifacts/MakeupArt-V8.apk \
-            --title "MakeupArt V8 Android APK $TAG" \
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" ../artifacts/MakeupArt-V8.apk \
+            --title "MakeupArt V8 Android APK $RELEASE_TAG" \
             --notes "Installable MakeupArt V8 Android release APK built from CI-verified commit $SOURCE_SHA."
