@@ -1,6 +1,6 @@
 name: makeup_art_v8
 description: MakeupArt V8 Flutter mobile app for beauty salons.
-version: 1.0.0+3
+version: 8.0.202+202
 publish_to: 'none'
 
 environment:
