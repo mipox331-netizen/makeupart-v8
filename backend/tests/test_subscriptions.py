@@ -20,6 +20,43 @@ def test_subscription_usage_defaults_to_permanent_free(client):
     assert body["current_period_end"] is None
 
 
+def test_first_subscription_creation_is_reused_instead_of_duplicated():
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import Session
+    from sqlalchemy.pool import StaticPool
+    from app.db.base import Base
+    from app.models.salon import Salon
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+
+    try:
+        with Session(engine) as session:
+            salon = Salon(name="First Use Salon", email="first-use@example.com")
+            session.add(salon)
+            session.flush()
+
+            first = subscription_service._get_subscription(session, salon.id, lock=False)
+            first_id = first.id
+            session.commit()
+
+            second = subscription_service._get_subscription(session, salon.id, lock=True)
+            assert second.id == first_id
+
+            rows = session.execute(
+                select(Subscription.id).where(Subscription.salon_id == salon.id)
+            ).scalars().all()
+            assert rows == [first_id]
+            session.commit()
+    finally:
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+
+
 def test_beauty_quota_blocks_processing_after_limit(client, monkeypatch, tmp_path):
     registration = register(client)
     headers = auth_headers(client, "owner@salon.com")
