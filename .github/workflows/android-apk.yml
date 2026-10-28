@@ -4,8 +4,8 @@ permissions:
   actions: read
   contents: write
 
-# Keep APK releases in build-number order so overlapping pushes cannot publish
-# a lower build after a higher build and confuse release consumers.
+# Serialize Android release jobs and derive the next app version from published tags.
+# Failed/skipped workflow runs must not consume a customer-facing version number.
 concurrency:
   group: makeupart-v8-android-apk-${{ github.ref }}
   cancel-in-progress: false
@@ -147,6 +147,35 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Calculate next unused Android release version
+        id: release_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          latest_tag="$(git tag --list 'v8.0.*' | grep -E '^v8[.]0[.][0-9]+$' | sort -V | tail -n 1 || true)"
+          if [[ -z "$latest_tag" ]]; then
+            echo "::error::No published v8.0.N tag exists; refusing to invent a release version."
+            exit 1
+          fi
+          latest_number="${latest_tag##*.}"
+          [[ "$latest_number" =~ ^[0-9]+$ ]] || {
+            echo "::error::Latest published Android tag has an invalid version number."
+            exit 1
+          }
+          next_number=$((10#$latest_number + 1))
+          while git ls-remote --exit-code --tags origin "refs/tags/v8.0.${next_number}" >/dev/null 2>&1; do
+            echo "::notice::Tag v8.0.${next_number} already exists; checking the next number."
+            next_number=$((next_number + 1))
+          done
+          version_name="8.0.${next_number}"
+          tag="v${version_name}"
+          echo "version_name=${version_name}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${next_number}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Selected next unused Android version ${version_name} from published tags."
 
       # Fail closed before consuming build minutes or publishing anything.
       # An ephemeral runner debug key is not a valid release signing identity.
@@ -312,10 +341,14 @@ jobs:
           exit 1
 
       - name: Build Android release APK
+        env:
+          RELEASE_VERSION_NAME: ${{ steps.release_version.outputs.version_name }}
+          RELEASE_VERSION_CODE: ${{ steps.release_version.outputs.version_code }}
         run: |
+          set -euo pipefail
           flutter build apk --release \
-            --build-name="8.0.${GITHUB_RUN_NUMBER}" \
-            --build-number="$GITHUB_RUN_NUMBER" \
+            --build-name="$RELEASE_VERSION_NAME" \
+            --build-number="$RELEASE_VERSION_CODE" \
             --split-debug-info=build/symbols \
             --dart-define=API_BASE_URL="$PRODUCTION_API_BASE_URL"
 
@@ -389,8 +422,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ needs.classify-push.outputs.source_sha }}
+          RELEASE_TAG: ${{ steps.release_version.outputs.tag }}
         run: |
-          TAG="v8.0.${{ github.run_number }}"
-          gh release create "$TAG" ../artifacts/MakeupArt-V8.apk \
-            --title "MakeupArt V8 Android APK $TAG" \
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" ../artifacts/MakeupArt-V8.apk \
+            --title "MakeupArt V8 Android APK $RELEASE_TAG" \
             --notes "Installable MakeupArt V8 Android release APK built from CI-verified commit $SOURCE_SHA."
