@@ -624,7 +624,10 @@ class _BeautyPageState extends State<BeautyPage> {
       case 'Makeup':
         return 'AVAILABLE';
       case 'Hairstyles':
-        return generativeAvailable ? 'GENERATIVE AI' : 'AI NOT READY';
+        if (loadingCapabilities || loadingSubscription) return 'CHECKING';
+        if (capabilities['generative_available'] != true) return 'AI NOT READY';
+        if (subscription['generative_engine_entitled'] != true) return 'PRO REQUIRED';
+        return 'GENERATIVE AI';
       default:
         return 'COMING SOON';
     }
@@ -867,7 +870,7 @@ class _BeautyPageState extends State<BeautyPage> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Choose a portrait, apply skin polish and a face-guided lip / cheek treatment, select a photo finish, then save a branded image.',
+                  'Choose a portrait, open a filter folder, adjust a supported effect, compare the result and save a branded image.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.white.withValues(alpha: .78),
                       ),
@@ -1460,11 +1463,18 @@ class _BeautyPageState extends State<BeautyPage> {
                       ],
                     ] else if (_selectedFilterFolder == 'Hairstyles') ...[
                       if (!generativeAvailable) ...[
-                        const _FolderInformation(
+                        _FolderInformation(
                           icon: Icons.auto_awesome_outlined,
-                          title: 'Generative hairstyle tools are not enabled',
-                          message:
-                              'The current Classic engine cannot create new hairstyles. Hairstyle previews are available only when the configured, plan-entitled Generative AI engine is enabled.',
+                          title: loadingCapabilities || loadingSubscription
+                              ? 'Checking hairstyle access'
+                              : capabilities['generative_available'] != true
+                                  ? 'Generative hairstyles are not configured'
+                                  : 'Pro plan required',
+                          message: loadingCapabilities || loadingSubscription
+                              ? 'MakeupArt is checking whether the hairstyle provider and this salon plan are ready.'
+                              : capabilities['generative_available'] != true
+                                  ? 'The current Classic engine cannot create new hairstyles. The Generative AI provider must be configured and verified first.'
+                                  : 'Hairstyle previews use the external Generative AI provider and require an active Pro-or-higher entitlement. Classic AI cannot create new hairstyles.',
                         ),
                       ] else ...[
                         Text(
@@ -1799,12 +1809,15 @@ class _FilterFolderStatus extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final highlight = status == 'AVAILABLE' || status == 'GENERATIVE AI';
+    final planGate = status == 'PRO REQUIRED';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: highlight
             ? colors.primaryContainer
-            : colors.surfaceContainerHighest,
+            : planGate
+                ? colors.tertiaryContainer
+                : colors.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(7),
       ),
       child: Text(
@@ -1812,7 +1825,11 @@ class _FilterFolderStatus extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: highlight ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+          color: highlight
+              ? colors.onPrimaryContainer
+              : planGate
+                  ? colors.onTertiaryContainer
+                  : colors.onSurfaceVariant,
           fontSize: 8,
           fontWeight: FontWeight.w800,
           letterSpacing: .25,
