@@ -223,7 +223,7 @@ void main() {
     _useTallViewport(tester);
     // The redesigned studio adds a hero and history area before the controls.
     // Keep this behavior test focused on consent state, not viewport scrolling.
-    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.physicalSize = const Size(800, 3200);
     await tester.pumpWidget(
       MaterialApp(
         home: BeautyPage(
@@ -238,11 +238,6 @@ void main() {
     final consentTile = find.byType(CheckboxListTile);
     expect(tester.widget<CheckboxListTile>(consentTile).value, isFalse);
 
-    await tester.scrollUntilVisible(
-      consentTile,
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
     await tester.ensureVisible(consentTile);
     await tester.pumpAndSettle();
     await tester.tap(consentTile);
@@ -250,11 +245,6 @@ void main() {
     expect(tester.widget<CheckboxListTile>(consentTile).value, isTrue);
 
     final customerDropdown = find.byType(DropdownButtonFormField<String>);
-    await tester.scrollUntilVisible(
-      customerDropdown,
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
     await tester.ensureVisible(customerDropdown);
     await tester.pumpAndSettle();
     await tester.tap(customerDropdown);
