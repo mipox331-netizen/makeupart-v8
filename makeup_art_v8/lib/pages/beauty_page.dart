@@ -787,9 +787,16 @@ class _BeautyPageState extends State<BeautyPage> {
     );
     final needsSkinOnly = const {'Impression', 'Skin'}
         .contains(_selectedFilterFolder);
-    final canProcess = selected != null &&
-        _canProcessSelectedFolder() &&
+    final needsPhotoFinish = _selectedFilterFolder == 'Impression';
+    final selectedFolderToolsAvailable = _canProcessSelectedFolder() &&
+        (selectedEngine != 'generative' || generativeAvailable) &&
         (!needsSkinOnly || availableMakeupStyles.contains('skin_only')) &&
+        (!needsPhotoFinish || availablePhotoFinishes.contains(selectedLook)) &&
+        (_selectedFilterFolder != 'Makeup' ||
+            selectedEngine == 'generative' ||
+            availableMakeupStyles.contains(selectedMakeupStyle));
+    final canProcess = selected != null &&
+        selectedFolderToolsAvailable &&
         consentConfirmed &&
         (selectedEngine != 'generative' ||
             (generativeAvailable && externalAiConsentConfirmed)) &&
@@ -1541,9 +1548,7 @@ class _BeautyPageState extends State<BeautyPage> {
                       ),
                     ],
                   ],
-                  if (_selectedFilterFolder != null &&
-                      (const {'Impression', 'Skin', 'Makeup'}.contains(_selectedFilterFolder) ||
-                          (_selectedFilterFolder == 'Hairstyles' && generativeAvailable))) ...[
+                  if (selectedFolderToolsAvailable) ...[
                     Text(
                       '${selectedEngine == 'generative'
                           ? 'Generative treatment strength'
@@ -1559,32 +1564,34 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 8),
                   ],
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: consentConfirmed,
-                    onChanged: loading
-                        ? null
-                        : (value) => setState(
-                              () => consentConfirmed = value ?? false,
-                            ),
-                    title: const Text('Client consent confirmed'),
-                    subtitle: const Text(
-                      'I have permission to process this client image with AI.',
-                    ),
-                  ),
-                  FilledButton.icon(
-                    onPressed: canProcess ? process : null,
-                    icon: const Icon(Icons.auto_awesome),
-                    label: Text(loading ? 'Processing...' : 'Process with AI'),
-                  ),
-                  if (error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                  if (selectedFolderToolsAvailable) ...[
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: consentConfirmed,
+                      onChanged: loading
+                          ? null
+                          : (value) => setState(
+                                () => consentConfirmed = value ?? false,
+                              ),
+                      title: const Text('Client consent confirmed'),
+                      subtitle: const Text(
+                        'I have permission to process this client image with AI.',
                       ),
                     ),
+                    FilledButton.icon(
+                      onPressed: canProcess ? process : null,
+                      icon: const Icon(Icons.auto_awesome),
+                      label: Text(loading ? 'Processing...' : 'Process with AI'),
+                    ),
+                    if (error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
                   ],
                 ],
               ),
