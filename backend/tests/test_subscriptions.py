@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from app.models.salon import SubscriptionPlan
 from app.models.subscription import Subscription
 from app.services import subscription as subscription_service
-from tests.utils import API, auth_headers, register
+from tests.utils import API, auth_headers, register, register_platform_admin
 
 
 def test_subscription_usage_defaults_to_permanent_free(client):
@@ -256,13 +256,7 @@ def test_free_plan_cannot_bypass_pro_photo_finish_gate(client):
 
 
 def test_basic_plan_accepts_basic_style_and_finish_but_still_validates_image(client, monkeypatch):
-    from app.core.config import settings
-
-    email = "feature-admin@makeupart.local"
-    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "")
-    register(client, email=email, salon_name="Feature Admin Salon", full_name="Feature Admin")
-    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", email)
-    admin_headers = auth_headers(client, email)
+    _, admin_headers = register_platform_admin(client, monkeypatch)
 
     register(client, email="basic-owner@salon.com", salon_name="Basic Salon")
     owner_headers = auth_headers(client, "basic-owner@salon.com")
