@@ -686,6 +686,23 @@ class _BeautyPageState extends State<BeautyPage> {
     if (engine == 'generative' && !generativeAvailable) return;
     setState(() {
       selectedEngine = engine;
+      if (engine == 'generative') {
+        if (_selectedFilterFolder != 'Hairstyles') {
+          _selectedFilterFolder = 'Makeup';
+        }
+        if (_hairLookKeys.contains(selectedGenerativeLook) ||
+            selectedGenerativeLook == 'foundation') {
+          selectedGenerativeLook = 'full_glam';
+        }
+        _selectedGenerativeCategory = 'Looks';
+      } else if (_selectedFilterFolder == 'Hairstyles') {
+        // Classic AI cannot render new hairstyles, so take the user to a
+        // folder that the selected engine can actually process.
+        _selectedFilterFolder = 'Makeup';
+        if (selectedMakeupStyle == 'skin_only') {
+          selectedMakeupStyle = 'natural';
+        }
+      }
       externalAiConsentConfirmed = false;
       _clearProcessedResult();
     });
