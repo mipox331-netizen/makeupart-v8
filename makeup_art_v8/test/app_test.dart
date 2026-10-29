@@ -70,6 +70,14 @@ class _FakeLoginApi extends ApiClient {
 
 class _ConsentTestApi extends ApiClient {
   @override
+  Future<Map<String, dynamic>> getSubscription() async => {
+        'plan': 'free',
+        'available_makeup_styles': ['natural', 'skin_only'],
+        'available_photo_finishes': ['Natural Finish', 'Warm Glow'],
+        'generative_engine_entitled': false,
+      };
+
+  @override
   Future<Map<String, dynamic>> getBeautyCapabilities() async => {
         'classic_available': true,
         'generative_available': false,
@@ -289,6 +297,10 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
 
+    expect(find.byKey(const ValueKey('saved-salon-looks-panel')), findsOneWidget);
+    expect(find.text('Ready to use'), findsOneWidget);
+    expect(find.text('Needs AI setup'), findsOneWidget);
+    expect(find.text('More filters in development'), findsOneWidget);
     expect(find.text('Impression'), findsOneWidget);
     expect(find.text('Skin'), findsOneWidget);
     expect(find.text('Sizes'), findsOneWidget);
