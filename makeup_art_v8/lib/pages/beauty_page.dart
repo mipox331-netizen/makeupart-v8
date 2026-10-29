@@ -896,7 +896,7 @@ class _BeautyPageState extends State<BeautyPage> {
       await _loadSavedLookPresets();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved “${name.trim()}”. Use it again with one tap.')),
+        SnackBar(content: Text('Saved “${name.trim()}” to this salon on this device.')),
       );
     } catch (_) {
       if (!mounted) return;
