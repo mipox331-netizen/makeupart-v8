@@ -299,7 +299,7 @@ void main() {
 
     expect(find.byKey(const ValueKey('saved-salon-looks-panel')), findsOneWidget);
     expect(find.text('Ready to use'), findsOneWidget);
-    expect(find.text('Needs AI setup'), findsOneWidget);
+    expect(find.text('AI access required'), findsOneWidget);
     expect(find.text('More filters in development'), findsOneWidget);
     expect(find.text('Impression'), findsOneWidget);
     expect(find.text('Skin'), findsOneWidget);
