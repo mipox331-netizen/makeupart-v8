@@ -1046,7 +1046,7 @@ class _BeautyPageState extends State<BeautyPage> {
         itemBuilder: (context, index) {
           final folder = folders[index];
           return _FilterFolderTile(
-            key: ValueKey('filter-folder-${folder}'),
+            key: ValueKey('filter-folder-$folder'),
             title: folder,
             description: _faceFilterFolderDescriptions[folder]!,
             status: _filterFolderStatus(folder),
