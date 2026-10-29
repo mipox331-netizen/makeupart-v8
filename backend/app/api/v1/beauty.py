@@ -378,6 +378,11 @@ def process_beauty(
         customer_id=None,
         consent_confirmed=payload.consent_confirmed,
     )
+    if payload.engine == "generative" and not payload.external_ai_consent:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Explicit consent to send this photo to the external generative AI provider is required.",
+        )
     require_beauty_feature(
         db, current_user.salon_id, feature_kind="makeup_style", feature_name=payload.makeup_style
     )
@@ -459,6 +464,11 @@ def process_beauty_upload(
         customer_id=customer_id,
         consent_confirmed=consent_confirmed,
     )
+    if engine == "generative" and not external_ai_consent:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Explicit consent to send this photo to the external generative AI provider is required.",
+        )
     if engine == "generative":
         require_beauty_feature(
             db, current_user.salon_id, feature_kind="generative_engine", feature_name="generative"
