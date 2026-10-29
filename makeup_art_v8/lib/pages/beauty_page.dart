@@ -1509,6 +1509,24 @@ class _BeautyPageState extends State<BeautyPage> {
                       ),
                     ],
                   ],
+                  if (_selectedFilterFolder != null &&
+                      (const {'Impression', 'Skin', 'Makeup'}.contains(_selectedFilterFolder) ||
+                          (_selectedFilterFolder == 'Hairstyles' && generativeAvailable))) ...[
+                    Text(
+                      '${selectedEngine == 'generative'
+                          ? 'Generative treatment strength'
+                          : (_selectedFilterFolder == 'Makeup'
+                              ? 'Skin polish & makeup strength'
+                              : 'Skin polish strength')} ${(intensity * 100).round()}%',
+                    ),
+                    Slider(
+                      value: intensity,
+                      onChanged: loading
+                          ? null
+                          : (value) => setState(() => intensity = value),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     value: consentConfirmed,
