@@ -1114,216 +1114,18 @@ class _BeautyPageState extends State<BeautyPage> {
                       ),
                     ),
                   ],
-                  Text(
-                    'Editing tools',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 5),
-                  const Text(
-                    'Choose a tool group first, then pick one clearly labeled option. Locked tools show the plan needed to unlock them.',
-                  ),
-                  const SizedBox(height: 12),
-                  SegmentedButton<String>(
-                    key: const ValueKey('editor-section-selector'),
-                    segments: const [
-                      ButtonSegment<String>(
-                        value: 'makeup',
-                        icon: Icon(Icons.face_retouching_natural_rounded),
-                        label: Text('Makeup looks'),
-                      ),
-                      ButtonSegment<String>(
-                        value: 'finish',
-                        icon: Icon(Icons.color_lens_outlined),
-                        label: Text('Color filters'),
-                      ),
-                    ],
-                    selected: <String>{_activeEditorSection},
-                    showSelectedIcon: false,
-                    onSelectionChanged: loading
-                        ? null
-                        : (selection) => setState(
-                              () => _activeEditorSection = selection.first,
-                            ),
-                  ),
-                  const SizedBox(height: 14),
-                  if (_activeEditorSection == 'makeup') ...[
-                    if (selectedEngine == 'generative') ...[
-                      Text(
-                        'Generative look',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: _generativeLookCategories.keys.map((category) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                key: ValueKey('generative-category-$category'),
-                                avatar: Icon(
-                                  _categoryIcons[category] ?? Icons.tune_rounded,
-                                  size: 17,
-                                ),
-                                label: Text(category),
-                                selected: _selectedGenerativeCategory == category,
-                                onSelected: loading
-                                    ? null
-                                    : (_) => setState(
-                                          () => _selectedGenerativeCategory = category,
-                                        ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      GridView.builder(
-                        key: const ValueKey('generative-options-grid'),
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        padding: EdgeInsets.zero,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                          mainAxisExtent: 104,
-                        ),
-                        itemCount:
-                            _generativeLookCategories[_selectedGenerativeCategory]!.length,
-                        itemBuilder: (context, index) {
-                          final lookKey =
-                              _generativeLookCategories[_selectedGenerativeCategory]![index];
-                          final look = _generativeLooks[lookKey]!;
-                          return _BeautyOptionTile(
-                            key: ValueKey('generative-option-$lookKey'),
-                            title: look,
-                            description: _generativeLookDescriptions[lookKey]!,
-                            icon: _generativeLookIcons[lookKey]!,
-                            selected: selectedGenerativeLook == lookKey,
-                            onTap: loading
-                                ? null
-                                : () => setState(() {
-                                      selectedGenerativeLook = lookKey;
-                                      result = null;
-                                      afterImageFuture = null;
-                                      rawAfterBytes = null;
-                                      displayedAfterBytes = null;
-                                      externalAiConsentConfirmed = false;
-                                      error = null;
-                                    }),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Generative edits send the photo to an external image provider and may incur usage charges. Generated images can change facial details; review every result.',
-                      ),
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: externalAiConsentConfirmed,
-                        onChanged: loading
-                            ? null
-                            : (value) => setState(
-                                  () => externalAiConsentConfirmed = value ?? false,
-                                ),
-                        title: const Text('Client agrees to external AI processing'),
-                        subtitle: const Text(
-                          'I have permission to send this photo to the configured third-party image provider for this edit.',
-                        ),
-                      ),
-                    ] else ...[
-                      Text(
-                        'Makeup styles',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: _classicStyleCategories.keys.map((category) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                key: ValueKey('classic-category-$category'),
-                                avatar: Icon(
-                                  _categoryIcons[category] ?? Icons.tune_rounded,
-                                  size: 17,
-                                ),
-                                label: Text(category),
-                                selected: _selectedClassicCategory == category,
-                                onSelected: loading
-                                    ? null
-                                    : (_) => setState(
-                                          () => _selectedClassicCategory = category,
-                                        ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      GridView.builder(
-                        key: const ValueKey('classic-options-grid'),
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        padding: EdgeInsets.zero,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                          mainAxisExtent: 104,
-                        ),
-                        itemCount:
-                            _classicStyleCategories[_selectedClassicCategory]!.length,
-                        itemBuilder: (context, index) {
-                          final styleKey =
-                              _classicStyleCategories[_selectedClassicCategory]![index];
-                          final style = _makeupStyles[styleKey]!;
-                          final entitled = availableMakeupStyles.contains(styleKey);
-                          final requiredPlan =
-                              styleKey == 'soft_glam' ? 'Basic' : 'Pro';
-                          return _BeautyOptionTile(
-                            key: ValueKey('classic-option-$styleKey'),
-                            title: style,
-                            description: _makeupStyleDescriptions[styleKey]!,
-                            icon: _makeupStyleIcons[styleKey]!,
-                            selected: selectedMakeupStyle == styleKey,
-                            lockedLabel: entitled ? null : requiredPlan.toUpperCase(),
-                            onTap: loading
-                                ? null
-                                : () {
-                                    if (!entitled) {
-                                      _showPlanRequired(requiredPlan, style);
-                                      return;
-                                    }
-                                    setState(() {
-                                      selectedMakeupStyle = styleKey;
-                                      result = null;
-                                      afterImageFuture = null;
-                                      rawAfterBytes = null;
-                                      displayedAfterBytes = null;
-                                      error = null;
-                                    });
-                                  },
-                          );
-                        },
-                      ),
-                    ],
-                  ] else ...[
+                  if (_selectedFilterFolder == null) ...[
                     Text(
-                      'Photo finish',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      'Face filter folders',
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     const Text(
-                      'These filters adjust the photo’s overall color tone. They are separate from makeup styles and hairstyle generation.',
+                      'Open a folder to see its tools. Filters not connected to a real processor are marked Coming soon.',
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     GridView.builder(
-                      key: const ValueKey('photo-finishes-grid'),
+                      key: const ValueKey('face-filter-folders-grid'),
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       padding: EdgeInsets.zero,
@@ -1332,42 +1134,381 @@ class _BeautyPageState extends State<BeautyPage> {
                         crossAxisCount: 2,
                         crossAxisSpacing: 10,
                         mainAxisSpacing: 10,
-                        mainAxisExtent: 104,
+                        mainAxisExtent: 124,
                       ),
-                      itemCount: PhotoLookService.names.length,
+                      itemCount: _faceFilterFolders.length,
                       itemBuilder: (context, index) {
-                        final look = PhotoLookService.names[index];
-                        final entitled = availablePhotoFinishes.contains(look);
-                        final requiredPlan =
-                            look == 'Soft Glam' ? 'Basic' : 'Pro';
-                        return _BeautyOptionTile(
-                          key: ValueKey('photo-finish-$index'),
-                          title: look,
-                          description: _photoFinishDescriptions[look]!,
-                          icon: _photoFinishIcons[look]!,
-                          selected: selectedLook == look,
-                          lockedLabel: entitled ? null : requiredPlan.toUpperCase(),
-                          onTap: loading
-                              ? null
-                              : () {
-                                  if (!entitled) {
-                                    _showPlanRequired(requiredPlan, look);
-                                    return;
-                                  }
-                                  _selectLook(look);
-                                },
+                        final folder = _faceFilterFolders[index];
+                        return _FilterFolderTile(
+                          key: ValueKey('filter-folder-$folder'),
+                          title: folder,
+                          description: _faceFilterFolderDescriptions[folder]!,
+                          icon: _faceFilterFolderIcons[folder]!,
+                          status: _filterFolderStatus(folder),
+                          onTap: loading ? null : () => _openFilterFolder(folder),
                         );
                       },
                     ),
+                  ] else ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        IconButton(
+                          key: const ValueKey('back-to-filter-folders'),
+                          tooltip: 'All filter folders',
+                          onPressed: loading
+                              ? null
+                              : () => setState(() => _selectedFilterFolder = null),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _selectedFilterFolder!,
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _faceFilterFolderDescriptions[_selectedFilterFolder!]!,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _FilterFolderStatus(status: _filterFolderStatus(_selectedFilterFolder!)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_selectedFilterFolder == 'Impression') ...[
+                      Text(
+                        'Photo finishes',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'These tools adjust overall photo color. Impression starts with skin polish, not an extra makeup look.',
+                      ),
+                      const SizedBox(height: 10),
+                      GridView.builder(
+                        key: const ValueKey('photo-finishes-grid'),
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: EdgeInsets.zero,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          mainAxisExtent: 104,
+                        ),
+                        itemCount: PhotoLookService.names.length,
+                        itemBuilder: (context, index) {
+                          final look = PhotoLookService.names[index];
+                          final entitled = availablePhotoFinishes.contains(look);
+                          final requiredPlan = look == 'Soft Glam' ? 'Basic' : 'Pro';
+                          return _BeautyOptionTile(
+                            key: ValueKey('photo-finish-$index'),
+                            title: look,
+                            description: _photoFinishDescriptions[look]!,
+                            icon: _photoFinishIcons[look]!,
+                            selected: selectedLook == look,
+                            lockedLabel: entitled ? null : requiredPlan.toUpperCase(),
+                            onTap: loading
+                                ? null
+                                : () {
+                                    if (!entitled) {
+                                      _showPlanRequired(requiredPlan, look);
+                                      return;
+                                    }
+                                    _selectLook(look);
+                                  },
+                          );
+                        },
+                      ),
+                    ] else if (_selectedFilterFolder == 'Skin') ...[
+                      Text(
+                        'Skin polish',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Skin Polish Only smooths the face without applying lipstick, blush or eye makeup. Adjust its strength below.',
+                      ),
+                      const SizedBox(height: 10),
+                      _BeautyOptionTile(
+                        key: const ValueKey('classic-option-skin_only'),
+                        title: _makeupStyles['skin_only']!,
+                        description: _makeupStyleDescriptions['skin_only']!,
+                        icon: _makeupStyleIcons['skin_only']!,
+                        selected: selectedMakeupStyle == 'skin_only',
+                        lockedLabel: availableMakeupStyles.contains('skin_only')
+                            ? null
+                            : 'PRO',
+                        onTap: loading
+                            ? null
+                            : () {
+                                if (!availableMakeupStyles.contains('skin_only')) {
+                                  _showPlanRequired('Pro', _makeupStyles['skin_only']!);
+                                  return;
+                                }
+                                setState(() {
+                                  selectedEngine = 'classic';
+                                  selectedMakeupStyle = 'skin_only';
+                                  externalAiConsentConfirmed = false;
+                                  _clearProcessedResult();
+                                });
+                              },
+                      ),
+                    ] else if (_selectedFilterFolder == 'Makeup') ...[
+                      if (selectedEngine == 'generative') ...[
+                        Text(
+                          'Makeup looks',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: _generativeLookCategories.keys
+                                .where((category) =>
+                                    category != 'Hair' && category != 'Skin')
+                                .map((category) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  key: ValueKey('generative-category-$category'),
+                                  avatar: Icon(
+                                    _categoryIcons[category] ?? Icons.tune_rounded,
+                                    size: 17,
+                                  ),
+                                  label: Text(category),
+                                  selected: _selectedGenerativeCategory == category,
+                                  onSelected: loading
+                                      ? null
+                                      : (_) => setState(
+                                            () => _selectedGenerativeCategory = category,
+                                          ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Builder(
+                          builder: (context) {
+                            final categoryLooks =
+                                _generativeLookCategories[_selectedGenerativeCategory] ??
+                                    _generativeLookCategories['Looks']!;
+                            final visibleLooks = categoryLooks
+                                .where((key) =>
+                                    !_hairLookKeys.contains(key) && key != 'foundation')
+                                .toList();
+                            return GridView.builder(
+                              key: const ValueKey('generative-options-grid'),
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              padding: EdgeInsets.zero,
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                                mainAxisExtent: 104,
+                              ),
+                              itemCount: visibleLooks.length,
+                              itemBuilder: (context, index) {
+                                final lookKey = visibleLooks[index];
+                                return _BeautyOptionTile(
+                                  key: ValueKey('generative-option-$lookKey'),
+                                  title: _generativeLooks[lookKey]!,
+                                  description: _generativeLookDescriptions[lookKey]!,
+                                  icon: _generativeLookIcons[lookKey]!,
+                                  selected: selectedGenerativeLook == lookKey,
+                                  onTap: loading
+                                      ? null
+                                      : () => setState(() {
+                                            selectedGenerativeLook = lookKey;
+                                            _clearProcessedResult();
+                                            externalAiConsentConfirmed = false;
+                                          }),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Generative edits send the photo to an external image provider and may incur usage charges. Generated images can change facial details; review every result.',
+                        ),
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: externalAiConsentConfirmed,
+                          onChanged: loading
+                              ? null
+                              : (value) => setState(
+                                    () => externalAiConsentConfirmed = value ?? false,
+                                  ),
+                          title: const Text('Client agrees to external AI processing'),
+                          subtitle: const Text(
+                            'I have permission to send this photo to the configured third-party image provider for this edit.',
+                          ),
+                        ),
+                      ] else ...[
+                        Text(
+                          'Makeup styles',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: _classicStyleCategories.keys.map((category) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  key: ValueKey('classic-category-$category'),
+                                  avatar: Icon(
+                                    _categoryIcons[category] ?? Icons.tune_rounded,
+                                    size: 17,
+                                  ),
+                                  label: Text(category),
+                                  selected: _selectedClassicCategory == category,
+                                  onSelected: loading
+                                      ? null
+                                      : (_) => setState(
+                                            () => _selectedClassicCategory = category,
+                                          ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        GridView.builder(
+                          key: const ValueKey('classic-options-grid'),
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          padding: EdgeInsets.zero,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            mainAxisExtent: 104,
+                          ),
+                          itemCount: _classicStyleCategories[_selectedClassicCategory]!.length,
+                          itemBuilder: (context, index) {
+                            final styleKey =
+                                _classicStyleCategories[_selectedClassicCategory]![index];
+                            final style = _makeupStyles[styleKey]!;
+                            final entitled = availableMakeupStyles.contains(styleKey);
+                            final requiredPlan =
+                                styleKey == 'soft_glam' ? 'Basic' : 'Pro';
+                            return _BeautyOptionTile(
+                              key: ValueKey('classic-option-$styleKey'),
+                              title: style,
+                              description: _makeupStyleDescriptions[styleKey]!,
+                              icon: _makeupStyleIcons[styleKey]!,
+                              selected: selectedMakeupStyle == styleKey,
+                              lockedLabel: entitled ? null : requiredPlan.toUpperCase(),
+                              onTap: loading
+                                  ? null
+                                  : () {
+                                      if (!entitled) {
+                                        _showPlanRequired(requiredPlan, style);
+                                        return;
+                                      }
+                                      setState(() {
+                                        selectedMakeupStyle = styleKey;
+                                        _clearProcessedResult();
+                                      });
+                                    },
+                            );
+                          },
+                        ),
+                      ],
+                    ] else if (_selectedFilterFolder == 'Hairstyles') ...[
+                      if (!generativeAvailable) ...[
+                        const _FolderInformation(
+                          icon: Icons.auto_awesome_outlined,
+                          title: 'Generative hairstyle tools are not enabled',
+                          message:
+                              'The current Classic engine cannot create new hairstyles. Hairstyle previews are available only when the configured, plan-entitled Generative AI engine is enabled.',
+                        ),
+                      ] else ...[
+                        Text(
+                          'Hairstyle previews',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        GridView.builder(
+                          key: const ValueKey('hairstyles-options-grid'),
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          padding: EdgeInsets.zero,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            mainAxisExtent: 104,
+                          ),
+                          itemCount: _generativeLookCategories['Hair']!.length,
+                          itemBuilder: (context, index) {
+                            final lookKey = _generativeLookCategories['Hair']![index];
+                            return _BeautyOptionTile(
+                              key: ValueKey('hairstyle-option-$lookKey'),
+                              title: _generativeLooks[lookKey]!,
+                              description: _generativeLookDescriptions[lookKey]!,
+                              icon: _generativeLookIcons[lookKey]!,
+                              selected: selectedGenerativeLook == lookKey,
+                              onTap: loading
+                                  ? null
+                                  : () => setState(() {
+                                        selectedEngine = 'generative';
+                                        selectedGenerativeLook = lookKey;
+                                        externalAiConsentConfirmed = false;
+                                        _clearProcessedResult();
+                                      }),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Generative edits send the photo to an external image provider and may incur usage charges. Generated images can change facial details; review every result.',
+                        ),
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: externalAiConsentConfirmed,
+                          onChanged: loading
+                              ? null
+                              : (value) => setState(
+                                    () => externalAiConsentConfirmed = value ?? false,
+                                  ),
+                          title: const Text('Client agrees to external AI processing'),
+                          subtitle: const Text(
+                            'I have permission to send this photo to the configured third-party image provider for this edit.',
+                          ),
+                        ),
+                      ],
+                    ] else ...[
+                      _FolderInformation(
+                        icon: _faceFilterFolderIcons[_selectedFilterFolder!]!,
+                        title: 'Coming soon',
+                        message:
+                            'This folder is in the filter roadmap, but its image-processing effect is not implemented yet. It will not change the photo until a real processor is connected and tested.',
+                      ),
+                    ],
                   ],
-                  const SizedBox(height: 16),
-                  Text('${selectedEngine == 'generative' ? 'Treatment strength' : 'Skin polish strength'} ${(intensity * 100).round()}%'),
-                  Slider(
-                    value: intensity,
-                    onChanged: loading
-                        ? null
-                        : (value) => setState(() => intensity = value),
-                  ),
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     value: consentConfirmed,
@@ -1510,6 +1651,165 @@ class _BeautyPageState extends State<BeautyPage> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _FilterFolderTile extends StatelessWidget {
+  const _FilterFolderTile({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.status,
+    required this.onTap,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final String status;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final comingSoon = status == 'COMING SOON';
+    final unavailable = status == 'AI NOT READY';
+    return Material(
+      color: colors.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.outlineVariant, width: 0.8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colors.secondaryContainer.withValues(alpha: .6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, size: 19, color: colors.primary),
+                  ),
+                  const Spacer(),
+                  Flexible(child: _FilterFolderStatus(status: status)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 2),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: Text(
+                    description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Icon(
+                  comingSoon || unavailable
+                      ? Icons.info_outline_rounded
+                      : Icons.arrow_forward_rounded,
+                  size: 16,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterFolderStatus extends StatelessWidget {
+  const _FilterFolderStatus({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final highlight = status == 'AVAILABLE' || status == 'GENERATIVE AI';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: highlight
+            ? colors.primaryContainer
+            : colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        status,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: highlight ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .25,
+        ),
+      ),
+    );
+  }
+}
+
+class _FolderInformation extends StatelessWidget {
+  const _FolderInformation({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      color: colors.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 30, color: colors.primary),
+            const SizedBox(height: 10),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 6),
+            Text(message),
+          ],
+        ),
       ),
     );
   }
