@@ -65,6 +65,107 @@ class _BeautyPageState extends State<BeautyPage> {
     'lipstick': 'Lipstick Only',
     'blush': 'Blush Only',
   };
+  static const _classicStyleCategories = <String, List<String>>{
+    'Looks': ['natural', 'soft_glam', 'bridal_rose', 'evening_glam'],
+    'Eyes': ['smokey_eye', 'cat_eye', 'eyeshadow', 'eyeliner'],
+    'Lips & cheeks': ['lipstick', 'blush'],
+  };
+
+  static const _generativeLookCategories = <String, List<String>>{
+    'Looks': ['natural', 'soft_glam', 'full_glam', 'bridal_glam', 'editorial'],
+    'Eyes': ['smokey_eye', 'cat_eye', 'eyeshadow', 'eyeliner'],
+    'Lips & skin': ['lipstick', 'blush', 'foundation'],
+    'Hair': ['sleek_hair', 'soft_curls', 'braided_style', 'elegant_updo'],
+  };
+
+  static const _categoryIcons = <String, IconData>{
+    'Looks': Icons.auto_awesome_rounded,
+    'Eyes': Icons.visibility_outlined,
+    'Lips & cheeks': Icons.palette_outlined,
+    'Lips & skin': Icons.color_lens_outlined,
+    'Hair': Icons.content_cut_rounded,
+  };
+
+  static const _makeupStyleIcons = <String, IconData>{
+    'natural': Icons.spa_outlined,
+    'soft_glam': Icons.auto_awesome_rounded,
+    'bridal_rose': Icons.favorite_border_rounded,
+    'evening_glam': Icons.nights_stay_rounded,
+    'smokey_eye': Icons.visibility_outlined,
+    'cat_eye': Icons.remove_red_eye_outlined,
+    'eyeshadow': Icons.palette_outlined,
+    'eyeliner': Icons.edit_outlined,
+    'lipstick': Icons.color_lens_outlined,
+    'blush': Icons.brush_outlined,
+  };
+
+  static const _makeupStyleDescriptions = <String, String>{
+    'natural': 'Everyday look',
+    'soft_glam': 'Softly defined',
+    'bridal_rose': 'Wedding-ready',
+    'evening_glam': 'Bold evening look',
+    'smokey_eye': 'Smoky eye effect',
+    'cat_eye': 'Winged eye effect',
+    'eyeshadow': 'Eye color',
+    'eyeliner': 'Eye definition',
+    'lipstick': 'Lip color',
+    'blush': 'Cheek color',
+  };
+
+  static const _generativeLookIcons = <String, IconData>{
+    'natural': Icons.spa_outlined,
+    'soft_glam': Icons.auto_awesome_outlined,
+    'full_glam': Icons.stars_rounded,
+    'bridal_glam': Icons.favorite_border_rounded,
+    'smokey_eye': Icons.visibility_outlined,
+    'cat_eye': Icons.remove_red_eye_outlined,
+    'eyeshadow': Icons.palette_outlined,
+    'eyeliner': Icons.edit_outlined,
+    'lipstick': Icons.color_lens_outlined,
+    'blush': Icons.brush_outlined,
+    'foundation': Icons.layers_outlined,
+    'editorial': Icons.photo_camera_outlined,
+    'sleek_hair': Icons.content_cut_rounded,
+    'soft_curls': Icons.waves_rounded,
+    'braided_style': Icons.account_tree_outlined,
+    'elegant_updo': Icons.style_outlined,
+  };
+
+  static const _generativeLookDescriptions = <String, String>{
+    'natural': 'Natural everyday look',
+    'soft_glam': 'Soft definition',
+    'full_glam': 'Full makeup look',
+    'bridal_glam': 'Bridal makeup',
+    'smokey_eye': 'Smoky eye makeup',
+    'cat_eye': 'Winged eye makeup',
+    'eyeshadow': 'Eye makeup',
+    'eyeliner': 'Eye definition',
+    'lipstick': 'Lip color',
+    'blush': 'Cheek color',
+    'foundation': 'Skin base',
+    'editorial': 'Fashion editorial',
+    'sleek_hair': 'Sleek hairstyle',
+    'soft_curls': 'Soft curls',
+    'braided_style': 'Braided hairstyle',
+    'elegant_updo': 'Elegant updo',
+  };
+
+  static const _photoFinishIcons = <String, IconData>{
+    'Natural Finish': Icons.tune_rounded,
+    'Warm Glow': Icons.wb_sunny_outlined,
+    'Soft Glam': Icons.auto_awesome_outlined,
+    'Studio Polish': Icons.camera_alt_outlined,
+    'Golden Hour': Icons.light_mode_rounded,
+  };
+
+  static const _photoFinishDescriptions = <String, String>{
+    'Natural Finish': 'True-to-life color',
+    'Warm Glow': 'Warm, sunny tone',
+    'Soft Glam': 'Gentle contrast',
+    'Studio Polish': 'Clean studio tone',
+    'Golden Hour': 'Golden warmth',
+  };
+
 
   RecentImageStore get recentImageStore =>
       RecentImageStore(scope: widget.salonId);
@@ -76,6 +177,9 @@ class _BeautyPageState extends State<BeautyPage> {
   Uint8List? displayedAfterBytes;
   String selectedLook = 'Natural Finish';
   String selectedMakeupStyle = 'natural';
+  String _activeEditorSection = 'makeup';
+  String _selectedClassicCategory = 'Looks';
+  String _selectedGenerativeCategory = 'Looks';
   bool savingGallery = false;
   String selectedEngine = 'classic';
   String selectedGenerativeLook = 'full_glam';
@@ -114,8 +218,8 @@ class _BeautyPageState extends State<BeautyPage> {
       if (!mounted) return;
       setState(() => subscription = current);
     } catch (_) {
-      // The server remains authoritative. On older API versions, show options
-      // rather than accidentally locking every existing paid customer in the UI.
+      // Keep UI entitlements conservative while the subscription API is unreachable.
+      // A successful reload restores the current plan and exact feature list.
       if (mounted) setState(() => subscription = {});
     } finally {
       if (mounted) setState(() => loadingSubscription = false);
@@ -125,6 +229,32 @@ class _BeautyPageState extends State<BeautyPage> {
   List<String> _availableOptions(String key, List<String> fallback) {
     final value = subscription[key];
     if (value is List) return value.whereType<String>().toList();
+
+    // Keep the UI conservative if subscription data cannot be loaded.
+    // The backend remains authoritative and enforces plan entitlements.
+    final plan = (subscription['plan']?.toString() ?? 'free').toLowerCase();
+    if (key == 'available_makeup_styles') {
+      switch (plan) {
+        case 'basic':
+          return const ['natural', 'soft_glam'];
+        case 'pro':
+        case 'enterprise':
+          return fallback;
+        default:
+          return const ['natural'];
+      }
+    }
+    if (key == 'available_photo_finishes') {
+      switch (plan) {
+        case 'basic':
+          return const ['Natural Finish', 'Warm Glow', 'Soft Glam'];
+        case 'pro':
+        case 'enterprise':
+          return fallback;
+        default:
+          return const ['Natural Finish', 'Warm Glow'];
+      }
+    }
     return fallback;
   }
 
@@ -860,136 +990,252 @@ class _BeautyPageState extends State<BeautyPage> {
                       ),
                     ),
                   ],
-                  if (selectedEngine == 'generative') ...[
-                    const SizedBox(height: 14),
-                    Text(
-                      'Generative look',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _generativeLooks.entries.map((look) {
-                        return ChoiceChip(
-                          avatar: const Icon(Icons.auto_awesome_rounded, size: 17),
-                          label: Text(look.value),
-                          selected: selectedGenerativeLook == look.key,
-                          onSelected: loading
-                              ? null
-                              : (_) => setState(() {
-                                    selectedGenerativeLook = look.key;
-                                    result = null;
-                                    afterImageFuture = null;
-                                    rawAfterBytes = null;
-                                    displayedAfterBytes = null;
-                                    externalAiConsentConfirmed = false;
-                                    error = null;
-                                  }),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Generative edits send the photo to an external image provider and may incur usage charges. Generated images can change facial details; review every result.',
-                    ),
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: externalAiConsentConfirmed,
-                      onChanged: loading
-                          ? null
-                          : (value) => setState(
-                                () => externalAiConsentConfirmed = value ?? false,
-                              ),
-                      title: const Text('Client agrees to external AI processing'),
-                      subtitle: const Text(
-                        'I have permission to send this photo to the configured third-party image provider for this edit.',
-                      ),
-                    ),
-                  ] else ...[
-                    Text(
-                      'Makeup style',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 5),
-                    const Text(
-                      'Use complete looks or a single local effect. Smokey Eye, Cat Eye, Eyeshadow Only, Eyeliner Only, Lipstick Only and Blush Only work without a paid AI key.',
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _makeupStyles.entries.map((style) {
-                        final entitled = availableMakeupStyles.contains(style.key);
-                        final requiredPlan = style.key == 'soft_glam' ? 'Basic' : 'Pro';
-                        return ChoiceChip(
-                          avatar: Icon(
-                            entitled
-                                ? Icons.face_retouching_natural_rounded
-                                : Icons.lock_outline_rounded,
-                            size: 17,
-                          ),
-                          label: Text(style.value),
-                          selected: selectedMakeupStyle == style.key,
-                          onSelected: loading
-                              ? null
-                              : (_) {
-                                  if (!entitled) {
-                                    _showPlanRequired(requiredPlan, style.value);
-                                    return;
-                                  }
-                                  setState(() {
-                                    selectedMakeupStyle = style.key;
-                                    result = null;
-                                    afterImageFuture = null;
-                                    rawAfterBytes = null;
-                                    displayedAfterBytes = null;
-                                    error = null;
-                                  });
-                                },
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                  const SizedBox(height: 18),
                   Text(
-                    'Photo finish',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    'Editing tools',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 5),
                   const Text(
-                    'Photo finishes adjust the overall color tone. For eye, lip and cheek makeup, choose a style above. Hair color and hairstyle generation are not available in the free Classic engine.',
+                    'Choose a tool group first, then pick one clearly labeled option. Locked tools show the plan needed to unlock them.',
                   ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: PhotoLookService.names.map((look) {
-                      final entitled = availablePhotoFinishes.contains(look);
-                      final requiredPlan = look == 'Soft Glam' ? 'Basic' : 'Pro';
-                      return ChoiceChip(
-                        avatar: Icon(
-                          !entitled
-                              ? Icons.lock_outline_rounded
-                              : selectedLook == look
-                                  ? Icons.check_circle_rounded
-                                  : Icons.auto_awesome_outlined,
-                          size: 17,
+                  const SizedBox(height: 12),
+                  SegmentedButton<String>(
+                    key: const ValueKey('editor-section-selector'),
+                    segments: const [
+                      ButtonSegment<String>(
+                        value: 'makeup',
+                        icon: Icon(Icons.face_retouching_natural_rounded),
+                        label: Text('Makeup looks'),
+                      ),
+                      ButtonSegment<String>(
+                        value: 'finish',
+                        icon: Icon(Icons.color_lens_outlined),
+                        label: Text('Color filters'),
+                      ),
+                    ],
+                    selected: <String>{_activeEditorSection},
+                    showSelectedIcon: false,
+                    onSelectionChanged: loading
+                        ? null
+                        : (selection) => setState(
+                              () => _activeEditorSection = selection.first,
+                            ),
+                  ),
+                  const SizedBox(height: 14),
+                  if (_activeEditorSection == 'makeup') ...[
+                    if (selectedEngine == 'generative') ...[
+                      Text(
+                        'Generative look',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: _generativeLookCategories.keys.map((category) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                key: ValueKey('generative-category-$category'),
+                                avatar: Icon(
+                                  _categoryIcons[category] ?? Icons.tune_rounded,
+                                  size: 17,
+                                ),
+                                label: Text(category),
+                                selected: _selectedGenerativeCategory == category,
+                                onSelected: loading
+                                    ? null
+                                    : (_) => setState(
+                                          () => _selectedGenerativeCategory = category,
+                                        ),
+                              ),
+                            );
+                          }).toList(),
                         ),
-                        label: Text(look),
-                        selected: selectedLook == look,
-                        onSelected: loading
+                      ),
+                      const SizedBox(height: 10),
+                      GridView.builder(
+                        key: const ValueKey('generative-options-grid'),
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: EdgeInsets.zero,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          mainAxisExtent: 104,
+                        ),
+                        itemCount:
+                            _generativeLookCategories[_selectedGenerativeCategory]!.length,
+                        itemBuilder: (context, index) {
+                          final lookKey =
+                              _generativeLookCategories[_selectedGenerativeCategory]![index];
+                          final look = _generativeLooks[lookKey]!;
+                          return _BeautyOptionTile(
+                            key: ValueKey('generative-option-$lookKey'),
+                            title: look,
+                            description: _generativeLookDescriptions[lookKey]!,
+                            icon: _generativeLookIcons[lookKey]!,
+                            selected: selectedGenerativeLook == lookKey,
+                            onTap: loading
+                                ? null
+                                : () => setState(() {
+                                      selectedGenerativeLook = lookKey;
+                                      result = null;
+                                      afterImageFuture = null;
+                                      rawAfterBytes = null;
+                                      displayedAfterBytes = null;
+                                      externalAiConsentConfirmed = false;
+                                      error = null;
+                                    }),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Generative edits send the photo to an external image provider and may incur usage charges. Generated images can change facial details; review every result.',
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: externalAiConsentConfirmed,
+                        onChanged: loading
                             ? null
-                            : (_) {
-                                if (!entitled) {
-                                  _showPlanRequired(requiredPlan, look);
-                                  return;
-                                }
-                                _selectLook(look);
-                              },
-                      );
-                    }).toList(),
-                  ),
+                            : (value) => setState(
+                                  () => externalAiConsentConfirmed = value ?? false,
+                                ),
+                        title: const Text('Client agrees to external AI processing'),
+                        subtitle: const Text(
+                          'I have permission to send this photo to the configured third-party image provider for this edit.',
+                        ),
+                      ),
+                    ] else ...[
+                      Text(
+                        'Makeup styles',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: _classicStyleCategories.keys.map((category) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                key: ValueKey('classic-category-$category'),
+                                avatar: Icon(
+                                  _categoryIcons[category] ?? Icons.tune_rounded,
+                                  size: 17,
+                                ),
+                                label: Text(category),
+                                selected: _selectedClassicCategory == category,
+                                onSelected: loading
+                                    ? null
+                                    : (_) => setState(
+                                          () => _selectedClassicCategory = category,
+                                        ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      GridView.builder(
+                        key: const ValueKey('classic-options-grid'),
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: EdgeInsets.zero,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          mainAxisExtent: 104,
+                        ),
+                        itemCount:
+                            _classicStyleCategories[_selectedClassicCategory]!.length,
+                        itemBuilder: (context, index) {
+                          final styleKey =
+                              _classicStyleCategories[_selectedClassicCategory]![index];
+                          final style = _makeupStyles[styleKey]!;
+                          final entitled = availableMakeupStyles.contains(styleKey);
+                          final requiredPlan =
+                              styleKey == 'soft_glam' ? 'Basic' : 'Pro';
+                          return _BeautyOptionTile(
+                            key: ValueKey('classic-option-$styleKey'),
+                            title: style,
+                            description: _makeupStyleDescriptions[styleKey]!,
+                            icon: _makeupStyleIcons[styleKey]!,
+                            selected: selectedMakeupStyle == styleKey,
+                            lockedLabel: entitled ? null : requiredPlan.toUpperCase(),
+                            onTap: loading
+                                ? null
+                                : () {
+                                    if (!entitled) {
+                                      _showPlanRequired(requiredPlan, style);
+                                      return;
+                                    }
+                                    setState(() {
+                                      selectedMakeupStyle = styleKey;
+                                      result = null;
+                                      afterImageFuture = null;
+                                      rawAfterBytes = null;
+                                      displayedAfterBytes = null;
+                                      error = null;
+                                    });
+                                  },
+                          );
+                        },
+                      ),
+                    ],
+                  ] else ...[
+                    Text(
+                      'Photo finish',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'These filters adjust the photo’s overall color tone. They are separate from makeup styles and hairstyle generation.',
+                    ),
+                    const SizedBox(height: 10),
+                    GridView.builder(
+                      key: const ValueKey('photo-finishes-grid'),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        mainAxisExtent: 104,
+                      ),
+                      itemCount: PhotoLookService.names.length,
+                      itemBuilder: (context, index) {
+                        final look = PhotoLookService.names[index];
+                        final entitled = availablePhotoFinishes.contains(look);
+                        final requiredPlan =
+                            look == 'Soft Glam' ? 'Basic' : 'Pro';
+                        return _BeautyOptionTile(
+                          key: ValueKey('photo-finish-$index'),
+                          title: look,
+                          description: _photoFinishDescriptions[look]!,
+                          icon: _photoFinishIcons[look]!,
+                          selected: selectedLook == look,
+                          lockedLabel: entitled ? null : requiredPlan.toUpperCase(),
+                          onTap: loading
+                              ? null
+                              : () {
+                                  if (!entitled) {
+                                    _showPlanRequired(requiredPlan, look);
+                                    return;
+                                  }
+                                  _selectLook(look);
+                                },
+                        );
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   Text('${selectedEngine == 'generative' ? 'Treatment strength' : 'Skin polish strength'} ${(intensity * 100).round()}%'),
                   Slider(
@@ -1144,3 +1390,128 @@ class _BeautyPageState extends State<BeautyPage> {
     );
   }
 }
+
+class _BeautyOptionTile extends StatelessWidget {
+  const _BeautyOptionTile({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+    this.lockedLabel,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final bool selected;
+  final String? lockedLabel;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final locked = lockedLabel != null;
+
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      selected: selected,
+      label: '$title. $description${locked ? '. Requires $lockedLabel plan.' : ''}',
+      child: Material(
+        color: selected
+            ? colors.secondaryContainer.withValues(alpha: .48)
+            : colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? colors.primary : colors.outlineVariant,
+                width: selected ? 1.6 : 0.8,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? colors.primary.withValues(alpha: .12)
+                            : colors.surfaceContainerHighest,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 19,
+                        color: selected ? colors.primary : colors.onSurfaceVariant,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (locked)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.tertiaryContainer,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          lockedLabel!,
+                          style: TextStyle(
+                            color: colors.onTertiaryContainer,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: .35,
+                          ),
+                        ),
+                      )
+                    else
+                      Icon(
+                        selected
+                            ? Icons.check_circle_rounded
+                            : Icons.chevron_right_rounded,
+                        size: 18,
+                        color: selected ? colors.primary : colors.onSurfaceVariant,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                Text(
+                  description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
