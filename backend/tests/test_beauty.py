@@ -11,7 +11,7 @@ from fastapi import HTTPException
 
 from app.api.v1 import beauty as beauty_api
 from app.services.beauty import BeautyProvider, IdentityGuard, SkinToneMatcher
-from tests.utils import API, auth_headers, register
+from tests.utils import API, auth_headers, register, register_platform_admin
 
 
 def test_makeup_style_presets_apply_face_guided_tints():
@@ -715,6 +715,18 @@ def test_generative_upload_saves_watermarked_result_without_fake_identity_score(
     registration = register(client)
     headers = auth_headers(client, "owner@salon.com")
     salon_id = registration.json()["salon"]["id"]
+
+    # Generative processing now costs the provider per image, so this integration
+    # test explicitly provisions a paid plan instead of assuming free users can
+    # invoke the endpoint merely because a test API key exists.
+    _, admin_headers = register_platform_admin(client, monkeypatch)
+    activated = client.post(
+        f"{API}/admin/subscriptions/{salon_id}/activate",
+        headers=admin_headers,
+        json={"plan": "pro", "days": 30},
+    )
+    assert activated.status_code == 200, activated.text
+
     media_root = tmp_path / "media"
     monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
     monkeypatch.setattr(
