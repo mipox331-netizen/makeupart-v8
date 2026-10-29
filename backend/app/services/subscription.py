@@ -42,6 +42,8 @@ PLAN_PHOTO_FINISHES: dict[SubscriptionPlan, frozenset[str]] = {
     }),
 }
 
+PLAN_GENERATIVE_ENTITLED = frozenset({SubscriptionPlan.PRO, SubscriptionPlan.ENTERPRISE})
+
 ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
 
 
@@ -197,6 +199,18 @@ def require_beauty_feature(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon not found")
     plan = _plan_for(subscription, salon)
 
+    # Generative image providers can incur real per-image cost and send photos
+    # to a third party. Enforce a paid-plan gate server-side even if a client
+    # bypasses the visual lock or the provider key is configured later.
+    if feature_kind == "generative_engine":
+        if plan not in PLAN_GENERATIVE_ENTITLED:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Generative AI processing requires the Pro plan or higher.",
+                headers={"X-Required-Plan": "pro"},
+            )
+        return
+
     if feature_kind == "makeup_style":
         entitled = PLAN_MAKEUP_STYLES[plan]
         label = "makeup style"
@@ -285,6 +299,7 @@ def get_subscription_snapshot(db: Session, salon_id) -> dict:
         "current_period_end": subscription.current_period_end,
         "available_makeup_styles": sorted(PLAN_MAKEUP_STYLES[plan]),
         "available_photo_finishes": sorted(PLAN_PHOTO_FINISHES[plan]),
+        "generative_engine_entitled": plan in PLAN_GENERATIVE_ENTITLED,
     }
 
 
