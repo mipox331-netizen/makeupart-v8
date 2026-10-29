@@ -207,3 +207,83 @@ def test_suspended_free_plan_is_reopened():
 
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
+
+def test_free_plan_exposes_only_free_makeup_and_photo_finish_entitlements(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+    response = client.get(f"{API}/subscriptions/me", headers=headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["available_makeup_styles"] == ["natural"]
+    assert body["available_photo_finishes"] == ["Natural Finish", "Warm Glow"]
+
+
+def test_free_plan_cannot_bypass_premium_makeup_style_gate(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+
+    response = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true&makeup_style=soft_glam",
+        headers=headers,
+        files={"file": ("portrait.png", b"invalid image", "image/png")},
+    )
+    assert response.status_code == 403
+    assert response.headers["X-Required-Plan"] == "basic"
+    assert "Basic plan or higher" in response.json()["detail"]
+
+    usage = client.get(f"{API}/subscriptions/me", headers=headers)
+    assert usage.status_code == 200
+    assert usage.json()["used"] == 0
+
+
+def test_free_plan_cannot_bypass_pro_photo_finish_gate(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+
+    response = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true&photo_finish=Studio%20Polish",
+        headers=headers,
+        files={"file": ("portrait.png", b"invalid image", "image/png")},
+    )
+    assert response.status_code == 403
+    assert response.headers["X-Required-Plan"] == "pro"
+    assert "Pro plan or higher" in response.json()["detail"]
+
+    usage = client.get(f"{API}/subscriptions/me", headers=headers)
+    assert usage.status_code == 200
+    assert usage.json()["used"] == 0
+
+
+def test_basic_plan_accepts_basic_style_and_finish_but_still_validates_image(client, monkeypatch):
+    from app.core.config import settings
+
+    email = "feature-admin@makeupart.local"
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "")
+    register(client, email=email, salon_name="Feature Admin Salon", full_name="Feature Admin")
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", email)
+    admin_headers = auth_headers(client, email)
+
+    register(client, email="basic-owner@salon.com", salon_name="Basic Salon")
+    owner_headers = auth_headers(client, "basic-owner@salon.com")
+    salon_id = client.get(f"{API}/salons/me", headers=owner_headers).json()["id"]
+    activated = client.post(
+        f"{API}/admin/subscriptions/{salon_id}/activate",
+        headers=admin_headers,
+        json={"plan": "basic", "days": 30},
+    )
+    assert activated.status_code == 200, activated.text
+
+    response = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true&makeup_style=soft_glam&photo_finish=Soft%20Glam",
+        headers=owner_headers,
+        files={"file": ("portrait.png", b"invalid image", "image/png")},
+    )
+    # Entitlement checks pass for Basic; invalid image input is rejected next.
+    assert response.status_code == 422, response.text
+    assert "valid image" in response.json()["detail"].lower()
+
+    usage = client.get(f"{API}/subscriptions/me", headers=owner_headers)
+    assert usage.status_code == 200
+    assert usage.json()["used"] == 0
+
