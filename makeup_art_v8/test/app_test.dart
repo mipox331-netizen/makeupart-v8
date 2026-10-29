@@ -243,6 +243,8 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(consentTile);
+    await tester.pumpAndSettle();
     await tester.tap(consentTile);
     await tester.pumpAndSettle();
     expect(tester.widget<CheckboxListTile>(consentTile).value, isTrue);
