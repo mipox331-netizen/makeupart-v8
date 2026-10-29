@@ -670,7 +670,9 @@ class _BeautyPageState extends State<BeautyPage> {
         final changed = selectedEngine != 'generative' ||
             !_hairLookKeys.contains(selectedGenerativeLook);
         selectedEngine = 'generative';
-        selectedGenerativeLook = 'soft_curls';
+        if (!_hairLookKeys.contains(selectedGenerativeLook)) {
+          selectedGenerativeLook = 'soft_curls';
+        }
         _selectedGenerativeCategory = 'Hair';
         if (changed) {
           externalAiConsentConfirmed = false;
@@ -763,8 +765,11 @@ class _BeautyPageState extends State<BeautyPage> {
       'available_photo_finishes',
       PhotoLookService.names,
     );
+    final needsSkinOnly = const {'Impression', 'Skin'}
+        .contains(_selectedFilterFolder);
     final canProcess = selected != null &&
         _canProcessSelectedFolder() &&
+        (!needsSkinOnly || availableMakeupStyles.contains('skin_only')) &&
         consentConfirmed &&
         (selectedEngine != 'generative' ||
             (generativeAvailable && externalAiConsentConfirmed)) &&
