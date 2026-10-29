@@ -804,3 +804,61 @@ def test_generative_upload_saves_watermarked_result_without_fake_identity_score(
     assert job_record.status_code == 200
     assert "External generative AI consent confirmed" in job_record.json()["notes"]
     assert "look=smokey_eye" in job_record.json()["notes"]
+
+def test_selected_photo_finish_changes_the_persisted_upload_result(
+    client, monkeypatch, tmp_path
+):
+    registration = register(client, email="finish-owner@salon.com")
+    headers = auth_headers(client, "finish-owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+
+    def fake_process(self, image_path, options=None):
+        output = media_root / "salons" / salon_id / "outputs" / "generated.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        assert cv2.imwrite(str(output), np.full((32, 32, 3), 120, dtype=np.uint8))
+        return {
+            "identity_similarity": 0.99,
+            "skin_tone": "medium",
+            "undertone": "neutral",
+            "foundation_match": "medium-neutral",
+            "processed": True,
+            "output_path": str(output),
+        }
+
+    # Keep this an isolated pixel-level integration test: storage and salon
+    # branding should not hide a broken finish application.
+    monkeypatch.setattr(BeautyProvider, "process", fake_process)
+    monkeypatch.setattr(beauty_api, "apply_watermark", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        beauty_api.google_drive_media, "persist_media_file", lambda *_args, **_kwargs: False
+    )
+
+    source = np.full((32, 32, 3), 120, dtype=np.uint8)
+    ok, encoded = cv2.imencode(".png", source)
+    assert ok
+
+    response = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true&photo_finish=Warm%20Glow",
+        headers=headers,
+        files={"file": ("portrait.png", encoded.tobytes(), "image/png")},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["photo_finish"] == "Warm Glow"
+
+    before = client.get(body["before_image_url"], headers=headers)
+    after = client.get(body["after_image_url"], headers=headers)
+    assert before.status_code == 200
+    assert after.status_code == 200
+
+    before_pixels = cv2.imdecode(np.frombuffer(before.content, dtype=np.uint8), cv2.IMREAD_COLOR)
+    after_pixels = cv2.imdecode(np.frombuffer(after.content, dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert before_pixels is not None
+    assert after_pixels is not None
+    assert before_pixels.shape == after_pixels.shape
+    assert not np.array_equal(after_pixels, before_pixels), (
+        "The API must return pixels that reflect the selected photo finish, not just its label."
+    )
+
