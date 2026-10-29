@@ -384,6 +384,10 @@ def process_beauty(
     require_beauty_feature(
         db, current_user.salon_id, feature_kind="photo_finish", feature_name=payload.photo_finish
     )
+    if payload.engine == "generative":
+        require_beauty_feature(
+            db, current_user.salon_id, feature_kind="generative_engine", feature_name="generative"
+        )
     if payload.engine == "generative" and not _generative_storage_ready(db):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -455,6 +459,10 @@ def process_beauty_upload(
         customer_id=customer_id,
         consent_confirmed=consent_confirmed,
     )
+    if engine == "generative":
+        require_beauty_feature(
+            db, current_user.salon_id, feature_kind="generative_engine", feature_name="generative"
+        )
     if engine == "generative" and not _generative_storage_ready(db):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
