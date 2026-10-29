@@ -263,7 +263,7 @@ void main() {
   });
 
 
-  testWidgets('editor separates makeup and photo filters into categories', (tester) async {
+  testWidgets('Face filter folders route to real tools and label unfinished categories', (tester) async {
     _useTallViewport(tester);
     tester.view.physicalSize = const Size(800, 1800);
 
@@ -278,33 +278,76 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final sectionSelector = find.byKey(
-      const ValueKey('editor-section-selector'),
-    );
+    final foldersGrid = find.byKey(const ValueKey('face-filter-folders-grid'));
     await tester.scrollUntilVisible(
-      sectionSelector,
+      foldersGrid,
       300,
       scrollable: find.byType(Scrollable).first,
     );
 
-    expect(find.byKey(const ValueKey('classic-options-grid')), findsOneWidget);
-    expect(find.byKey(const ValueKey('photo-finishes-grid')), findsNothing);
+    expect(find.text('Impression'), findsOneWidget);
+    expect(find.text('Skin'), findsOneWidget);
+    expect(find.text('Sizes'), findsOneWidget);
+    expect(find.text('Hairstyles'), findsOneWidget);
+    expect(find.text('Hair Colors'), findsOneWidget);
+    expect(find.text('Smiles'), findsOneWidget);
+    expect(find.text('Features'), findsOneWidget);
+    expect(find.text('Beards'), findsOneWidget);
+    expect(find.text('Makeup'), findsOneWidget);
+    expect(find.text('Age'), findsOneWidget);
+    expect(find.text('Gender'), findsOneWidget);
+    expect(find.text('Glasses'), findsOneWidget);
 
-    await tester.tap(find.text('Color filters'));
+    await tester.tap(find.byKey(const ValueKey('filter-folder-Impression')));
     await tester.pumpAndSettle();
-
-    expect(find.byKey(const ValueKey('classic-options-grid')), findsNothing);
     expect(find.byKey(const ValueKey('photo-finishes-grid')), findsOneWidget);
     expect(find.byKey(const ValueKey('photo-finish-0')), findsOneWidget);
+    expect(find.text('Skin polish strength'), findsOneWidget);
 
-    await tester.tap(find.text('Makeup looks'));
+    final back = find.byKey(const ValueKey('back-to-filter-folders'));
+    await tester.ensureVisible(back);
     await tester.pumpAndSettle();
+    await tester.tap(back);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const ValueKey('filter-folder-Makeup')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('filter-folder-Makeup')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('classic-options-grid')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('classic-category-Eyes')));
     await tester.pumpAndSettle();
-
     expect(find.byKey(const ValueKey('classic-option-smokey_eye')), findsOneWidget);
     expect(find.text('Smokey Eye'), findsOneWidget);
     expect(find.text('Natural'), findsNothing);
+
+    await tester.ensureVisible(back);
+    await tester.pumpAndSettle();
+    await tester.tap(back);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('filter-folder-Skin')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('filter-folder-Skin')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('classic-option-skin_only')), findsOneWidget);
+    expect(find.text('Skin Polish Only'), findsOneWidget);
+
+    await tester.ensureVisible(back);
+    await tester.pumpAndSettle();
+    await tester.tap(back);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('filter-folder-Sizes')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('filter-folder-Sizes')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Coming soon'), findsOneWidget);
+    expect(
+      find.textContaining('image-processing effect is not implemented yet'),
+      findsOneWidget,
+    );
   });
 
 }
