@@ -1331,56 +1331,56 @@ class _BeautyPageState extends State<BeautyPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                  if (selected != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.file(
-                        File(selected!.path),
-                        height: 300,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox(
-                          height: 120,
-                          child: Center(
-                            child: Icon(Icons.image_outlined, size: 56),
+                      if (selected != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.file(
+                            File(selected!.path),
+                            height: 300,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox(
+                              height: 120,
+                              child: Center(
+                                child: Icon(Icons.image_outlined, size: 56),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        Container(
+                          height: 220,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.face_retouching_natural, size: 64),
                           ),
                         ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed:
+                                  loading ? null : () => pick(ImageSource.gallery),
+                              icon: const Icon(Icons.photo_library_outlined),
+                              label: const Text('Gallery'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed:
+                                  loading ? null : () => pick(ImageSource.camera),
+                              icon: const Icon(Icons.camera_alt_outlined),
+                              label: const Text('Camera'),
+                            ),
+                          ),
+                        ],
                       ),
-                    )
-                  else
-                    Container(
-                      height: 220,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.face_retouching_natural, size: 64),
-                      ),
-                    ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed:
-                              loading ? null : () => pick(ImageSource.gallery),
-                          icon: const Icon(Icons.photo_library_outlined),
-                          label: const Text('Gallery'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed:
-                              loading ? null : () => pick(ImageSource.camera),
-                          icon: const Icon(Icons.camera_alt_outlined),
-                          label: const Text('Camera'),
-                        ),
-                      ),
-                    ],
-                  ),
                       ],
                     ),
                   ),
@@ -1429,7 +1429,7 @@ class _BeautyPageState extends State<BeautyPage> {
                           )
                         else
                           SizedBox(
-                            height: 44,
+                            height: 52,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: savedLookPresets.length,
