@@ -103,7 +103,10 @@ class _BeautyPageState extends State<BeautyPage> {
     _loadSubscription();
   }
 
-  bool get generativeAvailable => capabilities['generative_available'] == true;
+  bool get generativeAvailable =>
+      capabilities['generative_available'] == true &&
+      !loadingSubscription &&
+      subscription['generative_engine_entitled'] == true;
 
   Future<void> _loadSubscription() async {
     try {
