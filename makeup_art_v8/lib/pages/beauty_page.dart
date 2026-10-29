@@ -83,7 +83,6 @@ class _BeautyPageState extends State<BeautyPage> {
     'Looks': Icons.auto_awesome_rounded,
     'Eyes': Icons.visibility_outlined,
     'Lips & cheeks': Icons.palette_outlined,
-    'Lips & cheeks': Icons.palette_outlined,
     'Skin': Icons.layers_outlined,
     'Hair': Icons.content_cut_rounded,
   };
