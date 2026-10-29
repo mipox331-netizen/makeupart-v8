@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 PaidPlan = Literal["basic", "pro", "enterprise"]
@@ -44,6 +44,14 @@ class AdminPaymentCreate(BaseModel):
             return None
         notes = str(value).strip()
         return notes or None
+
+    @model_validator(mode="after")
+    def require_receipt_reference(self) -> "AdminPaymentCreate":
+        # Provider-originated transactions need an audit reference and must be
+        # idempotent. Cash/manual receipts can still be recorded with notes.
+        if self.payment_method in {"mobile_money", "bank_transfer", "card"} and not self.reference:
+            raise ValueError("A receipt or transaction reference is required for this payment method.")
+        return self
 
 
 class AdminPaymentRecordOut(BaseModel):
