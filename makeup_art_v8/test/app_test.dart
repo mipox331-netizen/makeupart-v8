@@ -420,6 +420,9 @@ void main() {
   testWidgets('salon look presets can be saved and reapplied', (tester) async {
     _useTallViewport(tester);
     final root = await Directory.systemTemp.createTemp('makeupart-preset-widget-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
     final presetStore = SalonLookPresetStore(
       rootOverride: root,
       scope: 'widget-salon',
