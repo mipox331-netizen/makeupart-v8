@@ -143,3 +143,26 @@ def test_payment_schema_rejects_non_positive_amounts_and_free_plan(client, monke
     payload["plan"] = "free"
     free = client.post(f"{API}/admin/payments/record", headers=admin_headers, json=payload)
     assert free.status_code == 422
+
+def test_payment_requires_reference_for_traceable_methods(client, monkeypatch):
+    admin_headers = _register_platform_admin(client, monkeypatch)
+    register(client, email="missing-reference-owner@salon.com")
+    owner_headers = auth_headers(client, "missing-reference-owner@salon.com")
+    salon_id = client.get(f"{API}/salons/me", headers=owner_headers).json()["id"]
+
+    response = client.post(
+        f"{API}/admin/payments/record",
+        headers=admin_headers,
+        json={
+            "salon_id": salon_id,
+            "plan": "basic",
+            "amount": "30000.00",
+            "currency": "TZS",
+            "payment_method": "mobile_money",
+            "period_days": 30,
+            "reference": "   ",
+        },
+    )
+    assert response.status_code == 422
+    assert "reference is required" in response.text.lower()
+
