@@ -1027,32 +1027,60 @@ class _BeautyPageState extends State<BeautyPage> {
         ? const <String>[]
         : const <String>['Hairstyles'];
 
-    Widget buildFolderGrid({
-      required String gridKey,
+    Widget buildFolderRail({
+      required String railKey,
       required List<String> folders,
     }) {
-      return GridView.builder(
-        key: ValueKey<String>(gridKey),
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          mainAxisExtent: 136,
+      return SizedBox(
+        height: 164,
+        child: SingleChildScrollView(
+          key: ValueKey<String>(railKey),
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: folders.map((folder) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: SizedBox(
+                  width: 164,
+                  height: 164,
+                  child: _FilterFolderTile(
+                    key: ValueKey('filter-folder-$folder'),
+                    title: folder,
+                    description: _faceFilterFolderDescriptions[folder]!,
+                    status: _filterFolderStatus(folder),
+                    onTap: loading ? null : () => _openFilterFolder(folder),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ),
-        itemCount: folders.length,
-        itemBuilder: (context, index) {
-          final folder = folders[index];
-          return _FilterFolderTile(
-            key: ValueKey('filter-folder-$folder'),
-            title: folder,
-            description: _faceFilterFolderDescriptions[folder]!,
-            status: _filterFolderStatus(folder),
-            onTap: loading ? null : () => _openFilterFolder(folder),
-          );
-        },
+      );
+    }
+
+    Widget buildOptionRail({
+      required Key railKey,
+      required int itemCount,
+      required Widget Function(BuildContext, int) itemBuilder,
+    }) {
+      return SizedBox(
+        height: 136,
+        child: SingleChildScrollView(
+          key: railKey,
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: List<Widget>.generate(itemCount, (index) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: SizedBox(
+                  width: 156,
+                  height: 136,
+                  child: itemBuilder(context, index),
+                ),
+              );
+            }),
+          ),
+        ),
       );
     }
 
@@ -1142,7 +1170,91 @@ class _BeautyPageState extends State<BeautyPage> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+          Card(
+            key: const ValueKey('portrait-editor-canvas'),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _EditorSectionHeading(
+                  step: '01',
+                  title: 'Choose a portrait',
+                  subtitle: 'Start with a clear, front-facing client photo.',
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                  ),
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                  if (selected != null)
+                  ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.file(
+                  File(selected!.path),
+                  height: 300,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox(
+                  height: 120,
+                  child: Center(
+                  child: Icon(Icons.image_outlined, size: 56),
+                  ),
+                  ),
+                  ),
+                  )
+                  else
+                  Container(
+                  height: 220,
+                  decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                  color: Theme.of(context).colorScheme.outline,
+                  ),
+                  ),
+                  child: const Center(
+                  child: Icon(Icons.face_retouching_natural, size: 64),
+                  ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                  children: [
+                  Expanded(
+                  child: OutlinedButton.icon(
+                  onPressed:
+                  loading ? null : () => pick(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Gallery'),
+                  ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                  child: OutlinedButton.icon(
+                  onPressed:
+                  loading ? null : () => pick(ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('Camera'),
+                  ),
+                  ),
+                  ],
+                  ),
+                  ],
+                  ),
+                  ),
+                  
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -1298,78 +1410,6 @@ class _BeautyPageState extends State<BeautyPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _EditorSectionHeading(
-                    step: '01',
-                    title: 'Choose a portrait',
-                    subtitle: 'Start with a clear, front-facing client photo.',
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                      if (selected != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.file(
-                            File(selected!.path),
-                            height: 300,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const SizedBox(
-                              height: 120,
-                              child: Center(
-                                child: Icon(Icons.image_outlined, size: 56),
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        Container(
-                          height: 220,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.face_retouching_natural, size: 64),
-                          ),
-                        ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed:
-                                  loading ? null : () => pick(ImageSource.gallery),
-                              icon: const Icon(Icons.photo_library_outlined),
-                              label: const Text('Gallery'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed:
-                                  loading ? null : () => pick(ImageSource.camera),
-                              icon: const Icon(Icons.camera_alt_outlined),
-                              label: const Text('Camera'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
                   Container(
                     key: const ValueKey('saved-salon-looks-panel'),
                     padding: const EdgeInsets.all(14),
@@ -1530,7 +1570,7 @@ class _BeautyPageState extends State<BeautyPage> {
                           ),
                     ),
                     const SizedBox(height: 8),
-                    buildFolderGrid(
+                    buildFolderRail(
                       gridKey: 'face-filter-folders-grid',
                       folders: readyFilterFolders,
                     ),
@@ -1550,7 +1590,7 @@ class _BeautyPageState extends State<BeautyPage> {
                             ),
                       ),
                       const SizedBox(height: 10),
-                      buildFolderGrid(
+                      buildFolderRail(
                         gridKey: 'ai-setup-filter-folders-grid',
                         folders: needsAiSetupFolders,
                       ),
@@ -1592,7 +1632,7 @@ class _BeautyPageState extends State<BeautyPage> {
                           ),
                     ),
                     const SizedBox(height: 10),
-                    buildFolderGrid(
+                    buildFolderRail(
                       gridKey: 'coming-soon-filter-folders-grid',
                       folders: _upcomingFilterFolders,
                     ),
@@ -1657,18 +1697,8 @@ class _BeautyPageState extends State<BeautyPage> {
                         'These tools adjust overall photo color. Impression starts with skin polish, not an extra makeup look.',
                       ),
                       const SizedBox(height: 10),
-                      GridView.builder(
-                        key: const ValueKey('photo-finishes-grid'),
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        padding: EdgeInsets.zero,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                          mainAxisExtent: 136,
-                        ),
+                      buildOptionRail(
+                        railKey: const ValueKey('photo-finishes-grid'),
                         itemCount: PhotoLookService.names.length,
                         itemBuilder: (context, index) {
                           final look = PhotoLookService.names[index];
@@ -1693,6 +1723,7 @@ class _BeautyPageState extends State<BeautyPage> {
                           );
                         },
                       ),
+                    ] else if (_selectedFilterFolder == 'Skin') ...[                      ),
                     ] else if (_selectedFilterFolder == 'Skin') ...[
                       Text(
                         'Skin polish',
@@ -1771,18 +1802,8 @@ class _BeautyPageState extends State<BeautyPage> {
                                 .where((key) =>
                                     !_hairLookKeys.contains(key) && key != 'foundation')
                                 .toList();
-                            return GridView.builder(
-                              key: const ValueKey('generative-options-grid'),
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              padding: EdgeInsets.zero,
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 10,
-                                mainAxisSpacing: 10,
-                                mainAxisExtent: 136,
-                              ),
+                            return buildOptionRail(
+                              railKey: const ValueKey('generative-options-grid'),
                               itemCount: visibleLooks.length,
                               itemBuilder: (context, index) {
                                 final lookKey = visibleLooks[index];
@@ -1802,6 +1823,11 @@ class _BeautyPageState extends State<BeautyPage> {
                                 );
                               },
                             );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Generative edits send the photo to an external image provider                            );
                           },
                         ),
                         const SizedBox(height: 8),
@@ -1852,26 +1878,15 @@ class _BeautyPageState extends State<BeautyPage> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        GridView.builder(
-                          key: const ValueKey('classic-options-grid'),
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          padding: EdgeInsets.zero,
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            mainAxisExtent: 136,
-                          ),
+                        buildOptionRail(
+                          railKey: const ValueKey('classic-options-grid'),
                           itemCount: _classicStyleCategories[_selectedClassicCategory]!.length,
                           itemBuilder: (context, index) {
                             final styleKey =
                                 _classicStyleCategories[_selectedClassicCategory]![index];
                             final style = _makeupStyles[styleKey]!;
                             final entitled = availableMakeupStyles.contains(styleKey);
-                            final requiredPlan =
-                                styleKey == 'soft_glam' ? 'Basic' : 'Pro';
+                            final requiredPlan = styleKey == 'soft_glam' ? 'Basic' : 'Pro';
                             return _BeautyOptionTile(
                               key: ValueKey('classic-option-$styleKey'),
                               title: style,
@@ -1895,6 +1910,8 @@ class _BeautyPageState extends State<BeautyPage> {
                           },
                         ),
                       ],
+                    ] else if (_selectedFilterFolder == 'Hairstyles') ...[                        ),
+                      ],
                     ] else if (_selectedFilterFolder == 'Hairstyles') ...[
                       if (!generativeAvailable) ...[
                         _FolderInformation(
@@ -1916,18 +1933,8 @@ class _BeautyPageState extends State<BeautyPage> {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
-                        GridView.builder(
-                          key: const ValueKey('hairstyles-options-grid'),
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          padding: EdgeInsets.zero,
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            mainAxisExtent: 136,
-                          ),
+                        buildOptionRail(
+                          railKey: const ValueKey('hairstyles-options-grid'),
                           itemCount: _generativeLookCategories['Hair']!.length,
                           itemBuilder: (context, index) {
                             final lookKey = _generativeLookCategories['Hair']![index];
@@ -1948,6 +1955,9 @@ class _BeautyPageState extends State<BeautyPage> {
                             );
                           },
                         ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Generative edits send the photo to an external image provider                        ),
                         const SizedBox(height: 8),
                         const Text(
                           'Generative edits send the photo to an external image provider and may incur usage charges. Generated images can change facial details; review every result.',
