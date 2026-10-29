@@ -319,7 +319,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('classic-options-grid')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('classic-category-Eyes')));
+    final eyesCategory = find.byKey(const ValueKey('classic-category-Eyes'));
+    await tester.ensureVisible(eyesCategory);
+    await tester.pumpAndSettle();
+    await tester.tap(eyesCategory);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('classic-option-smokey_eye')), findsOneWidget);
     expect(find.text('Smokey Eye'), findsOneWidget);
