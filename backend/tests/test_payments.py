@@ -155,3 +155,66 @@ def test_payment_requires_reference_for_traceable_methods(client, monkeypatch):
     assert response.status_code == 422
     assert "reference is required" in response.text.lower()
 
+def test_payment_does_not_reset_monthly_usage_when_upgrading_same_month(
+    client, monkeypatch, tmp_path
+):
+    import cv2
+    import numpy as np
+
+    from app.services.beauty import BeautyProvider
+
+    registration = register(client, email="quota-owner@salon.com", salon_name="Quota Salon")
+    owner_headers = auth_headers(client, "quota-owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.api.v1.beauty.settings.MEDIA_ROOT", str(media_root))
+
+    def fake_process(self, image_path, options=None):
+        output = media_root / "salons" / salon_id / "outputs" / "quota-test.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
+        return {
+            "identity_similarity": 0.99,
+            "skin_tone": "medium",
+            "undertone": "neutral",
+            "foundation_match": "medium-neutral",
+            "processed": True,
+            "output_path": str(output),
+        }
+
+    monkeypatch.setattr(BeautyProvider, "process", fake_process)
+    image_bytes = cv2.imencode(
+        ".png", np.full((16, 16, 3), 120, dtype=np.uint8)
+    )[1].tobytes()
+    processed = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true",
+        headers=owner_headers,
+        files={"file": ("portrait.png", image_bytes, "image/png")},
+    )
+    assert processed.status_code == 201, processed.text
+
+    before = client.get(f"{API}/subscriptions/me", headers=owner_headers)
+    assert before.status_code == 200
+    assert before.json()["used"] == 1
+
+    _, admin_headers = register_platform_admin(client, monkeypatch)
+    payment = client.post(
+        f"{API}/admin/payments/record",
+        headers=admin_headers,
+        json={
+            "salon_id": salon_id,
+            "plan": "basic",
+            "amount": "30000.00",
+            "currency": "TZS",
+            "payment_method": "mobile_money",
+            "period_days": 30,
+            "reference": "QUOTA-UPGRADE-001",
+        },
+    )
+    assert payment.status_code == 201, payment.text
+
+    after = client.get(f"{API}/subscriptions/me", headers=owner_headers)
+    assert after.status_code == 200
+    assert after.json()["plan"] == "basic"
+    assert after.json()["used"] == 1
+
