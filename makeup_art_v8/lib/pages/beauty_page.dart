@@ -1723,7 +1723,6 @@ class _BeautyPageState extends State<BeautyPage> {
                           );
                         },
                       ),
-                    ] else if (_selectedFilterFolder == 'Skin') ...[                      ),
                     ] else if (_selectedFilterFolder == 'Skin') ...[
                       Text(
                         'Skin polish',
@@ -1827,11 +1826,6 @@ class _BeautyPageState extends State<BeautyPage> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Generative edits send the photo to an external image provider                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
                           'Generative edits send the photo to an external image provider and may incur usage charges. Generated images can change facial details; review every result.',
                         ),
                         CheckboxListTile(
@@ -1909,8 +1903,6 @@ class _BeautyPageState extends State<BeautyPage> {
                             );
                           },
                         ),
-                      ],
-                    ] else if (_selectedFilterFolder == 'Hairstyles') ...[                        ),
                       ],
                     ] else if (_selectedFilterFolder == 'Hairstyles') ...[
                       if (!generativeAvailable) ...[
