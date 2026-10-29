@@ -1,15 +1,4 @@
-from app.core.config import settings
-from tests.utils import API, auth_headers, register
-
-
-def _register_platform_admin(client, monkeypatch, email="platform-admin@makeupart.local"):
-    # Public registration correctly refuses an already-reserved admin email.
-    # Provision the test account first, then apply the allowlist to exercise the
-    # same runtime authorization rule without weakening that production guard.
-    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "")
-    register(client, email=email, salon_name="Platform Admin Salon", full_name="Platform Admin")
-    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", email)
-    return auth_headers(client, email)
+from tests.utils import API, auth_headers, register, register_platform_admin
 
 
 def test_platform_admin_records_verified_payment_and_activates_plan(client, monkeypatch):
@@ -19,7 +8,7 @@ def test_platform_admin_records_verified_payment_and_activates_plan(client, monk
     assert salon.status_code == 200
     salon_id = salon.json()["id"]
 
-    admin_headers = _register_platform_admin(client, monkeypatch)
+    admin_email, admin_headers = register_platform_admin(client, monkeypatch)
     response = client.post(
         f"{API}/admin/payments/record",
         headers=admin_headers,
@@ -44,7 +33,7 @@ def test_platform_admin_records_verified_payment_and_activates_plan(client, monk
     assert payment["currency"] == "TZS"
     assert payment["status"] == "confirmed"
     assert payment["period_days"] == 365
-    assert payment["recorded_by_email"] == "platform-admin@makeupart.local"
+    assert payment["recorded_by_email"] == admin_email
 
     usage = client.get(f"{API}/subscriptions/me", headers=owner_headers)
     assert usage.status_code == 200
@@ -72,7 +61,7 @@ def test_duplicate_payment_reference_is_rejected_without_second_activation(clien
     register(client, email="repeat-owner@salon.com", salon_name="Repeat Salon")
     owner_headers = auth_headers(client, "repeat-owner@salon.com")
     salon_id = client.get(f"{API}/salons/me", headers=owner_headers).json()["id"]
-    admin_headers = _register_platform_admin(client, monkeypatch)
+    _, admin_headers = register_platform_admin(client, monkeypatch)
 
     payload = {
         "salon_id": salon_id,
