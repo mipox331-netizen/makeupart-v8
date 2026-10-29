@@ -255,6 +255,8 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(customerDropdown);
+    await tester.pumpAndSettle();
     await tester.tap(customerDropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Alice One').last);
