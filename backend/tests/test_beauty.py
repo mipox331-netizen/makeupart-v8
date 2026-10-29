@@ -103,6 +103,13 @@ def test_makeup_style_presets_apply_face_guided_tints():
         source[cheek_region], targeted["blush"][cheek_region]
     )
 
+    # Skin-only deliberately leaves cosmetic overlay pixels unchanged; the
+    # independent face-smoothing stage runs before this method.
+    skin_only = BeautyProvider._apply_makeup(
+        source.copy(), landmarks, "skin_only", 1.0
+    )
+    assert np.array_equal(source, skin_only)
+
 
 def test_skin_tone_detection_uses_image_pixels():
     matcher = SkinToneMatcher()
