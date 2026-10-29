@@ -85,6 +85,25 @@ class _BeautyPageState extends State<BeautyPage> {
     'Glasses',
   ];
 
+  // Keep tested effects separate from filters that still need a real processor.
+  static const _readyFilterFolders = <String>[
+    'Impression',
+    'Skin',
+    'Makeup',
+    'Hairstyles',
+  ];
+
+  static const _upcomingFilterFolders = <String>[
+    'Sizes',
+    'Hair Colors',
+    'Smiles',
+    'Features',
+    'Beards',
+    'Age',
+    'Gender',
+    'Glasses',
+  ];
+
   static const _faceFilterFolderIcons = <String, IconData>{
     'Impression': Icons.auto_awesome_rounded,
     'Skin': Icons.spa_outlined,
@@ -1015,6 +1034,36 @@ class _BeautyPageState extends State<BeautyPage> {
         !loading &&
         (customerId == null || customerConsentActive == true);
 
+    Widget buildFolderGrid({
+      required String gridKey,
+      required List<String> folders,
+    }) {
+      return GridView.builder(
+        key: ValueKey<String>(gridKey),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          mainAxisExtent: 136,
+        ),
+        itemCount: folders.length,
+        itemBuilder: (context, index) {
+          final folder = folders[index];
+          return _FilterFolderTile(
+            key: ValueKey('filter-folder-${folder}'),
+            title: folder,
+            description: _faceFilterFolderDescriptions[folder]!,
+            icon: _faceFilterFolderIcons[folder]!,
+            status: _filterFolderStatus(folder),
+            onTap: loading ? null : () => _openFilterFolder(folder),
+          );
+        },
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('MakeupArt Studio'),
@@ -1213,7 +1262,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'The 10 latest results stay in the app. On Android, older results are archived to a salon-specific app folder when phone storage is available. They are not added to the public Gallery, and Android may remove that app folder when MakeupArt is uninstalled. If archiving is unavailable, older results are kept rather than deleted.',
+                      'The 10 latest results stay in the app. Older results are archived to a salon-specific phone folder when storage is available.',
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -1257,15 +1306,24 @@ class _BeautyPageState extends State<BeautyPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'AI Beauty Preview',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  const _EditorSectionHeading(
+                    step: '01',
+                    title: 'Choose a portrait',
+                    subtitle: 'Start with a clear, front-facing client photo.',
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Choose a client photo, confirm consent, adjust enhancement strength, then process it securely.',
-                  ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                   if (selected != null)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
@@ -1316,10 +1374,81 @@ class _BeautyPageState extends State<BeautyPage> {
                       ),
                     ],
                   ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 18),
-                  Text(
-                    'AI engine',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  Container(
+                    key: const ValueKey('saved-salon-looks-panel'),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _EditorSectionHeading(
+                          step: '02',
+                          title: 'Saved salon looks',
+                          subtitle: 'Quick-start recipes for this salon on this device.',
+                        ),
+                        const SizedBox(height: 12),
+                        if (loadingSavedLookPresets)
+                          const LinearProgressIndicator()
+                        else if (savedLookPresets.isEmpty)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.bookmark_outline_rounded,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'No saved looks yet. Build a look below and tap “Save this look” to reuse its settings.',
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          SizedBox(
+                            height: 44,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: savedLookPresets.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 8),
+                              itemBuilder: (context, index) {
+                                final preset = savedLookPresets[index];
+                                return InputChip(
+                                  key: ValueKey('salon-look-preset-${preset.id}'),
+                                  avatar: const Icon(Icons.bookmark_rounded, size: 17),
+                                  label: Text(
+                                    '${preset.name} · ${(preset.intensity * 100).round()}%',
+                                  ),
+                                  onPressed: loading || savingLookPreset
+                                      ? null
+                                      : () => _applyLookPreset(preset),
+                                  onDeleted: loading || savingLookPreset
+                                      ? null
+                                      : () => _confirmDeleteLookPreset(preset),
+                                  deleteButtonTooltipMessage: 'Delete ${preset.name}',
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const _EditorSectionHeading(
+                    step: '03',
+                    title: 'Choose an editing engine',
+                    subtitle: 'Classic runs locally. Generative edits require provider setup and separate client consent.',
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -1348,87 +1477,94 @@ class _BeautyPageState extends State<BeautyPage> {
                   ],
                   if (!loadingCapabilities && !generativeAvailable) ...[
                     const SizedBox(height: 8),
-                    const ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.info_outline_rounded),
-                      title: Text('Generative makeup is not enabled yet'),
-                      subtitle: Text(
-                        'The server needs the protected OPENAI_API_KEY secret and a production redeploy. Classic AI remains available. Generative processing may have provider charges.',
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline_rounded),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Generative AI is not configured',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Classic mode remains available. Generative edits need a protected provider key and may incur usage charges.',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                  const SizedBox(height: 14),
-                  Text(
-                    'Saved salon looks',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Save a favourite makeup, finish and strength combination once, then reuse it for future client previews. Presets store settings only, not photos.',
-                  ),
-                  const SizedBox(height: 8),
-                  if (loadingSavedLookPresets)
-                    const LinearProgressIndicator()
-                  else if (savedLookPresets.isEmpty)
-                    const Text(
-                      'No saved looks yet. Open Impression, Skin or Makeup and choose “Save this look”.',
-                    )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: savedLookPresets.map((preset) {
-                        final summary = '${preset.name} · ${(preset.intensity * 100).round()}%';
-                        return InputChip(
-                          key: ValueKey('salon-look-preset-${preset.id}'),
-                          avatar: const Icon(Icons.bookmark_outline_rounded, size: 18),
-                          label: Text(summary),
-                          onPressed: loading || savingLookPreset
-                              ? null
-                              : () => _applyLookPreset(preset),
-                          onDeleted: loading || savingLookPreset
-                              ? null
-                              : () => _confirmDeleteLookPreset(preset),
-                          deleteButtonTooltipMessage: 'Delete ${preset.name}',
-                        );
-                      }).toList(),
-                    ),
-                  if (!loadingSavedLookPresets) const SizedBox(height: 8),
-                  const Divider(),
                   if (_selectedFilterFolder == null) ...[
+                    const _EditorSectionHeading(
+                      step: '04',
+                      title: 'Choose a filter',
+                      subtitle: 'Supported tools first. Planned effects are clearly separated below.',
+                    ),
+                    const SizedBox(height: 14),
                     Text(
-                      'Face filter folders',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      'Ready to use',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
-                    const SizedBox(height: 5),
-                    const Text(
-                      'Open a folder to see its tools. Filters not connected to a real processor are marked Coming soon.',
+                    const SizedBox(height: 8),
+                    buildFolderGrid(
+                      gridKey: 'face-filter-folders-grid',
+                      folders: _readyFilterFolders,
                     ),
-                    const SizedBox(height: 12),
-                    GridView.builder(
-                      key: const ValueKey('face-filter-folders-grid'),
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.zero,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        mainAxisExtent: 136,
-                      ),
-                      itemCount: _faceFilterFolders.length,
-                      itemBuilder: (context, index) {
-                        final folder = _faceFilterFolders[index];
-                        return _FilterFolderTile(
-                          key: ValueKey('filter-folder-$folder'),
-                          title: folder,
-                          description: _faceFilterFolderDescriptions[folder]!,
-                          icon: _faceFilterFolderIcons[folder]!,
-                          status: _filterFolderStatus(folder),
-                          onTap: loading ? null : () => _openFilterFolder(folder),
-                        );
-                      },
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'More filters in development',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${_upcomingFilterFolders.length} planned',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'These folders are on the roadmap. Their effects are not yet applied to photos.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 10),
+                    buildFolderGrid(
+                      gridKey: 'coming-soon-filter-folders-grid',
+                      folders: _upcomingFilterFolders,
                     ),
                   ] else ...[
                     Row(
@@ -1810,6 +1946,13 @@ class _BeautyPageState extends State<BeautyPage> {
                     ],
                   ],
                   if (selectedFolderToolsAvailable) ...[
+                    const SizedBox(height: 6),
+                    const _EditorSectionHeading(
+                      step: '05',
+                      title: 'Fine-tune and process',
+                      subtitle: 'Set the strength, confirm permission, then create the result.',
+                    ),
+                    const SizedBox(height: 10),
                     Text(
                       '${selectedEngine == 'generative'
                           ? 'Generative treatment strength'
@@ -1970,6 +2113,67 @@ class _BeautyPageState extends State<BeautyPage> {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _EditorSectionHeading extends StatelessWidget {
+  const _EditorSectionHeading({
+    super.key,
+    required this.step,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String step;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colors.primaryContainer,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            step,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colors.onPrimaryContainer,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                      height: 1.35,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
