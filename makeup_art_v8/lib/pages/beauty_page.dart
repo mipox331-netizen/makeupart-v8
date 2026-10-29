@@ -292,12 +292,12 @@ class _BeautyPageState extends State<BeautyPage> {
     if (key == 'available_makeup_styles') {
       switch (plan) {
         case 'basic':
-          return const ['natural', 'soft_glam'];
+          return const ['natural', 'soft_glam', 'skin_only'];
         case 'pro':
         case 'enterprise':
           return fallback;
         default:
-          return const ['natural'];
+          return const ['natural', 'skin_only'];
       }
     }
     if (key == 'available_photo_finishes') {
