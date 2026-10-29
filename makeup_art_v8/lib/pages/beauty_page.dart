@@ -521,6 +521,7 @@ class _BeautyPageState extends State<BeautyPage> {
         consentConfirmed &&
         (selectedEngine != 'generative' ||
             (generativeAvailable && externalAiConsentConfirmed)) &&
+        !loadingSubscription &&
         !loading &&
         (customerId == null || customerConsentActive == true);
 
