@@ -235,6 +235,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // Consent is presented only after entering a folder that has a real processor.
+    final makeupFolder = find.byKey(const ValueKey('filter-folder-Makeup'));
+    await tester.ensureVisible(makeupFolder);
+    await tester.pumpAndSettle();
+    await tester.tap(makeupFolder);
+    await tester.pumpAndSettle();
+
     final consentTile = find.byType(CheckboxListTile);
     expect(tester.widget<CheckboxListTile>(consentTile).value, isFalse);
 
