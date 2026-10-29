@@ -39,7 +39,9 @@ class _FaceSamplePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
+    if (size.isEmpty) {
+      return;
+    }
 
     final name = label.toLowerCase();
     final seed = label.runes.fold<int>(0, (sum, rune) => sum + rune);
