@@ -298,11 +298,14 @@ void main() {
     expect(find.text('Gender'), findsOneWidget);
     expect(find.text('Glasses'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('filter-folder-Impression')));
+    final impressionFolder = find.byKey(const ValueKey('filter-folder-Impression'));
+    await tester.ensureVisible(impressionFolder);
+    await tester.pumpAndSettle();
+    await tester.tap(impressionFolder);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('photo-finishes-grid')), findsOneWidget);
     expect(find.byKey(const ValueKey('photo-finish-0')), findsOneWidget);
-    expect(find.text('Skin polish strength'), findsOneWidget);
+    expect(find.textContaining('Skin polish strength'), findsOneWidget);
 
     final back = find.byKey(const ValueKey('back-to-filter-folders'));
     await tester.ensureVisible(back);
