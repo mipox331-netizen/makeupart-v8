@@ -1571,7 +1571,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 8),
                     buildFolderRail(
-                      gridKey: 'face-filter-folders-grid',
+                      railKey: const ValueKey('face-filter-folders-grid'),
                       folders: readyFilterFolders,
                     ),
                     if (needsAiSetupFolders.isNotEmpty) ...[
@@ -1591,7 +1591,7 @@ class _BeautyPageState extends State<BeautyPage> {
                       ),
                       const SizedBox(height: 10),
                       buildFolderRail(
-                        gridKey: 'ai-setup-filter-folders-grid',
+                        railKey: const ValueKey('ai-setup-filter-folders-grid'),
                         folders: needsAiSetupFolders,
                       ),
                     ],
@@ -1633,7 +1633,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 10),
                     buildFolderRail(
-                      gridKey: 'coming-soon-filter-folders-grid',
+                      railKey: const ValueKey('coming-soon-filter-folders-grid'),
                       folders: _upcomingFilterFolders,
                     ),
                   ] else ...[
@@ -1947,9 +1947,6 @@ class _BeautyPageState extends State<BeautyPage> {
                             );
                           },
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Generative edits send the photo to an external image provider                        ),
                         const SizedBox(height: 8),
                         const Text(
                           'Generative edits send the photo to an external image provider and may incur usage charges. Generated images can change facial details; review every result.',
