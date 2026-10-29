@@ -33,7 +33,7 @@ class PaymentRecord(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     salon_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False
+        Uuid(as_uuid=True), ForeignKey("salons.id", ondelete="RESTRICT"), nullable=False
     )
     subscription_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("subscriptions.id", ondelete="SET NULL"), nullable=True
