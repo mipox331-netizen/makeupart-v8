@@ -262,4 +262,49 @@ void main() {
     expect(find.text('AI consent is active'), findsOneWidget);
   });
 
+
+  testWidgets('editor separates makeup and photo filters into categories', (tester) async {
+    _useTallViewport(tester);
+    tester.view.physicalSize = const Size(800, 1800);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BeautyPage(
+          api: _ConsentTestApi(),
+          onLogout: () {},
+          salonId: 'salon-editor-test',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final sectionSelector = find.byKey(
+      const ValueKey('editor-section-selector'),
+    );
+    await tester.scrollUntilVisible(
+      sectionSelector,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.byKey(const ValueKey('classic-options-grid')), findsOneWidget);
+    expect(find.byKey(const ValueKey('photo-finishes-grid')), findsNothing);
+
+    await tester.tap(find.text('Color filters'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('classic-options-grid')), findsNothing);
+    expect(find.byKey(const ValueKey('photo-finishes-grid')), findsOneWidget);
+    expect(find.byKey(const ValueKey('photo-finish-0')), findsOneWidget);
+
+    await tester.tap(find.text('Makeup looks'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('classic-category-Eyes')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('classic-option-smokey_eye')), findsOneWidget);
+    expect(find.text('Smokey Eye'), findsOneWidget);
+    expect(find.text('Natural'), findsNothing);
+  });
+
 }
