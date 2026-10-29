@@ -9,6 +9,7 @@ import 'package:makeup_art_v8/pages/login_page.dart';
 import 'package:makeup_art_v8/pages/register_page.dart';
 import 'package:makeup_art_v8/services/api_client.dart';
 import 'package:makeup_art_v8/services/salon_look_preset_store.dart';
+import 'package:makeup_art_v8/widgets/face_sample_artwork.dart';
 
 class _FakeRegistrationApi extends ApiClient {
   _FakeRegistrationApi({this.registerFailure, this.loginFailure});
@@ -298,6 +299,7 @@ void main() {
     );
 
     expect(find.byKey(const ValueKey('saved-salon-looks-panel')), findsOneWidget);
+    expect(find.byType(FaceSampleArtwork), findsAtLeastNWidgets(12));
     expect(find.text('Ready to use'), findsOneWidget);
     expect(find.text('AI access required'), findsOneWidget);
     expect(find.text('More filters in development'), findsOneWidget);
@@ -320,6 +322,7 @@ void main() {
     await tester.tap(impressionFolder);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('photo-finishes-grid')), findsOneWidget);
+    expect(find.byType(FaceSampleArtwork), findsNWidgets(5));
     expect(find.byKey(const ValueKey('photo-finish-0')), findsOneWidget);
     expect(find.textContaining('Skin polish strength'), findsOneWidget);
 
