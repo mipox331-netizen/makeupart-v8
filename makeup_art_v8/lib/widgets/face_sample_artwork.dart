@@ -109,7 +109,7 @@ class _FaceSamplePainter extends CustomPainter {
     );
 
     final cx = size.width * .5;
-    final faceWidth = math.min(size.width * .34, size.height * .78);
+    final faceWidth = math.min(size.width * .34, size.height * .78).toDouble();
     final faceHeight = size.height * .63;
     final faceTop = size.height * .12;
     final faceRect = Rect.fromLTWH(
@@ -233,7 +233,7 @@ class _FaceSamplePainter extends CustomPainter {
     final whitePaint = Paint()..color = const Color(0xFFFFF7F0);
     final browPaint = Paint()
       ..color = hair
-      ..strokeWidth = math.max(1.0, size.height * .022)
+      ..strokeWidth = math.max(1.0, size.height * .022).toDouble()
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
@@ -256,7 +256,7 @@ class _FaceSamplePainter extends CustomPainter {
       );
       canvas.drawCircle(
         Offset(eyeCenter.dx, eyeCenter.dy),
-        math.max(1.2, eyeHeight * .36),
+        math.max(1.2, eyeHeight * .36).toDouble(),
         eyeFill,
       );
       final brow = Path()
@@ -276,7 +276,7 @@ class _FaceSamplePainter extends CustomPainter {
           wing,
           Paint()
             ..color = const Color(0xFF3A262D)
-            ..strokeWidth = math.max(1.0, size.height * .018)
+            ..strokeWidth = math.max(1.0, size.height * .018).toDouble()
             ..strokeCap = StrokeCap.round
             ..style = PaintingStyle.stroke,
         );
@@ -295,7 +295,7 @@ class _FaceSamplePainter extends CustomPainter {
       nose,
       Paint()
         ..color = const Color(0xFF83594A).withValues(alpha: .7)
-        ..strokeWidth = math.max(1.0, size.height * .015)
+        ..strokeWidth = math.max(1.0, size.height * .015).toDouble()
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke,
     );
@@ -329,14 +329,14 @@ class _FaceSamplePainter extends CustomPainter {
         ..quadraticBezierTo(cx, mouthY + faceHeight * .055, cx + faceWidth * .13, mouthY + faceHeight * .015),
       Paint()
         ..color = const Color(0xFFFFDFD8).withValues(alpha: .8)
-        ..strokeWidth = math.max(1.0, size.height * .012)
+        ..strokeWidth = math.max(1.0, size.height * .012).toDouble()
         ..style = PaintingStyle.stroke,
     );
 
     if (name.contains('glasses')) {
       final glasses = Paint()
         ..color = const Color(0xFF3F3649)
-        ..strokeWidth = math.max(1.0, size.height * .025)
+        ..strokeWidth = math.max(1.0, size.height * .025).toDouble()
         ..style = PaintingStyle.stroke;
       for (final side in const [-1.0, 1.0]) {
         final center = Offset(cx + side * faceWidth * .225, eyeY);
@@ -383,7 +383,7 @@ class _FaceSamplePainter extends CustomPainter {
     if (name.contains('age')) {
       final wrinklePaint = Paint()
         ..color = const Color(0xFF885D4C).withValues(alpha: .64)
-        ..strokeWidth = math.max(.7, size.height * .009)
+        ..strokeWidth = math.max(.7, size.height * .009).toDouble()
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke;
       for (final side in const [-1.0, 1.0]) {
