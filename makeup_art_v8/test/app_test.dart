@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +8,7 @@ import 'package:makeup_art_v8/pages/beauty_page.dart';
 import 'package:makeup_art_v8/pages/login_page.dart';
 import 'package:makeup_art_v8/pages/register_page.dart';
 import 'package:makeup_art_v8/services/api_client.dart';
+import 'package:makeup_art_v8/services/salon_look_preset_store.dart';
 
 class _FakeRegistrationApi extends ApiClient {
   _FakeRegistrationApi({this.registerFailure, this.loginFailure});
@@ -355,6 +358,59 @@ void main() {
       find.textContaining('image-processing effect is not implemented yet'),
       findsOneWidget,
     );
+  });
+
+
+  testWidgets('salon look presets can be saved and reapplied', (tester) async {
+    _useTallViewport(tester);
+    final root = await Directory.systemTemp.createTemp('makeupart-preset-widget-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final presetStore = SalonLookPresetStore(
+      rootOverride: root,
+      scope: 'widget-salon',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BeautyPage(
+          api: _ConsentTestApi(),
+          onLogout: () {},
+          salonId: 'widget-salon',
+          lookPresetStore: presetStore,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final impressionFolder = find.byKey(const ValueKey('filter-folder-Impression'));
+    await tester.ensureVisible(impressionFolder);
+    await tester.tap(impressionFolder);
+    await tester.pumpAndSettle();
+
+    final saveButton = find.byKey(const ValueKey('save-current-salon-look'));
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    final nameField = find.byKey(const ValueKey('salon-look-name-field'));
+    expect(nameField, findsOneWidget);
+    await tester.enterText(nameField, 'Warm Studio');
+    await tester.tap(find.byKey(const ValueKey('save-salon-look-confirm')));
+    await tester.pumpAndSettle();
+
+    final saved = await presetStore.list();
+    expect(saved, hasLength(1));
+    expect(saved.single.name, 'Warm Studio');
+
+    final presetChip = find.byKey(
+      ValueKey('salon-look-preset-${saved.single.id}'),
+    );
+    await tester.ensureVisible(presetChip);
+    await tester.tap(presetChip);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('photo-finishes-grid')), findsOneWidget);
   });
 
 }
