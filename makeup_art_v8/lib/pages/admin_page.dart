@@ -317,6 +317,11 @@ class _AdminPageState extends State<AdminPage> {
     final activeUsers = users.where((user) => user['is_active'] == true).length;
     final blockedUsers = users.where((user) => user['is_active'] != true).length;
     final freeUsers = users.where((user) => user['plan'] == 'free').length;
+    final recentPayments = (revenueSummary?['recent_payments'] as List<dynamic>? ??
+            const <dynamic>[])
+        .whereType<Map>()
+        .take(5)
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -392,6 +397,31 @@ class _AdminPageState extends State<AdminPage> {
                                             '${total['currency']}: ${total['collected_total']} (${total['transaction_count']} receipt(s))',
                                           ),
                                         ))),
+                                const Divider(height: 24),
+                                Text(
+                                  'Recent confirmed receipts',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                if (recentPayments.isEmpty)
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 10),
+                                    child: Text('No confirmed receipts in this period.'),
+                                  )
+                                else
+                                  ...recentPayments.map((payment) => ListTile(
+                                        dense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                        title: Text(
+                                          '${payment['salon_name'] ?? 'Salon'} · ${payment['plan'] ?? ''}',
+                                        ),
+                                        subtitle: Text(
+                                          '${payment['payment_method'] ?? ''} · Ref: ${payment['reference'] ?? '—'}',
+                                        ),
+                                        trailing: Text(
+                                          '${payment['currency'] ?? ''} ${payment['amount'] ?? ''}',
+                                          textAlign: TextAlign.end,
+                                        ),
+                                      )),
                                 OutlinedButton.icon(
                                   onPressed: _load,
                                   icon: const Icon(Icons.refresh),
