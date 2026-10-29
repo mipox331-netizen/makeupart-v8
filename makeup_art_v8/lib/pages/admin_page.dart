@@ -17,6 +17,7 @@ class AdminPage extends StatefulWidget {
 class _AdminPageState extends State<AdminPage> {
   List<Map<String, dynamic>> rows = [];
   List<Map<String, dynamic>> users = [];
+  Map<String, dynamic>? revenueSummary;
   bool loading = true;
   String? error;
 
@@ -38,6 +39,12 @@ class _AdminPageState extends State<AdminPage> {
       ]);
       rows = results[0];
       users = results[1];
+      // Keep user/subscription management usable on older API deployments.
+      try {
+        revenueSummary = await widget.api.getAdminRevenueSummary();
+      } catch (_) {
+        revenueSummary = null;
+      }
     } catch (exception) {
       error = 'Could not load admin data: $exception';
     } finally {
@@ -101,6 +108,170 @@ class _AdminPageState extends State<AdminPage> {
       await _load();
     } catch (exception) {
       if (mounted) setState(() => error = 'Suspension failed: $exception');
+    }
+  }
+
+  Future<void> _recordPayment(Map<String, dynamic> row) async {
+    final amountController = TextEditingController();
+    final referenceController = TextEditingController();
+    final notesController = TextEditingController();
+    var plan = <String>{'basic', 'pro', 'enterprise'}.contains(row['plan'])
+        ? row['plan'].toString()
+        : 'basic';
+    var paymentMethod = 'mobile_money';
+    var periodDays = 30;
+    String? dialogError;
+
+    final receipt = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Record verified payment — ${row['salon_name'] ?? 'Salon'}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Use this only after you have independently confirmed the receipt. This records a manual verification; it does not charge a customer or contact a payment provider.',
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: plan,
+                  decoration: const InputDecoration(labelText: 'Paid plan'),
+                  items: const [
+                    DropdownMenuItem(value: 'basic', child: Text('Basic')),
+                    DropdownMenuItem(value: 'pro', child: Text('Pro')),
+                    DropdownMenuItem(value: 'enterprise', child: Text('Enterprise')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => plan = value);
+                  },
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: paymentMethod,
+                  decoration: const InputDecoration(labelText: 'Payment method'),
+                  items: const [
+                    DropdownMenuItem(value: 'mobile_money', child: Text('Mobile money')),
+                    DropdownMenuItem(value: 'bank_transfer', child: Text('Bank transfer')),
+                    DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                    DropdownMenuItem(value: 'card', child: Text('Card')),
+                    DropdownMenuItem(value: 'manual', child: Text('Other / manual')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => paymentMethod = value);
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: amountController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Amount received (TZS)',
+                    hintText: 'e.g. 30000.00',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<int>(
+                  initialValue: periodDays,
+                  decoration: const InputDecoration(labelText: 'Access period'),
+                  items: const [
+                    DropdownMenuItem(value: 30, child: Text('30 days')),
+                    DropdownMenuItem(value: 90, child: Text('90 days')),
+                    DropdownMenuItem(value: 180, child: Text('180 days')),
+                    DropdownMenuItem(value: 365, child: Text('365 days')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => periodDays = value);
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: referenceController,
+                  decoration: InputDecoration(
+                    labelText: 'Receipt / transaction reference',
+                    helperText: {'mobile_money', 'bank_transfer', 'card'}.contains(paymentMethod)
+                        ? 'Required for this payment method'
+                        : 'Recommended for audit and duplicate prevention',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: notesController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Verification notes (optional)'),
+                ),
+                if (dialogError != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    dialogError!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              icon: const Icon(Icons.verified_outlined),
+              label: const Text('Record and activate'),
+              onPressed: () {
+                final amount = double.tryParse(amountController.text.trim());
+                final needsReference = {'mobile_money', 'bank_transfer', 'card'}.contains(paymentMethod);
+                if (amount == null || !amount.isFinite || amount <= 0) {
+                  setDialogState(() => dialogError = 'Enter a valid amount greater than zero.');
+                  return;
+                }
+                if (needsReference && referenceController.text.trim().isEmpty) {
+                  setDialogState(() => dialogError = 'Enter the receipt or transaction reference.');
+                  return;
+                }
+                Navigator.pop(dialogContext, {
+                  'plan': plan,
+                  'payment_method': paymentMethod,
+                  'amount': amountController.text.trim(),
+                  'period_days': periodDays,
+                  'reference': referenceController.text.trim(),
+                  'notes': notesController.text.trim(),
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+
+    amountController.dispose();
+    referenceController.dispose();
+    notesController.dispose();
+    if (receipt == null) return;
+
+    try {
+      await widget.api.recordAdminPayment(
+        salonId: row['salon_id'] as String,
+        plan: receipt['plan'] as String,
+        amount: receipt['amount'] as String,
+        currency: 'TZS',
+        paymentMethod: receipt['payment_method'] as String,
+        periodDays: receipt['period_days'] as int,
+        reference: receipt['reference'] as String,
+        notes: receipt['notes'] as String,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Verified receipt recorded and subscription activated.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      await _load();
+    } catch (exception) {
+      if (mounted) setState(() => error = 'Payment record failed: $exception');
     }
   }
 
@@ -189,6 +360,46 @@ class _AdminPageState extends State<AdminPage> {
                       _MetricCard(label: 'Blocked', value: '$blockedUsers'),
                       _MetricCard(label: 'Free plan', value: '$freeUsers'),
                     ],
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Verified payment ledger',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Records platform-admin-verified receipts only. This does not automatically charge customers or verify payments with a provider.',
+                  ),
+                  const SizedBox(height: 10),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: revenueSummary == null
+                          ? const Text('Payment ledger is unavailable from the current API deployment.')
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Confirmed receipts this month: ${revenueSummary?['transaction_count'] ?? 0}',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 8),
+                                ...((revenueSummary?['totals_by_currency'] as List<dynamic>? ?? const [])
+                                    .whereType<Map>()
+                                    .map((total) => Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 3),
+                                          child: Text(
+                                            '${total['currency']}: ${total['collected_total']} (${total['transaction_count']} receipt(s))',
+                                          ),
+                                        ))),
+                                OutlinedButton.icon(
+                                  onPressed: _load,
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Refresh verified payments'),
+                                ),
+                              ],
+                            ),
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -325,6 +536,12 @@ class _AdminPageState extends State<AdminPage> {
                                   ),
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: () => _recordPayment(row),
+                              icon: const Icon(Icons.receipt_long_outlined),
+                              label: const Text('Record verified payment'),
                             ),
                           ],
                         ),
