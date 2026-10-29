@@ -1139,7 +1139,7 @@ class _BeautyPageState extends State<BeautyPage> {
                         crossAxisCount: 2,
                         crossAxisSpacing: 10,
                         mainAxisSpacing: 10,
-                        mainAxisExtent: 124,
+                        mainAxisExtent: 136,
                       ),
                       itemCount: _faceFilterFolders.length,
                       itemBuilder: (context, index) {
