@@ -35,7 +35,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("amount > 0", name="ck_payment_records_amount_positive"),
         sa.CheckConstraint("period_days > 0", name="ck_payment_records_period_positive"),
-        sa.ForeignKeyConstraint(["salon_id"], ["salons.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["salon_id"], ["salons.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["subscription_id"], ["subscriptions.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["recorded_by_user_id"], ["users.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
