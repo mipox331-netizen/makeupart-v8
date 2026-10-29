@@ -74,7 +74,8 @@ class _BeautyPageState extends State<BeautyPage> {
   static const _generativeLookCategories = <String, List<String>>{
     'Looks': ['natural', 'soft_glam', 'full_glam', 'bridal_glam', 'editorial'],
     'Eyes': ['smokey_eye', 'cat_eye', 'eyeshadow', 'eyeliner'],
-    'Lips & skin': ['lipstick', 'blush', 'foundation'],
+    'Lips & cheeks': ['lipstick', 'blush'],
+    'Skin': ['foundation'],
     'Hair': ['sleek_hair', 'soft_curls', 'braided_style', 'elegant_updo'],
   };
 
@@ -82,7 +83,8 @@ class _BeautyPageState extends State<BeautyPage> {
     'Looks': Icons.auto_awesome_rounded,
     'Eyes': Icons.visibility_outlined,
     'Lips & cheeks': Icons.palette_outlined,
-    'Lips & skin': Icons.color_lens_outlined,
+    'Lips & cheeks': Icons.palette_outlined,
+    'Skin': Icons.layers_outlined,
     'Hair': Icons.content_cut_rounded,
   };
 
