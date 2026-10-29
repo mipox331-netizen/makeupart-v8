@@ -12,6 +12,7 @@ import '../services/salon_look_preset_store.dart';
 import '../widgets/license_page_button.dart';
 import '../widgets/developer_branding.dart';
 import '../widgets/before_after_comparison.dart';
+import '../widgets/face_sample_artwork.dart';
 import 'branding_settings_page.dart';
 
 class BeautyPage extends StatefulWidget {
@@ -69,21 +70,6 @@ class _BeautyPageState extends State<BeautyPage> {
     'blush': 'Blush Only',
     'skin_only': 'Skin Polish Only',
   };
-
-  static const _faceFilterFolders = <String>[
-    'Impression',
-    'Skin',
-    'Sizes',
-    'Hairstyles',
-    'Hair Colors',
-    'Smiles',
-    'Features',
-    'Beards',
-    'Makeup',
-    'Age',
-    'Gender',
-    'Glasses',
-  ];
 
   // Keep tested effects separate from filters that still need a real processor.
   static const _readyFilterFolders = <String>[
@@ -1063,7 +1049,6 @@ class _BeautyPageState extends State<BeautyPage> {
             key: ValueKey('filter-folder-${folder}'),
             title: folder,
             description: _faceFilterFolderDescriptions[folder]!,
-            icon: _faceFilterFolderIcons[folder]!,
             status: _filterFolderStatus(folder),
             onTap: loading ? null : () => _openFilterFolder(folder),
           );
@@ -1529,7 +1514,15 @@ class _BeautyPageState extends State<BeautyPage> {
                       title: 'Choose a filter',
                       subtitle: 'Supported tools first. Planned effects are clearly separated below.',
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Style samples are illustrations, not edited client photos. The real result appears after processing your portrait.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            height: 1.35,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
                     Text(
                       'Ready to use',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -1674,7 +1667,7 @@ class _BeautyPageState extends State<BeautyPage> {
                           crossAxisCount: 2,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 10,
-                          mainAxisExtent: 104,
+                          mainAxisExtent: 136,
                         ),
                         itemCount: PhotoLookService.names.length,
                         itemBuilder: (context, index) {
@@ -1788,7 +1781,7 @@ class _BeautyPageState extends State<BeautyPage> {
                                 crossAxisCount: 2,
                                 crossAxisSpacing: 10,
                                 mainAxisSpacing: 10,
-                                mainAxisExtent: 104,
+                                mainAxisExtent: 136,
                               ),
                               itemCount: visibleLooks.length,
                               itemBuilder: (context, index) {
@@ -1869,7 +1862,7 @@ class _BeautyPageState extends State<BeautyPage> {
                             crossAxisCount: 2,
                             crossAxisSpacing: 10,
                             mainAxisSpacing: 10,
-                            mainAxisExtent: 104,
+                            mainAxisExtent: 136,
                           ),
                           itemCount: _classicStyleCategories[_selectedClassicCategory]!.length,
                           itemBuilder: (context, index) {
@@ -1933,7 +1926,7 @@ class _BeautyPageState extends State<BeautyPage> {
                             crossAxisCount: 2,
                             crossAxisSpacing: 10,
                             mainAxisSpacing: 10,
-                            mainAxisExtent: 104,
+                            mainAxisExtent: 136,
                           ),
                           itemCount: _generativeLookCategories['Hair']!.length,
                           itemBuilder: (context, index) {
@@ -2156,7 +2149,6 @@ class _BeautyPageState extends State<BeautyPage> {
 
 class _EditorSectionHeading extends StatelessWidget {
   const _EditorSectionHeading({
-    super.key,
     required this.step,
     required this.title,
     required this.subtitle,
@@ -2220,14 +2212,12 @@ class _FilterFolderTile extends StatelessWidget {
     super.key,
     required this.title,
     required this.description,
-    required this.icon,
     required this.status,
     required this.onTap,
   });
 
   final String title;
   final String description;
-  final IconData icon;
   final String status;
   final VoidCallback? onTap;
 
@@ -2236,6 +2226,7 @@ class _FilterFolderTile extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final comingSoon = status == 'COMING SOON';
     final unavailable = status == 'AI NOT READY';
+
     return Material(
       color: colors.surfaceContainerLow,
       borderRadius: BorderRadius.circular(16),
@@ -2243,7 +2234,7 @@ class _FilterFolderTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(11),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: colors.outlineVariant, width: 0.8),
@@ -2251,32 +2242,28 @@ class _FilterFolderTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              FaceSampleArtwork(
+                label: title,
+                height: 58,
+              ),
+              const SizedBox(height: 6),
               Row(
                 children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: colors.secondaryContainer.withValues(alpha: .6),
-                      shape: BoxShape.circle,
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
-                    child: Icon(icon, size: 19, color: colors.primary),
                   ),
-                  const Spacer(),
-                  Flexible(child: _FilterFolderStatus(status: status)),
+                  const SizedBox(width: 4),
+                  _FilterFolderStatus(status: status),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Expanded(
                 child: Align(
                   alignment: Alignment.topLeft,
@@ -2286,7 +2273,8 @@ class _FilterFolderTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colors.onSurfaceVariant,
-                          fontSize: 11,
+                          fontSize: 10.5,
+                          height: 1.2,
                         ),
                   ),
                 ),
@@ -2297,7 +2285,7 @@ class _FilterFolderTile extends StatelessWidget {
                   comingSoon || unavailable
                       ? Icons.info_outline_rounded
                       : Icons.arrow_forward_rounded,
-                  size: 16,
+                  size: 15,
                   color: colors.onSurfaceVariant,
                 ),
               ),
@@ -2418,7 +2406,7 @@ class _BeautyOptionTile extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
           child: Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
@@ -2429,71 +2417,93 @@ class _BeautyOptionTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? colors.primary.withValues(alpha: .12)
-                            : colors.surfaceContainerHighest,
-                        shape: BoxShape.circle,
+                SizedBox(
+                  height: 66,
+                  width: double.infinity,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      FaceSampleArtwork(
+                        label: title,
+                        height: 66,
                       ),
-                      child: Icon(
-                        icon,
-                        size: 19,
-                        color: selected ? colors.primary : colors.onSurfaceVariant,
+                      Positioned(
+                        left: 5,
+                        bottom: 5,
+                        child: Container(
+                          width: 27,
+                          height: 27,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: .94),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(icon, size: 15, color: colors.primary),
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    if (locked)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.tertiaryContainer,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          lockedLabel!,
-                          style: TextStyle(
-                            color: colors.onTertiaryContainer,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: .35,
+                      if (locked)
+                        Positioned(
+                          top: 5,
+                          right: 5,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.tertiaryContainer,
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            child: Text(
+                              lockedLabel!,
+                              style: TextStyle(
+                                color: colors.onTertiaryContainer,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: .25,
+                              ),
+                            ),
+                          ),
+                        )
+                      else if (selected)
+                        Positioned(
+                          top: 5,
+                          right: 5,
+                          child: Container(
+                            width: 24,
+                            height: 24,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: colors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.check_rounded,
+                              size: 16,
+                              color: colors.onPrimary,
+                            ),
                           ),
                         ),
-                      )
-                    else
-                      Icon(
-                        selected
-                            ? Icons.check_circle_rounded
-                            : Icons.chevron_right_rounded,
-                        size: 18,
-                        color: selected ? colors.primary : colors.onSurfaceVariant,
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 7),
+                const SizedBox(height: 6),
                 Text(
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                       ),
                 ),
+                const SizedBox(height: 1),
                 Text(
                   description,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colors.onSurfaceVariant,
-                        fontSize: 11,
+                        fontSize: 10.5,
                       ),
                 ),
               ],
@@ -2504,4 +2514,3 @@ class _BeautyOptionTile extends StatelessWidget {
     );
   }
 }
-
