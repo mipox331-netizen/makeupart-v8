@@ -14,6 +14,9 @@ class SubscriptionUsageOut(BaseModel):
     remaining: int | None
     period_start: date
     current_period_end: datetime | None
+    available_makeup_styles: list[str] = Field(default_factory=list)
+    available_photo_finishes: list[str] = Field(default_factory=list)
+    generative_engine_entitled: bool = False
 
 
 class AdminSubscriptionOut(BaseModel):

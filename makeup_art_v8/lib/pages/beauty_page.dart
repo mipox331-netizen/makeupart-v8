@@ -82,6 +82,8 @@ class _BeautyPageState extends State<BeautyPage> {
   bool externalAiConsentConfirmed = false;
   bool loadingCapabilities = true;
   Map<String, dynamic> capabilities = {};
+  Map<String, dynamic> subscription = {};
+  bool loadingSubscription = true;
   List<Map<String, dynamic>> customers = [];
   String? customerId;
   bool? customerConsentActive;
@@ -98,9 +100,42 @@ class _BeautyPageState extends State<BeautyPage> {
     _loadCustomers();
     _loadRecentImages();
     _loadCapabilities();
+    _loadSubscription();
   }
 
-  bool get generativeAvailable => capabilities['generative_available'] == true;
+  bool get generativeAvailable =>
+      capabilities['generative_available'] == true &&
+      !loadingSubscription &&
+      subscription['generative_engine_entitled'] == true;
+
+  Future<void> _loadSubscription() async {
+    try {
+      final current = await widget.api.getSubscription();
+      if (!mounted) return;
+      setState(() => subscription = current);
+    } catch (_) {
+      // The server remains authoritative. On older API versions, show options
+      // rather than accidentally locking every existing paid customer in the UI.
+      if (mounted) setState(() => subscription = {});
+    } finally {
+      if (mounted) setState(() => loadingSubscription = false);
+    }
+  }
+
+  List<String> _availableOptions(String key, List<String> fallback) {
+    final value = subscription[key];
+    if (value is List) return value.whereType<String>().toList();
+    return fallback;
+  }
+
+  void _showPlanRequired(String plan, String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature requires the $plan plan or higher. Contact your platform administrator to upgrade.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   Future<void> _loadCapabilities() async {
     try {
@@ -336,6 +371,7 @@ class _BeautyPageState extends State<BeautyPage> {
         consentConfirmed: consentConfirmed,
         customerId: customerId,
         makeupStyle: selectedMakeupStyle,
+        photoFinish: selectedLook,
         engine: selectedEngine,
         generativeLook: selectedGenerativeLook,
         externalAiConsent: externalAiConsentConfirmed,
@@ -345,7 +381,12 @@ class _BeautyPageState extends State<BeautyPage> {
       final afterUrl = response['after_image_url'] as String?;
       if (afterUrl != null) {
         rawAfterBytes = await widget.api.fetchImage(afterUrl);
-        afterBytes = await PhotoLookService.apply(rawAfterBytes!, selectedLook);
+        // New servers return the applied finish in the persisted result. Older
+        // backend versions ignore the query parameter, so retain the local
+        // fallback without applying the same grade twice.
+        afterBytes = response['photo_finish']?.toString() == selectedLook
+            ? Uint8List.fromList(rawAfterBytes!)
+            : await PhotoLookService.apply(rawAfterBytes!, selectedLook);
 
         try {
           await recentImageStore.save(
@@ -395,29 +436,19 @@ class _BeautyPageState extends State<BeautyPage> {
     });
   }
 
-  Future<void> _selectLook(String look) async {
+  void _selectLook(String look) {
+    // The current result is already processed and watermarked on the server.
+    // Choosing another finish invalidates it and requires a new processing run;
+    // re-grading the output locally would apply the finish twice and make the
+    // preview/export differ from the persisted result in Google Drive.
     setState(() {
       selectedLook = look;
+      result = null;
+      afterImageFuture = null;
+      rawAfterBytes = null;
+      displayedAfterBytes = null;
       error = null;
     });
-    final raw = rawAfterBytes;
-    if (raw == null) return;
-
-    setState(() => loading = true);
-    try {
-      final styled = await PhotoLookService.apply(raw, look);
-      if (!mounted) return;
-      setState(() {
-        displayedAfterBytes = styled;
-        afterImageFuture = Future<Uint8List>.value(styled);
-      });
-    } catch (_) {
-      if (mounted) {
-        setState(() => error = 'Could not apply this photo finish.');
-      }
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
   }
 
   Future<void> _saveResultToGallery() async {
@@ -471,10 +502,19 @@ class _BeautyPageState extends State<BeautyPage> {
 
   @override
   Widget build(BuildContext context) {
+    final availableMakeupStyles = _availableOptions(
+      'available_makeup_styles',
+      _makeupStyles.keys.toList(),
+    );
+    final availablePhotoFinishes = _availableOptions(
+      'available_photo_finishes',
+      PhotoLookService.names,
+    );
     final canProcess = selected != null &&
         consentConfirmed &&
         (selectedEngine != 'generative' ||
             (generativeAvailable && externalAiConsentConfirmed)) &&
+        !loadingSubscription &&
         !loading &&
         (customerId == null || customerConsentActive == true);
 
@@ -880,23 +920,33 @@ class _BeautyPageState extends State<BeautyPage> {
                       spacing: 8,
                       runSpacing: 8,
                       children: _makeupStyles.entries.map((style) {
+                        final entitled = availableMakeupStyles.contains(style.key);
+                        final requiredPlan = style.key == 'soft_glam' ? 'Basic' : 'Pro';
                         return ChoiceChip(
-                          avatar: const Icon(
-                            Icons.face_retouching_natural_rounded,
+                          avatar: Icon(
+                            entitled
+                                ? Icons.face_retouching_natural_rounded
+                                : Icons.lock_outline_rounded,
                             size: 17,
                           ),
                           label: Text(style.value),
                           selected: selectedMakeupStyle == style.key,
                           onSelected: loading
                               ? null
-                              : (_) => setState(() {
+                              : (_) {
+                                  if (!entitled) {
+                                    _showPlanRequired(requiredPlan, style.value);
+                                    return;
+                                  }
+                                  setState(() {
                                     selectedMakeupStyle = style.key;
                                     result = null;
                                     afterImageFuture = null;
                                     rawAfterBytes = null;
                                     displayedAfterBytes = null;
                                     error = null;
-                                  }),
+                                  });
+                                },
                         );
                       }).toList(),
                     ),
@@ -915,16 +965,28 @@ class _BeautyPageState extends State<BeautyPage> {
                     spacing: 8,
                     runSpacing: 8,
                     children: PhotoLookService.names.map((look) {
+                      final entitled = availablePhotoFinishes.contains(look);
+                      final requiredPlan = look == 'Soft Glam' ? 'Basic' : 'Pro';
                       return ChoiceChip(
                         avatar: Icon(
-                          selectedLook == look
-                              ? Icons.check_circle_rounded
-                              : Icons.auto_awesome_outlined,
+                          !entitled
+                              ? Icons.lock_outline_rounded
+                              : selectedLook == look
+                                  ? Icons.check_circle_rounded
+                                  : Icons.auto_awesome_outlined,
                           size: 17,
                         ),
                         label: Text(look),
                         selected: selectedLook == look,
-                        onSelected: loading ? null : (_) => _selectLook(look),
+                        onSelected: loading
+                            ? null
+                            : (_) {
+                                if (!entitled) {
+                                  _showPlanRequired(requiredPlan, look);
+                                  return;
+                                }
+                                _selectLook(look);
+                              },
                       );
                     }).toList(),
                   ),

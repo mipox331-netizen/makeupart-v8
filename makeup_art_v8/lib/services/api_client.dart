@@ -147,6 +147,43 @@ class ApiClient {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  Future<Map<String, dynamic>> recordAdminPayment({
+    required String salonId,
+    required String plan,
+    required String amount,
+    String currency = 'TZS',
+    required String paymentMethod,
+    int periodDays = 30,
+    String? reference,
+    String? notes,
+  }) async {
+    final response = await dio.post(
+      '/admin/payments/record',
+      data: {
+        'salon_id': salonId,
+        'plan': plan,
+        'amount': amount,
+        'currency': currency,
+        'payment_method': paymentMethod,
+        'period_days': periodDays,
+        if (reference != null && reference.trim().isNotEmpty)
+          'reference': reference.trim(),
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> getAdminRevenueSummary({
+    String period = 'month',
+  }) async {
+    final response = await dio.get(
+      '/admin/payments/summary',
+      queryParameters: {'period': period},
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<void> register({
     required String salonName,
     required String ownerFullName,
@@ -359,6 +396,7 @@ class ApiClient {
     bool consentConfirmed = false,
     String? customerId,
     required String makeupStyle,
+    String photoFinish = 'Natural Finish',
     String engine = "classic",
     String generativeLook = "full_glam",
     bool externalAiConsent = false,
@@ -371,6 +409,7 @@ class ApiClient {
       queryParameters: {
         'intensity': intensity,
         'makeup_style': makeupStyle,
+        'photo_finish': photoFinish,
         'engine': engine,
         'generative_look': generativeLook,
         'external_ai_consent': externalAiConsent,

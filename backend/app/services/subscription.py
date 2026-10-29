@@ -18,6 +18,32 @@ PLAN_LIMITS: dict[SubscriptionPlan, int | None] = {
     SubscriptionPlan.ENTERPRISE: None,
 }
 
+PLAN_MAKEUP_STYLES: dict[SubscriptionPlan, frozenset[str]] = {
+    SubscriptionPlan.FREE: frozenset({"natural"}),
+    SubscriptionPlan.BASIC: frozenset({"natural", "soft_glam"}),
+    SubscriptionPlan.PRO: frozenset({
+        "natural", "soft_glam", "bridal_rose", "evening_glam",
+        "smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush",
+    }),
+    SubscriptionPlan.ENTERPRISE: frozenset({
+        "natural", "soft_glam", "bridal_rose", "evening_glam",
+        "smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush",
+    }),
+}
+
+PLAN_PHOTO_FINISHES: dict[SubscriptionPlan, frozenset[str]] = {
+    SubscriptionPlan.FREE: frozenset({"Natural Finish", "Warm Glow"}),
+    SubscriptionPlan.BASIC: frozenset({"Natural Finish", "Warm Glow", "Soft Glam"}),
+    SubscriptionPlan.PRO: frozenset({
+        "Natural Finish", "Warm Glow", "Soft Glam", "Studio Polish", "Golden Hour",
+    }),
+    SubscriptionPlan.ENTERPRISE: frozenset({
+        "Natural Finish", "Warm Glow", "Soft Glam", "Studio Polish", "Golden Hour",
+    }),
+}
+
+PLAN_GENERATIVE_ENTITLED = frozenset({SubscriptionPlan.PRO, SubscriptionPlan.ENTERPRISE})
+
 ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
 
 
@@ -88,6 +114,11 @@ def _get_subscription(db: Session, salon_id, *, lock: bool = False) -> Subscript
     return subscription
 
 
+def get_or_create_subscription_for_update(db: Session, salon_id) -> Subscription:
+    """Return the salon subscription while holding the stable parent-row lock."""
+    return _get_subscription(db, salon_id, lock=True)
+
+
 def _reset_usage_period(subscription: Subscription) -> bool:
     month_start = _today().replace(day=1)
     if subscription.usage_period_start == month_start:
@@ -144,6 +175,63 @@ def _plan_for(subscription: Subscription, salon: Salon) -> SubscriptionPlan:
         return SubscriptionPlan(subscription.plan.lower())
     except ValueError:
         return salon.subscription_plan
+
+
+def require_beauty_feature(
+    db: Session,
+    salon_id,
+    *,
+    feature_kind: str,
+    feature_name: str,
+) -> None:
+    """Enforce plan entitlements on the server; client-side locks are UX only."""
+    subscription = _get_subscription(db, salon_id, lock=True)
+    if _expire_if_due(subscription):
+        db.commit()
+    if subscription.status.lower() not in ACTIVE_SUBSCRIPTION_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Subscription is expired or inactive.",
+        )
+
+    salon = db.get(Salon, salon_id)
+    if salon is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon not found")
+    plan = _plan_for(subscription, salon)
+
+    # Generative image providers can incur real per-image cost and send photos
+    # to a third party. Enforce a paid-plan gate server-side even if a client
+    # bypasses the visual lock or the provider key is configured later.
+    if feature_kind == "generative_engine":
+        if plan not in PLAN_GENERATIVE_ENTITLED:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Generative AI processing requires the Pro plan or higher.",
+                headers={"X-Required-Plan": "pro"},
+            )
+        return
+
+    if feature_kind == "makeup_style":
+        entitled = PLAN_MAKEUP_STYLES[plan]
+        label = "makeup style"
+        required_plan = SubscriptionPlan.BASIC if plan == SubscriptionPlan.FREE and feature_name == "soft_glam" else SubscriptionPlan.PRO
+    elif feature_kind == "photo_finish":
+        entitled = PLAN_PHOTO_FINISHES[plan]
+        label = "photo finish"
+        required_plan = SubscriptionPlan.BASIC if plan == SubscriptionPlan.FREE and feature_name == "Soft Glam" else SubscriptionPlan.PRO
+    else:
+        raise ValueError(f"Unknown beauty feature kind: {feature_kind}")
+
+    if feature_name not in entitled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"The {feature_name} {label} is included with the "
+                f"{required_plan.value.title()} plan or higher. "
+                "Contact your platform administrator to upgrade."
+            ),
+            headers={"X-Required-Plan": required_plan.value},
+        )
 
 
 def reserve_beauty_job_quota(db: Session, salon_id) -> None:
@@ -209,6 +297,9 @@ def get_subscription_snapshot(db: Session, salon_id) -> dict:
         "remaining": remaining,
         "period_start": subscription.usage_period_start,
         "current_period_end": subscription.current_period_end,
+        "available_makeup_styles": sorted(PLAN_MAKEUP_STYLES[plan]),
+        "available_photo_finishes": sorted(PLAN_PHOTO_FINISHES[plan]),
+        "generative_engine_entitled": plan in PLAN_GENERATIVE_ENTITLED,
     }
 
 

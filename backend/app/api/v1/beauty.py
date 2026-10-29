@@ -29,6 +29,7 @@ from app.schemas.beauty import (
     BeautyProcessResponse,
     BeautyUploadResponse,
     MakeupStyle,
+    PhotoFinish,
     BeautyEngine,
     GenerativeLook,
 )
@@ -37,7 +38,12 @@ from app.services import google_drive_media
 from app.services.google_drive_media import GoogleDriveMediaError
 from app.services.generative_makeup import GenerativeMakeupProvider
 from app.services.media_volume import commit_media_volume
-from app.services.subscription import release_beauty_job_quota, reserve_beauty_job_quota
+from app.services.photo_finish import apply_photo_finish
+from app.services.subscription import (
+    release_beauty_job_quota,
+    require_beauty_feature,
+    reserve_beauty_job_quota,
+)
 from app.services.watermark import apply_watermark, get_or_create_watermark, salon_logo_path
 
 logger = logging.getLogger("makeupart.beauty")
@@ -210,6 +216,7 @@ def _process_payload(
                 "engine": "classic",
                 "intensity": 0.0,
                 "makeup_style": "natural",
+                "photo_finish": "Natural Finish",
                 "external_ai_consent": False,
             }
         )
@@ -248,6 +255,14 @@ def _process_payload(
                 detail="Generative provider generated media outside salon storage",
             )
 
+        try:
+            apply_photo_finish(generated_output, payload.photo_finish)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not apply photo finish",
+            ) from exc
+
         # Pixel-level similarity is not a reliable identity guarantee for generated edits.
         response = BeautyProcessResponse(
             identity_similarity=None,
@@ -257,6 +272,7 @@ def _process_payload(
             intensity=round(float(payload.intensity), 4),
             processed=True,
             makeup_style=payload.makeup_style,
+            photo_finish=payload.photo_finish,
             engine="generative",
             generative_look=payload.generative_look,
         )
@@ -294,6 +310,14 @@ def _process_payload(
                     detail="Beauty provider generated media outside salon storage",
                 )
 
+            try:
+                apply_photo_finish(generated_output, attempt_payload.photo_finish)
+            except (OSError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Could not apply photo finish",
+                ) from exc
+
             response = BeautyProcessResponse(
                 identity_similarity=round(similarity, 4),
                 skin_tone=str(base_result["skin_tone"]),
@@ -302,6 +326,7 @@ def _process_payload(
                 intensity=round(attempt_intensity, 4),
                 processed=bool(base_result["processed"]),
                 makeup_style=attempt_payload.makeup_style,
+                photo_finish=attempt_payload.photo_finish,
             )
             return response, str(generated_output)
 
@@ -353,6 +378,21 @@ def process_beauty(
         customer_id=None,
         consent_confirmed=payload.consent_confirmed,
     )
+    if payload.engine == "generative" and not payload.external_ai_consent:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Explicit consent to send this photo to the external generative AI provider is required.",
+        )
+    require_beauty_feature(
+        db, current_user.salon_id, feature_kind="makeup_style", feature_name=payload.makeup_style
+    )
+    require_beauty_feature(
+        db, current_user.salon_id, feature_kind="photo_finish", feature_name=payload.photo_finish
+    )
+    if payload.engine == "generative":
+        require_beauty_feature(
+            db, current_user.salon_id, feature_kind="generative_engine", feature_name="generative"
+        )
     if payload.engine == "generative" and not _generative_storage_ready(db):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -403,6 +443,7 @@ def process_beauty_upload(
     file: UploadFile = File(...),
     intensity: float = Query(default=0.7, ge=0.0, le=1.0),
     makeup_style: MakeupStyle = Query(default="natural"),
+    photo_finish: PhotoFinish = Query(default="Natural Finish"),
     engine: BeautyEngine = Query(default="classic"),
     generative_look: GenerativeLook = Query(default="full_glam"),
     external_ai_consent: bool = Query(default=False),
@@ -423,6 +464,15 @@ def process_beauty_upload(
         customer_id=customer_id,
         consent_confirmed=consent_confirmed,
     )
+    if engine == "generative" and not external_ai_consent:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Explicit consent to send this photo to the external generative AI provider is required.",
+        )
+    if engine == "generative":
+        require_beauty_feature(
+            db, current_user.salon_id, feature_kind="generative_engine", feature_name="generative"
+        )
     if engine == "generative" and not _generative_storage_ready(db):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -436,6 +486,18 @@ def process_beauty_upload(
     quota_reserved = False
 
     try:
+        require_beauty_feature(
+            db,
+            current_user.salon_id,
+            feature_kind="makeup_style",
+            feature_name=makeup_style,
+        )
+        require_beauty_feature(
+            db,
+            current_user.salon_id,
+            feature_kind="photo_finish",
+            feature_name=photo_finish,
+        )
         reserve_beauty_job_quota(db, current_user.salon_id)
         quota_reserved = True
         total = 0
@@ -455,6 +517,7 @@ def process_beauty_upload(
             intensity=intensity,
             consent_confirmed=True,
             makeup_style=makeup_style,
+            photo_finish=photo_finish,
             engine=engine,
             generative_look=generative_look,
             external_ai_consent=external_ai_consent,

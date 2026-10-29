@@ -10,6 +10,7 @@ MakeupStyle = Literal[
     "smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush",
 ]
 BeautyEngine = Literal["classic", "generative"]
+PhotoFinish = Literal["Natural Finish", "Warm Glow", "Soft Glam", "Studio Polish", "Golden Hour"]
 GenerativeLook = Literal[
     "natural", "soft_glam", "full_glam", "bridal_glam", "smokey_eye",
     "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush", "foundation",
@@ -22,6 +23,7 @@ class BeautyProcessRequest(BaseModel):
     intensity: float = Field(default=0.7, ge=0.0, le=1.0)
     consent_confirmed: bool = False
     makeup_style: MakeupStyle = "natural"
+    photo_finish: PhotoFinish = "Natural Finish"
     engine: BeautyEngine = "classic"
     generative_look: GenerativeLook = "full_glam"
     external_ai_consent: bool = False
@@ -35,6 +37,7 @@ class BeautyProcessResponse(BaseModel):
     intensity: float
     processed: bool
     makeup_style: MakeupStyle = "natural"
+    photo_finish: PhotoFinish = "Natural Finish"
     engine: BeautyEngine = "classic"
     generative_look: GenerativeLook | None = None
 
