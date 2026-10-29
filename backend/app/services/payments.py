@@ -71,8 +71,13 @@ def record_verified_payment_and_activate(
     subscription.plan = plan.value
     subscription.status = "active"
     subscription.current_period_end = extension_start + timedelta(days=payload.period_days)
-    subscription.usage_period_start = now.date().replace(day=1)
-    subscription.beauty_jobs_used = 0
+    # Usage quotas are calendar-month based. Recording another payment in the
+    # same month must not reset usage and let a salon bypass its monthly limit.
+    # Advance/reset the counter only when the usage period has actually rolled over.
+    month_start = now.date().replace(day=1)
+    if subscription.usage_period_start != month_start:
+        subscription.usage_period_start = month_start
+        subscription.beauty_jobs_used = 0
     salon.subscription_plan = plan
 
     record = PaymentRecord(
