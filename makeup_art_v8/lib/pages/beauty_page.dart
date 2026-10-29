@@ -90,7 +90,6 @@ class _BeautyPageState extends State<BeautyPage> {
     'Impression',
     'Skin',
     'Makeup',
-    'Hairstyles',
   ];
 
   static const _upcomingFilterFolders = <String>[
@@ -1034,6 +1033,14 @@ class _BeautyPageState extends State<BeautyPage> {
         !loading &&
         (customerId == null || customerConsentActive == true);
 
+    final readyFilterFolders = <String>[
+      ..._readyFilterFolders,
+      if (generativeAvailable) 'Hairstyles',
+    ];
+    final needsAiSetupFolders = generativeAvailable
+        ? const <String>[]
+        : const <String>['Hairstyles'];
+
     Widget buildFolderGrid({
       required String gridKey,
       required List<String> folders,
@@ -1398,7 +1405,12 @@ class _BeautyPageState extends State<BeautyPage> {
                         ),
                         const SizedBox(height: 12),
                         if (loadingSavedLookPresets)
-                          const LinearProgressIndicator()
+                          Text(
+                            'Loading saved looks…',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                          )
                         else if (savedLookPresets.isEmpty)
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1523,8 +1535,29 @@ class _BeautyPageState extends State<BeautyPage> {
                     const SizedBox(height: 8),
                     buildFolderGrid(
                       gridKey: 'face-filter-folders-grid',
-                      folders: _readyFilterFolders,
+                      folders: readyFilterFolders,
                     ),
+                    if (needsAiSetupFolders.isNotEmpty) ...[
+                      const SizedBox(height: 18),
+                      Text(
+                        'Needs AI setup',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Hairstyle previews require a configured Generative AI provider and an eligible salon plan.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: 10),
+                      buildFolderGrid(
+                        gridKey: 'ai-setup-filter-folders-grid',
+                        folders: needsAiSetupFolders,
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     Row(
                       children: [
