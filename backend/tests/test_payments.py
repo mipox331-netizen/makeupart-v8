@@ -112,7 +112,7 @@ def test_non_platform_admin_cannot_read_or_write_payment_ledger(client):
 
 
 def test_payment_schema_rejects_non_positive_amounts_and_free_plan(client, monkeypatch):
-    admin_headers = _register_platform_admin(client, monkeypatch)
+    _, admin_headers = register_platform_admin(client, monkeypatch)
     register(client, email="billing-owner@salon.com")
     owner_headers = auth_headers(client, "billing-owner@salon.com")
     salon_id = client.get(f"{API}/salons/me", headers=owner_headers).json()["id"]
@@ -134,7 +134,7 @@ def test_payment_schema_rejects_non_positive_amounts_and_free_plan(client, monke
     assert free.status_code == 422
 
 def test_payment_requires_reference_for_traceable_methods(client, monkeypatch):
-    admin_headers = _register_platform_admin(client, monkeypatch)
+    _, admin_headers = register_platform_admin(client, monkeypatch)
     register(client, email="missing-reference-owner@salon.com")
     owner_headers = auth_headers(client, "missing-reference-owner@salon.com")
     salon_id = client.get(f"{API}/salons/me", headers=owner_headers).json()["id"]
