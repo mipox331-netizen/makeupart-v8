@@ -287,3 +287,21 @@ def test_basic_plan_accepts_basic_style_and_finish_but_still_validates_image(cli
     assert usage.status_code == 200
     assert usage.json()["used"] == 0
 
+def test_free_plan_cannot_bypass_paid_generative_engine_gate(client):
+    register(client)
+    headers = auth_headers(client, "owner@salon.com")
+
+    response = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true&engine=generative&external_ai_consent=true",
+        headers=headers,
+        files={"file": ("portrait.png", b"invalid image", "image/png")},
+    )
+    assert response.status_code == 403
+    assert response.headers["X-Required-Plan"] == "pro"
+    assert "Pro plan or higher" in response.json()["detail"]
+
+    usage = client.get(f"{API}/subscriptions/me", headers=headers)
+    assert usage.status_code == 200
+    assert usage.json()["used"] == 0
+    assert usage.json()["generative_engine_entitled"] is False
+
