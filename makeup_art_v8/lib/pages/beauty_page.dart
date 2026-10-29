@@ -8,6 +8,7 @@ import '../services/api_client.dart';
 import '../services/gallery_exporter.dart';
 import '../services/photo_look_service.dart';
 import '../services/recent_image_store.dart';
+import '../services/salon_look_preset_store.dart';
 import '../widgets/license_page_button.dart';
 import '../widgets/developer_branding.dart';
 import '../widgets/before_after_comparison.dart';
@@ -20,12 +21,14 @@ class BeautyPage extends StatefulWidget {
     required this.onLogout,
     required this.salonId,
     this.canManageBranding = false,
+    this.lookPresetStore,
   });
 
   final ApiClient api;
   final VoidCallback onLogout;
   final String salonId;
   final bool canManageBranding;
+  final SalonLookPresetStore? lookPresetStore;
 
   @override
   State<BeautyPage> createState() => _BeautyPageState();
@@ -226,6 +229,9 @@ class _BeautyPageState extends State<BeautyPage> {
   RecentImageStore get recentImageStore =>
       RecentImageStore(scope: widget.salonId);
 
+  SalonLookPresetStore get _lookPresetStore =>
+      widget.lookPresetStore ?? SalonLookPresetStore(scope: widget.salonId);
+
   XFile? selected;
   Map<String, dynamic>? result;
   Future<Uint8List>? afterImageFuture;
@@ -253,12 +259,16 @@ class _BeautyPageState extends State<BeautyPage> {
   bool consentConfirmed = false;
   String? error;
   List<File> recentImages = [];
+  List<SalonLookPreset> savedLookPresets = [];
+  bool loadingSavedLookPresets = true;
+  bool savingLookPreset = false;
 
   @override
   void initState() {
     super.initState();
     _loadCustomers();
     _loadRecentImages();
+    _loadSavedLookPresets();
     _loadCapabilities();
     _loadSubscription();
   }
@@ -766,6 +776,207 @@ class _BeautyPageState extends State<BeautyPage> {
     }
   }
 
+
+  Future<void> _loadSavedLookPresets() async {
+    try {
+      final presets = await _lookPresetStore.list();
+      if (!mounted) return;
+      setState(() => savedLookPresets = presets);
+    } catch (_) {
+      // Preset storage is optional; a storage problem must not block photo editing.
+      if (mounted) setState(() => savedLookPresets = []);
+    } finally {
+      if (mounted) setState(() => loadingSavedLookPresets = false);
+    }
+  }
+
+  String _suggestedPresetName() {
+    switch (_selectedFilterFolder) {
+      case 'Impression':
+        return selectedLook;
+      case 'Skin':
+        return 'Skin Polish';
+      case 'Hairstyles':
+        return _generativeLooks[selectedGenerativeLook] ?? 'Salon Hair';
+      case 'Makeup':
+        return selectedEngine == 'generative'
+            ? (_generativeLooks[selectedGenerativeLook] ?? 'AI Makeup')
+            : (_makeupStyles[selectedMakeupStyle] ?? 'Makeup');
+      default:
+        return 'My Salon Look';
+    }
+  }
+
+  Future<void> _saveCurrentLookPreset() async {
+    final folder = _selectedFilterFolder;
+    if (folder == null || !_canProcessSelectedFolder()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Open a supported filter folder before saving a look.')),
+      );
+      return;
+    }
+
+    final availableStyles = _availableOptions(
+      'available_makeup_styles',
+      _makeupStyles.keys.toList(),
+    );
+    final availableFinishes = _availableOptions(
+      'available_photo_finishes',
+      PhotoLookService.names,
+    );
+    if ((folder == 'Skin' || folder == 'Impression') &&
+        !availableStyles.contains('skin_only')) {
+      _showPlanRequired('Pro', 'Skin Polish');
+      return;
+    }
+    if (folder == 'Impression' && !availableFinishes.contains(selectedLook)) {
+      _showPlanRequired(selectedLook == 'Soft Glam' ? 'Basic' : 'Pro', selectedLook);
+      return;
+    }
+    if (folder == 'Makeup' && selectedEngine == 'classic' &&
+        !availableStyles.contains(selectedMakeupStyle)) {
+      _showPlanRequired(
+        selectedMakeupStyle == 'soft_glam' ? 'Basic' : 'Pro',
+        _makeupStyles[selectedMakeupStyle] ?? selectedMakeupStyle,
+      );
+      return;
+    }
+    if ((folder == 'Makeup' || folder == 'Hairstyles') &&
+        selectedEngine == 'generative' && !generativeAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Generative AI is not configured for this salon yet.')),
+      );
+      return;
+    }
+
+    final controller = TextEditingController(text: _suggestedPresetName());
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Save salon look'),
+        content: TextField(
+          key: const ValueKey('salon-look-name-field'),
+          controller: controller,
+          autofocus: true,
+          maxLength: SalonLookPresetStore.maxNameLength,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Look name',
+            hintText: 'e.g. Bridal Glow',
+          ),
+          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const ValueKey('save-salon-look-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: const Text('Save look'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || !mounted) return;
+
+    setState(() => savingLookPreset = true);
+    try {
+      await _lookPresetStore.save(
+        name: name,
+        folder: folder,
+        engine: selectedEngine,
+        makeupStyle: selectedMakeupStyle,
+        generativeLook: selectedGenerativeLook,
+        photoFinish: selectedLook,
+        intensity: intensity,
+      );
+      await _loadSavedLookPresets();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved “${name.trim()}”. Use it again with one tap.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save this look on the device.')),
+      );
+    } finally {
+      if (mounted) setState(() => savingLookPreset = false);
+    }
+  }
+
+  void _applyLookPreset(SalonLookPreset preset) {
+    setState(() {
+      _selectedFilterFolder = preset.folder;
+      selectedEngine = preset.engine;
+      selectedMakeupStyle = _makeupStyles.containsKey(preset.makeupStyle)
+          ? preset.makeupStyle
+          : 'natural';
+      selectedGenerativeLook = _generativeLooks.containsKey(preset.generativeLook)
+          ? preset.generativeLook
+          : 'full_glam';
+      selectedLook = PhotoLookService.names.contains(preset.photoFinish)
+          ? preset.photoFinish
+          : 'Natural Finish';
+      intensity = preset.intensity.clamp(0.0, 1.0).toDouble();
+      externalAiConsentConfirmed = false;
+      _selectedClassicCategory = 'Looks';
+      for (final entry in _classicStyleCategories.entries) {
+        if (entry.value.contains(selectedMakeupStyle)) {
+          _selectedClassicCategory = entry.key;
+          break;
+        }
+      }
+      _selectedGenerativeCategory = _hairLookKeys.contains(selectedGenerativeLook)
+          ? 'Hair'
+          : selectedGenerativeLook == 'foundation'
+              ? 'Skin'
+              : 'Looks';
+      _clearProcessedResult();
+    });
+
+    if (preset.engine == 'generative' && !generativeAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Look loaded. Generative AI must be enabled before this preset can run.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteLookPreset(SalonLookPreset preset) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete saved look?'),
+        content: Text('“${preset.name}” will be removed from this device for this salon.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _lookPresetStore.delete(preset.id);
+      await _loadSavedLookPresets();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete this saved look.')),
+      );
+    }
+  }
+
   String _customerLabel(String id) {
     for (final item in customers) {
       if (item['id'] == id) {
@@ -1146,6 +1357,44 @@ class _BeautyPageState extends State<BeautyPage> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 14),
+                  Text(
+                    'Saved salon looks',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Save a favourite makeup, finish and strength combination once, then reuse it for future client previews. Presets store settings only, not photos.',
+                  ),
+                  const SizedBox(height: 8),
+                  if (loadingSavedLookPresets)
+                    const LinearProgressIndicator()
+                  else if (savedLookPresets.isEmpty)
+                    const Text(
+                      'No saved looks yet. Open Impression, Skin or Makeup and choose “Save this look”.',
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: savedLookPresets.map((preset) {
+                        final summary = '${preset.name} · ${(preset.intensity * 100).round()}%';
+                        return InputChip(
+                          key: ValueKey('salon-look-preset-${preset.id}'),
+                          avatar: const Icon(Icons.bookmark_outline_rounded, size: 18),
+                          label: Text(summary),
+                          onPressed: loading || savingLookPreset
+                              ? null
+                              : () => _applyLookPreset(preset),
+                          onDeleted: loading || savingLookPreset
+                              ? null
+                              : () => _confirmDeleteLookPreset(preset),
+                          deleteButtonTooltipMessage: 'Delete ${preset.name}',
+                        );
+                      }).toList(),
+                    ),
+                  if (!loadingSavedLookPresets) const SizedBox(height: 8),
+                  const Divider(),
                   if (_selectedFilterFolder == null) ...[
                     Text(
                       'Face filter folders',
@@ -1219,7 +1468,19 @@ class _BeautyPageState extends State<BeautyPage> {
                         _FilterFolderStatus(status: _filterFolderStatus(_selectedFilterFolder!)),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        key: const ValueKey('save-current-salon-look'),
+                        onPressed: loading || savingLookPreset || !_canProcessSelectedFolder()
+                            ? null
+                            : _saveCurrentLookPreset,
+                        icon: const Icon(Icons.bookmark_add_outlined),
+                        label: Text(savingLookPreset ? 'Saving…' : 'Save this look'),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     if (_selectedFilterFolder == 'Impression') ...[
                       Text(
                         'Photo finishes',
