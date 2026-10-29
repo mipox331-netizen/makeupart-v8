@@ -15,10 +15,6 @@ void main() {
   });
 
   test('persists the complete look recipe and isolates salons', () async {
-    const store = SalonLookPresetStore(
-      rootOverride: null,
-      scope: 'unused',
-    );
     final salonA = SalonLookPresetStore(rootOverride: root, scope: 'salon-a');
     final salonB = SalonLookPresetStore(rootOverride: root, scope: 'salon-b');
 
@@ -43,8 +39,6 @@ void main() {
     expect(loaded.single.photoFinish, 'Golden Hour');
     expect(loaded.single.intensity, closeTo(0.82, 0.0001));
     expect(await salonB.list(), isEmpty);
-    // Ensure a store without a root override remains a distinct production configuration.
-    expect(store.scope, 'unused');
   });
 
   test('saving an existing name updates it instead of creating a duplicate', () async {
