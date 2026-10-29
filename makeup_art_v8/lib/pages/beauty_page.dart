@@ -64,6 +64,59 @@ class _BeautyPageState extends State<BeautyPage> {
     'eyeliner': 'Eyeliner Only',
     'lipstick': 'Lipstick Only',
     'blush': 'Blush Only',
+    'skin_only': 'Skin Polish Only',
+  };
+
+  static const _faceFilterFolders = <String>[
+    'Impression',
+    'Skin',
+    'Sizes',
+    'Hairstyles',
+    'Hair Colors',
+    'Smiles',
+    'Features',
+    'Beards',
+    'Makeup',
+    'Age',
+    'Gender',
+    'Glasses',
+  ];
+
+  static const _faceFilterFolderIcons = <String, IconData>{
+    'Impression': Icons.auto_awesome_rounded,
+    'Skin': Icons.spa_outlined,
+    'Sizes': Icons.aspect_ratio_rounded,
+    'Hairstyles': Icons.content_cut_rounded,
+    'Hair Colors': Icons.palette_outlined,
+    'Smiles': Icons.sentiment_satisfied_alt_rounded,
+    'Features': Icons.face_retouching_natural_rounded,
+    'Beards': Icons.face_rounded,
+    'Makeup': Icons.brush_outlined,
+    'Age': Icons.hourglass_empty_rounded,
+    'Gender': Icons.person_outline_rounded,
+    'Glasses': Icons.visibility_outlined,
+  };
+
+  static const _faceFilterFolderDescriptions = <String, String>{
+    'Impression': 'Warm tones and photo finishes',
+    'Skin': 'Smooth and balance the portrait',
+    'Sizes': 'Facial proportions and shape',
+    'Hairstyles': 'Try a different hair style',
+    'Hair Colors': 'Preview a new hair color',
+    'Smiles': 'Change the expression',
+    'Features': 'Refine individual facial details',
+    'Beards': 'Try facial-hair styles',
+    'Makeup': 'Eyes, lips, cheeks and complete looks',
+    'Age': 'Explore age-style transformations',
+    'Gender': 'Explore presentation styles',
+    'Glasses': 'Try different frame styles',
+  };
+
+  static const _hairLookKeys = <String>{
+    'sleek_hair',
+    'soft_curls',
+    'braided_style',
+    'elegant_updo',
   };
   static const _classicStyleCategories = <String, List<String>>{
     'Looks': ['natural', 'soft_glam', 'bridal_rose', 'evening_glam'],
@@ -98,6 +151,7 @@ class _BeautyPageState extends State<BeautyPage> {
     'eyeliner': Icons.edit_outlined,
     'lipstick': Icons.color_lens_outlined,
     'blush': Icons.brush_outlined,
+    'skin_only': Icons.spa_outlined,
   };
 
   static const _makeupStyleDescriptions = <String, String>{
@@ -111,6 +165,7 @@ class _BeautyPageState extends State<BeautyPage> {
     'eyeliner': 'Eye definition',
     'lipstick': 'Lip color',
     'blush': 'Cheek color',
+    'skin_only': 'Skin polish without cosmetic overlays',
   };
 
   static const _generativeLookIcons = <String, IconData>{
@@ -178,7 +233,7 @@ class _BeautyPageState extends State<BeautyPage> {
   Uint8List? displayedAfterBytes;
   String selectedLook = 'Natural Finish';
   String selectedMakeupStyle = 'natural';
-  String _activeEditorSection = 'makeup';
+  String? _selectedFilterFolder;
   String _selectedClassicCategory = 'Looks';
   String _selectedGenerativeCategory = 'Looks';
   bool savingGallery = false;
@@ -554,16 +609,83 @@ class _BeautyPageState extends State<BeautyPage> {
     }
   }
 
+  void _clearProcessedResult() {
+    result = null;
+    afterImageFuture = null;
+    rawAfterBytes = null;
+    displayedAfterBytes = null;
+    error = null;
+  }
+
+  String _filterFolderStatus(String folder) {
+    switch (folder) {
+      case 'Impression':
+      case 'Skin':
+      case 'Makeup':
+        return 'AVAILABLE';
+      case 'Hairstyles':
+        return generativeAvailable ? 'GENERATIVE AI' : 'AI NOT READY';
+      default:
+        return 'COMING SOON';
+    }
+  }
+
+  bool _canProcessSelectedFolder() {
+    const supportedFolders = {'Impression', 'Skin', 'Makeup', 'Hairstyles'};
+    if (!supportedFolders.contains(_selectedFilterFolder)) return false;
+    if (_selectedFilterFolder == 'Hairstyles') {
+      return generativeAvailable && selectedEngine == 'generative';
+    }
+    return true;
+  }
+
+  void _openFilterFolder(String folder) {
+    setState(() {
+      _selectedFilterFolder = folder;
+
+      if (folder == 'Impression' || folder == 'Skin') {
+        final changed = selectedEngine != 'classic' ||
+            selectedMakeupStyle != 'skin_only';
+        selectedEngine = 'classic';
+        selectedMakeupStyle = 'skin_only';
+        externalAiConsentConfirmed = false;
+        if (changed) _clearProcessedResult();
+      } else if (folder == 'Makeup') {
+        if (selectedEngine == 'generative') {
+          if (_hairLookKeys.contains(selectedGenerativeLook) ||
+              selectedGenerativeLook == 'foundation') {
+            selectedGenerativeLook = 'full_glam';
+            externalAiConsentConfirmed = false;
+            _clearProcessedResult();
+          }
+          if (_selectedGenerativeCategory == 'Hair' ||
+              _selectedGenerativeCategory == 'Skin') {
+            _selectedGenerativeCategory = 'Looks';
+          }
+        } else if (selectedMakeupStyle == 'skin_only') {
+          selectedMakeupStyle = 'natural';
+          _clearProcessedResult();
+        }
+      } else if (folder == 'Hairstyles' && generativeAvailable) {
+        final changed = selectedEngine != 'generative' ||
+            !_hairLookKeys.contains(selectedGenerativeLook);
+        selectedEngine = 'generative';
+        selectedGenerativeLook = 'soft_curls';
+        _selectedGenerativeCategory = 'Hair';
+        if (changed) {
+          externalAiConsentConfirmed = false;
+          _clearProcessedResult();
+        }
+      }
+    });
+  }
+
   void _selectEngine(String engine) {
     if (engine == 'generative' && !generativeAvailable) return;
     setState(() {
       selectedEngine = engine;
       externalAiConsentConfirmed = false;
-      result = null;
-      afterImageFuture = null;
-      rawAfterBytes = null;
-      displayedAfterBytes = null;
-      error = null;
+      _clearProcessedResult();
     });
   }
 
@@ -642,6 +764,7 @@ class _BeautyPageState extends State<BeautyPage> {
       PhotoLookService.names,
     );
     final canProcess = selected != null &&
+        _canProcessSelectedFolder() &&
         consentConfirmed &&
         (selectedEngine != 'generative' ||
             (generativeAvailable && externalAiConsentConfirmed)) &&
