@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 MakeupStyle = Literal[
     "natural", "soft_glam", "bridal_rose", "evening_glam",
-    "smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush",
+    "smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush", "skin_only",
 ]
 BeautyEngine = Literal["classic", "generative"]
 PhotoFinish = Literal["Natural Finish", "Warm Glow", "Soft Glam", "Studio Polish", "Golden Hour"]
