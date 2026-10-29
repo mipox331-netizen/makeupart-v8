@@ -1495,22 +1495,26 @@ class _BeautyPageState extends State<BeautyPage> {
                         color: Theme.of(context).colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Row(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info_outline_rounded),
-                          SizedBox(width: 10),
+                          const Icon(Icons.info_outline_rounded),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Generative AI is not configured',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                  capabilities['generative_available'] == true
+                                      ? 'Generative AI requires an eligible salon plan'
+                                      : 'Generative AI is not configured',
+                                  style: const TextStyle(fontWeight: FontWeight.w700),
                                 ),
-                                SizedBox(height: 4),
+                                const SizedBox(height: 4),
                                 Text(
-                                  'Classic mode remains available. Generative edits need a protected provider key and may incur usage charges.',
+                                  capabilities['generative_available'] == true
+                                      ? 'The provider is available, but this salon plan does not include generative edits. Classic mode remains available.'
+                                      : 'Classic mode remains available. Generative edits need a protected provider key and may incur usage charges.',
                                 ),
                               ],
                             ),
@@ -1540,7 +1544,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     if (needsAiSetupFolders.isNotEmpty) ...[
                       const SizedBox(height: 18),
                       Text(
-                        'Needs AI setup',
+                        'AI access required',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w700,
                             ),
