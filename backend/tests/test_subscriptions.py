@@ -215,7 +215,7 @@ def test_free_plan_exposes_only_free_makeup_and_photo_finish_entitlements(client
 
     assert response.status_code == 200
     body = response.json()
-    assert body["available_makeup_styles"] == ["natural"]
+    assert body["available_makeup_styles"] == ["natural", "skin_only"]
     assert body["available_photo_finishes"] == ["Natural Finish", "Warm Glow"]
 
 
