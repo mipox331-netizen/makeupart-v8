@@ -433,29 +433,19 @@ class _BeautyPageState extends State<BeautyPage> {
     });
   }
 
-  Future<void> _selectLook(String look) async {
+  void _selectLook(String look) {
+    // The current result is already processed and watermarked on the server.
+    // Choosing another finish invalidates it and requires a new processing run;
+    // re-grading the output locally would apply the finish twice and make the
+    // preview/export differ from the persisted result in Google Drive.
     setState(() {
       selectedLook = look;
+      result = null;
+      afterImageFuture = null;
+      rawAfterBytes = null;
+      displayedAfterBytes = null;
       error = null;
     });
-    final raw = rawAfterBytes;
-    if (raw == null) return;
-
-    setState(() => loading = true);
-    try {
-      final styled = await PhotoLookService.apply(raw, look);
-      if (!mounted) return;
-      setState(() {
-        displayedAfterBytes = styled;
-        afterImageFuture = Future<Uint8List>.value(styled);
-      });
-    } catch (_) {
-      if (mounted) {
-        setState(() => error = 'Could not apply this photo finish.');
-      }
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
   }
 
   Future<void> _saveResultToGallery() async {
@@ -985,7 +975,7 @@ class _BeautyPageState extends State<BeautyPage> {
                         ),
                         label: Text(look),
                         selected: selectedLook == look,
-                        onSelected: loading || result != null
+                        onSelected: loading
                             ? null
                             : (_) {
                                 if (!entitled) {
