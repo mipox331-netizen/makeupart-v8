@@ -33,6 +33,12 @@ class _LoginPageState extends State<LoginPage> {
       return 'Could not sign in. Please try again.';
     }
 
+    if (exception.type == DioExceptionType.connectionTimeout ||
+        exception.type == DioExceptionType.sendTimeout ||
+        exception.type == DioExceptionType.receiveTimeout) {
+      return 'The server is waking up or responding slowly. Keep your internet connected and try again.';
+    }
+
     final statusCode = exception.response?.statusCode;
     final data = exception.response?.data;
     final detail = data is Map ? data['detail'] : null;
