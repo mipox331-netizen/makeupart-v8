@@ -256,6 +256,7 @@ class _BeautyPageState extends State<BeautyPage> {
   List<Map<String, dynamic>> customers = [];
   String? customerId;
   bool? customerConsentActive;
+  bool updatingStoredConsent = false;
   double intensity = 0.7;
   bool loading = false;
   bool loadingCustomers = true;
@@ -438,8 +439,9 @@ class _BeautyPageState extends State<BeautyPage> {
 
   Future<void> _toggleStoredConsent() async {
     final id = customerId;
-    if (id == null) return;
+    if (id == null || updatingStoredConsent) return;
     final grant = customerConsentActive != true;
+    setState(() => updatingStoredConsent = true);
     try {
       await widget.api.setCustomerConsent(customerId: id, granted: grant);
       // The operator may switch clients while the consent request is in flight.
@@ -455,6 +457,8 @@ class _BeautyPageState extends State<BeautyPage> {
       if (mounted && customerId == id) {
         setState(() => error = 'Could not update client consent.');
       }
+    } finally {
+      if (mounted) setState(() => updatingStoredConsent = false);
     }
   }
 
@@ -1330,9 +1334,15 @@ class _BeautyPageState extends State<BeautyPage> {
                               : 'Grant a stored consent record before processing this client.',
                         ),
                         trailing: TextButton(
-                          onPressed: loading ? null : _toggleStoredConsent,
+                          onPressed: loading || updatingStoredConsent
+                              ? null
+                              : _toggleStoredConsent,
                           child: Text(
-                            customerConsentActive == true ? 'Revoke' : 'Grant',
+                            updatingStoredConsent
+                                ? 'Saving...'
+                                : customerConsentActive == true
+                                    ? 'Revoke'
+                                    : 'Grant',
                           ),
                         ),
                       ),
