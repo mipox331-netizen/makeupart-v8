@@ -497,9 +497,18 @@ void main() {
     expect(find.text('Age'), findsOneWidget);
     expect(find.text('Gender'), findsOneWidget);
     final glassesFolder = find.byKey(const ValueKey('filter-folder-Glasses'));
-    // ListView lazily builds off-screen tools, so drag the horizontal toolbar
-    // to the end before looking for the last folder.
-    await tester.drag(foldersToolbar, const Offset(-1000, 0));
+    // Scroll the actual horizontal ListView until its lazily-built final item
+    // exists. Dragging the parent container is not guaranteed to reach the
+    // ListView's max extent on every CI viewport/device-pixel configuration.
+    final folderScrollView = find.descendant(
+      of: foldersToolbar,
+      matching: find.byType(Scrollable),
+    ).first;
+    await tester.scrollUntilVisible(
+      glassesFolder,
+      160,
+      scrollable: folderScrollView,
+    );
     await _pumpEditor(tester);
     expect(glassesFolder, findsOneWidget);
     expect(find.text('Glasses'), findsOneWidget);
