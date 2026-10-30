@@ -441,10 +441,14 @@ void main() {
     expect(find.text('Age'), findsOneWidget);
     expect(find.text('Gender'), findsOneWidget);
     final glassesFolder = find.byKey(const ValueKey('filter-folder-Glasses'));
-    await tester.ensureVisible(glassesFolder);
-    await tester.pump(const Duration(milliseconds: 100));
+    // ListView lazily builds off-screen tools, so drag the horizontal toolbar
+    // to the end before looking for the last folder.
+    await tester.drag(foldersToolbar, const Offset(-1000, 0));
+    await _pumpEditor(tester);
     expect(glassesFolder, findsOneWidget);
     expect(find.text('Glasses'), findsOneWidget);
+    await tester.drag(foldersToolbar, const Offset(1000, 0));
+    await _pumpEditor(tester);
 
     final impressionFolder = find.byKey(const ValueKey('filter-folder-Impression'));
     await tester.ensureVisible(impressionFolder);
