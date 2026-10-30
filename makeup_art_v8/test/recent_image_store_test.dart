@@ -48,7 +48,7 @@ void main() {
 
       final privateDirectory = Directory(
         '${root.path}${Platform.pathSeparator}recent_ai_results'
-        '${Platform.pathSeparator}$safeScope',
+        '${Platform.pathSeparator}$scope',
       );
       final galleryDirectory = Directory(
         '${galleryRoot.path}${Platform.pathSeparator}Pictures'
