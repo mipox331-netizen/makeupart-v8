@@ -156,6 +156,22 @@ void _useTallViewport(WidgetTester tester) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
+// The editor intentionally contains an indeterminate capability indicator and
+// the save dialog has an autofocus text field. pumpAndSettle waits forever for
+// those repeating animations; advance only the finite UI transitions under test.
+Future<void> _pumpEditor(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 400));
+}
+
+Future<void> _pumpUntilFound(WidgetTester tester, Finder finder) async {
+  for (var attempt = 0; attempt < 30; attempt++) {
+    if (finder.evaluate().isNotEmpty) return;
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  expect(finder, findsOneWidget);
+}
+
 void main() {
   testWidgets('MakeupArt V8 identifies MOOG 343 as creator', (tester) async {
     await tester.pumpWidget(const MakeupArtApp());
@@ -424,6 +440,10 @@ void main() {
     expect(find.text('Makeup'), findsOneWidget);
     expect(find.text('Age'), findsOneWidget);
     expect(find.text('Gender'), findsOneWidget);
+    final glassesFolder = find.byKey(const ValueKey('filter-folder-Glasses'));
+    await tester.ensureVisible(glassesFolder);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(glassesFolder, findsOneWidget);
     expect(find.text('Glasses'), findsOneWidget);
 
     final impressionFolder = find.byKey(const ValueKey('filter-folder-Impression'));
@@ -521,12 +541,18 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      // Let the device-local file read finish without waiting for repeating UI
+      // animations such as the cursor or capability progress indicator.
+      await presetStore.list();
+    });
+    await _pumpEditor(tester);
 
     final presetChip = find.byKey(ValueKey('salon-look-preset-${saved.id}'));
+    await _pumpUntilFound(tester, presetChip);
     await tester.ensureVisible(presetChip);
     await tester.tap(presetChip);
-    await tester.pumpAndSettle();
+    await _pumpEditor(tester);
 
     expect(find.text('Photo finish requires a higher plan'), findsOneWidget);
     expect(find.text('Process with AI'), findsNothing);
@@ -553,23 +579,32 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpEditor(tester);
 
     final impressionFolder = find.byKey(const ValueKey('filter-folder-Impression'));
     await tester.ensureVisible(impressionFolder);
     await tester.tap(impressionFolder);
-    await tester.pumpAndSettle();
+    await _pumpEditor(tester);
 
     final saveButton = find.byKey(const ValueKey('save-current-salon-look'));
     await tester.ensureVisible(saveButton);
     await tester.tap(saveButton);
-    await tester.pumpAndSettle();
+    // The name field requests keyboard focus and has a blinking caret. A
+    // bounded frame pump avoids waiting forever for that intentional ticker.
+    await _pumpEditor(tester);
 
     final nameField = find.byKey(const ValueKey('salon-look-name-field'));
     expect(nameField, findsOneWidget);
     await tester.enterText(nameField, 'Warm Studio');
     await tester.tap(find.byKey(const ValueKey('save-salon-look-confirm')));
-    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        if ((await presetStore.list()).isNotEmpty) return;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    });
+    await _pumpEditor(tester);
 
     final saved = await presetStore.list();
     expect(saved, hasLength(1));
@@ -578,9 +613,10 @@ void main() {
     final presetChip = find.byKey(
       ValueKey('salon-look-preset-${saved.single.id}'),
     );
+    await _pumpUntilFound(tester, presetChip);
     await tester.ensureVisible(presetChip);
     await tester.tap(presetChip);
-    await tester.pumpAndSettle();
+    await _pumpEditor(tester);
     expect(find.byKey(const ValueKey('photo-finishes-grid')), findsOneWidget);
   });
 
