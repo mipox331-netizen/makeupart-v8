@@ -110,6 +110,26 @@ class _ConsentRaceApi extends _ConsentTestApi {
   }
 }
 
+class _ConsentToggleApi extends _ConsentTestApi {
+  final consentWriteCompleted = Completer<void>();
+  int consentWriteCalls = 0;
+  bool consentGranted = true;
+
+  @override
+  Future<Map<String, dynamic>?> getActiveConsent(String customerId) async =>
+      consentGranted ? {'id': 'stored-consent', 'customer_id': customerId} : null;
+
+  @override
+  Future<void> setCustomerConsent({
+    required String customerId,
+    required bool granted,
+  }) async {
+    consentWriteCalls++;
+    await consentWriteCompleted.future;
+    consentGranted = granted;
+  }
+}
+
 DioException _responseError(int status, Object data) {
   final request = RequestOptions(path: '/auth/register');
   return DioException(
@@ -289,6 +309,48 @@ void main() {
     expect(find.text('AI consent is active'), findsOneWidget);
   });
 
+
+  testWidgets('stored consent cannot be toggled twice while a request is pending', (tester) async {
+    _useTallViewport(tester);
+    tester.view.physicalSize = const Size(800, 3200);
+    final api = _ConsentToggleApi();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BeautyPage(
+          api: api,
+          onLogout: () {},
+          salonId: 'consent-toggle-test',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final dropdown = find.byType(DropdownButtonFormField<String>);
+    await tester.ensureVisible(dropdown);
+    await tester.tap(dropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alice One').last);
+    await tester.pumpAndSettle();
+    expect(find.text('AI consent is active'), findsOneWidget);
+
+    final revokeButton = find.widgetWithText(TextButton, 'Revoke');
+    await tester.ensureVisible(revokeButton);
+    await tester.tap(revokeButton);
+    await tester.pump();
+
+    expect(api.consentWriteCalls, 1);
+    final savingButton = find.widgetWithText(TextButton, 'Saving...');
+    expect(savingButton, findsOneWidget);
+    expect(tester.widget<TextButton>(savingButton).onPressed, isNull);
+
+    api.consentWriteCompleted.complete();
+    await tester.pumpAndSettle();
+
+    expect(api.consentWriteCalls, 1);
+    expect(api.consentGranted, isFalse);
+    expect(find.text('AI consent is not active'), findsOneWidget);
+  });
 
   testWidgets('a late consent failure for the previous client cannot revoke the current client', (tester) async {
     _useTallViewport(tester);
