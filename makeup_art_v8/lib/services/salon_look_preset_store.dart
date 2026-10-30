@@ -45,7 +45,7 @@ class SalonLookPreset {
     String requiredString(String key) {
       final value = json[key];
       if (value is! String || value.trim().isEmpty) {
-        throw FormatException('Invalid salon look preset field: ' + key);
+        throw FormatException('Invalid salon look preset field: $key');
       }
       return value.trim();
     }
@@ -118,21 +118,18 @@ class SalonLookPresetStore {
       return normalizedScope;
     }
     // A leading tilde is outside the safe character set, preventing collisions.
-    return '~' + base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '');
+    return '~${base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '')}';
   }
 
   Future<File> _file({required bool createDirectory}) async {
     final root = rootOverride ?? await getApplicationDocumentsDirectory();
-    final path = root.path +
-        Platform.pathSeparator +
-        'salon_look_presets' +
-        Platform.pathSeparator +
-        _safeScope;
+    final path =
+        '${root.path}${Platform.pathSeparator}salon_look_presets${Platform.pathSeparator}$_safeScope';
     final directory = Directory(path);
     if (createDirectory && !await directory.exists()) {
       await directory.create(recursive: true);
     }
-    return File(directory.path + Platform.pathSeparator + 'presets.json');
+    return File('${directory.path}${Platform.pathSeparator}presets.json');
   }
 
   Future<List<SalonLookPreset>> list() async {
@@ -170,7 +167,7 @@ class SalonLookPresetStore {
   }) async {
     final cleanName = name.trim();
     if (cleanName.isEmpty || cleanName.length > maxNameLength) {
-      throw ArgumentError('Name must contain 1–' + maxNameLength.toString() + ' characters.');
+      throw ArgumentError('Name must contain 1–$maxNameLength characters.');
     }
     if (!supportedFolders.contains(folder)) {
       throw ArgumentError('This filter folder cannot be saved as a preset.');
@@ -222,7 +219,7 @@ class SalonLookPresetStore {
 
   Future<void> _write(List<SalonLookPreset> presets) async {
     final file = await _file(createDirectory: true);
-    final temporary = File(file.path + '.tmp');
+    final temporary = File('${file.path}.tmp');
     if (await temporary.exists()) await temporary.delete();
     await temporary.writeAsString(
       jsonEncode({
