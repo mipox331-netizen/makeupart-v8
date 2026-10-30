@@ -11,12 +11,13 @@ class RecentImageStore {
   static const _directoryName = 'recent_ai_results';
 
   final Directory? rootOverride;
-  final Directory? phoneRootOverride;
+  final Future<void> Function(Uint8List bytes, String fileName)?
+      galleryArchiveWriter;
   final String scope;
 
   const RecentImageStore({
     this.rootOverride,
-    this.phoneRootOverride,
+    this.galleryArchiveWriter,
     this.scope = 'default',
   });
 
@@ -49,14 +50,6 @@ class RecentImageStore {
     if (!await directory.exists()) {
       await directory.create(recursive: true);
     }
-    return directory;
-  }
-
-  Future<Directory> _scopedPhoneStorageDirectory(String parentPath) async {
-    final path =
-        '$parentPath${Platform.pathSeparator}MakeupArtV8${Platform.pathSeparator}$_safeScope';
-    final directory = Directory(path);
-    await directory.create(recursive: true);
     return directory;
   }
 
@@ -153,16 +146,13 @@ class RecentImageStore {
 
     for (final file in overflow) {
       try {
-        final override = phoneRootOverride;
-        if (override != null) {
-          // A filesystem override keeps storage behavior deterministic in tests.
-          final phoneDirectory =
-              await _scopedPhoneStorageDirectory(override.path);
-          final target = File(
-            '${phoneDirectory.path}${Platform.pathSeparator}'
-            '${file.uri.pathSegments.last}',
+        final archiveWriter = galleryArchiveWriter;
+        if (archiveWriter != null) {
+          // An injected writer keeps public-gallery behavior deterministic in tests.
+          await archiveWriter(
+            await file.readAsBytes(),
+            _galleryArchiveFileName(file),
           );
-          await file.copy(target.path);
         } else if (Platform.isAndroid) {
           // Public MediaStore storage survives app removal and is visible in
           // Gallery/Photos. Keep the private source until publication succeeds.
