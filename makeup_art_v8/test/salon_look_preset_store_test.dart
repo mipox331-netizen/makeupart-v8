@@ -41,6 +41,37 @@ void main() {
     expect(await salonB.list(), isEmpty);
   });
 
+  test('salon scopes cannot collide after path normalization', () async {
+    final first = SalonLookPresetStore(rootOverride: root, scope: 'salon:one');
+    final second = SalonLookPresetStore(rootOverride: root, scope: 'salon?one');
+
+    await first.save(
+      name: 'Natural',
+      folder: 'Skin',
+      engine: 'classic',
+      makeupStyle: 'skin_only',
+      generativeLook: 'natural',
+      photoFinish: 'Natural Finish',
+      intensity: 0.5,
+    );
+    await second.save(
+      name: 'Natural',
+      folder: 'Skin',
+      engine: 'classic',
+      makeupStyle: 'skin_only',
+      generativeLook: 'natural',
+      photoFinish: 'Natural Finish',
+      intensity: 0.5,
+    );
+
+    expect(await first.list(), hasLength(1));
+    expect(await second.list(), hasLength(1));
+    await expectLater(
+      SalonLookPresetStore(rootOverride: root, scope: '  ').list(),
+      throwsArgumentError,
+    );
+  });
+
   test('saving an existing name updates it instead of creating a duplicate', () async {
     final store = SalonLookPresetStore(rootOverride: root, scope: 'salon-a');
 
