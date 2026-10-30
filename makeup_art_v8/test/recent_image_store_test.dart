@@ -119,6 +119,26 @@ void main() {
     }
   });
 
+  test('different job IDs cannot collapse to the same history filename', () async {
+    final root = await Directory.systemTemp.createTemp('makeupart_recent_job_ids_');
+    final store = RecentImageStore(rootOverride: root, scope: 'test-salon');
+
+    try {
+      await store.save(Uint8List.fromList([1, 2, 3]), jobId: 'work:one');
+      await store.save(Uint8List.fromList([7, 8, 9]), jobId: 'work?one');
+
+      final files = await store.list();
+      expect(files, hasLength(2));
+      final contents = <String>{
+        for (final file in files) (await file.readAsBytes()).join(','),
+      };
+      expect(contents, contains('1,2,3'));
+      expect(contents, contains('7,8,9'));
+    } finally {
+      await root.delete(recursive: true);
+    }
+  });
+
   test('rejects an empty salon scope', () async {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_empty_scope_');
     final store = RecentImageStore(rootOverride: root, scope: '  ');
