@@ -7,6 +7,7 @@ import 'package:makeup_art_v8/main.dart';
 import 'package:makeup_art_v8/pages/beauty_page.dart';
 import 'package:makeup_art_v8/pages/login_page.dart';
 import 'package:makeup_art_v8/pages/register_page.dart';
+import 'package:makeup_art_v8/pages/subscription_page.dart';
 import 'package:makeup_art_v8/services/api_client.dart';
 import 'package:makeup_art_v8/services/salon_look_preset_store.dart';
 import 'package:makeup_art_v8/widgets/face_sample_artwork.dart';
@@ -256,6 +257,83 @@ void main() {
     expect(api.tokensCleared, isTrue);
     expect(logoutRequested, isTrue);
     expect(find.textContaining('Could not load account status:'), findsNothing);
+  });
+
+  testWidgets('login password visibility can be toggled safely', (tester) async {
+    _useTallViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginPage(
+          api: _FakeLoginApi(StateError('not submitted')),
+          onLoggedIn: () {},
+        ),
+      ),
+    );
+
+    final passwordField = find.byKey(const ValueKey('login-password-input'));
+    final toggle = find.byKey(
+      const ValueKey('login-password-visibility-toggle'),
+    );
+    expect(tester.widget<TextField>(passwordField).obscureText, isTrue);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(tester.widget<TextField>(passwordField).obscureText, isFalse);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(tester.widget<TextField>(passwordField).obscureText, isTrue);
+  });
+
+  testWidgets('registration password visibility can be toggled safely', (tester) async {
+    _useTallViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RegisterPage(
+          api: _FakeRegistrationApi(),
+          onRegistered: () {},
+        ),
+      ),
+    );
+
+    final passwordField = find.byKey(const ValueKey('register-password-input'));
+    final toggle = find.byKey(
+      const ValueKey('register-password-visibility-toggle'),
+    );
+    expect(tester.widget<TextField>(passwordField).obscureText, isTrue);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(tester.widget<TextField>(passwordField).obscureText, isFalse);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(tester.widget<TextField>(passwordField).obscureText, isTrue);
+  });
+
+  testWidgets('subscription offers Vodacom, Tigo and Airtel mobile money choices', (tester) async {
+    _useTallViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SubscriptionPage(
+          subscription: const {'plan': 'free', 'status': 'inactive'},
+          onLogout: () {},
+          onRetry: () async {},
+          loading: false,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('mobile-money-vodacom')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mobile-money-tigo')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mobile-money-airtel')), findsOneWidget);
+    expect(
+      find.textContaining('automatic mobile-money collection is not connected yet'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('mobile-money-tigo')));
+    await tester.pump();
+    expect(
+      find.text('Selected: Tigo Pesa'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('login server error includes a safe support reference', (tester) async {
@@ -692,6 +770,10 @@ void main() {
     );
     await _pumpEditor(tester);
 
+    final editorScrollView = find.descendant(
+      of: find.byKey(const ValueKey('beauty-editor-scroll-view')),
+      matching: find.byType(Scrollable),
+    ).first;
     final impressionFolder = find.byKey(const ValueKey('filter-folder-Impression'));
     final folderScrollView = find.descendant(
       of: find.byKey(const ValueKey('face-filter-folders-grid')),
@@ -709,7 +791,7 @@ void main() {
     await tester.scrollUntilVisible(
       saveButton,
       160,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: editorScrollView,
     );
     await tester.tap(saveButton);
     // The name field requests keyboard focus and has a blinking caret. A
@@ -734,7 +816,7 @@ void main() {
     await tester.scrollUntilVisible(
       savedLooksPanel,
       160,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: editorScrollView,
     );
     final presetScrollView = find.descendant(
       of: savedLooksPanel,
