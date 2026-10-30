@@ -198,6 +198,37 @@ void main() {
     }
   });
 
+  test('keeps the only private copy when public gallery archiving fails', () async {
+    final root = await Directory.systemTemp.createTemp('makeupart_recent_gallery_failure_');
+    final store = RecentImageStore(
+      rootOverride: root,
+      scope: 'salon-failure',
+      galleryArchiveWriter: (bytes, fileName) async {
+        throw StateError('simulated MediaStore failure');
+      },
+    );
+
+    try {
+      for (var index = 0; index < 11; index++) {
+        await store.save(
+          Uint8List.fromList(List<int>.filled(16, index)),
+          jobId: 'job-$index',
+        );
+      }
+
+      final privateDirectory = Directory(
+        '${root.path}${Platform.pathSeparator}recent_ai_results'
+        '${Platform.pathSeparator}salon-failure',
+      );
+      expect(await store.list(), hasLength(10));
+      // The overflow is no longer in the visible ten-item recent list,
+      // but the only source copy is retained when gallery publication fails.
+      expect(await countPngFiles(privateDirectory), 11);
+    } finally {
+      await root.delete(recursive: true);
+    }
+  });
+
   test('preserves overflow when external phone storage is unavailable', () async {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_fallback_');
     final store = RecentImageStore(rootOverride: root);
