@@ -441,7 +441,8 @@ class _BeautyPageState extends State<BeautyPage> {
     final grant = customerConsentActive != true;
     try {
       await widget.api.setCustomerConsent(customerId: id, granted: grant);
-      if (!mounted) return;
+      // The operator may switch clients while the consent request is in flight.
+      if (!mounted || customerId != id) return;
       setState(() {
         // A grant/revocation changes the consent state; require a fresh operator confirmation.
         consentConfirmed = false;
