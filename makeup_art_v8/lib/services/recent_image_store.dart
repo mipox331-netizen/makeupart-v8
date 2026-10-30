@@ -54,10 +54,14 @@ class RecentImageStore {
   }
 
   String _galleryArchiveFileName(File file) {
-    // Keep the encoding marker in the public filename. Without it, an encoded
-    // scope could collide with a different salon whose literal ID equals the
-    // Base64 token (even though their private app directories remain separate).
-    final scopeToken = _safeScope;
+    // GalleryExporter permits dots in filenames but replaces tildes. Use a
+    // dot as the encoded-scope marker so the marker survives native sanitization.
+    // Dots are excluded from plain salon IDs, so encoded and literal IDs cannot
+    // collide after the filename is normalized for MediaStore.
+    final safeScope = _safeScope;
+    final scopeToken = safeScope.startsWith('~')
+        ? '.${safeScope.substring(1)}'
+        : safeScope;
     return 'archive_${scopeToken}_${file.uri.pathSegments.last}';
   }
 
