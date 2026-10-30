@@ -23,7 +23,7 @@ void main() {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_');
     final phoneRoot = await Directory.systemTemp.createTemp('makeupart_phone_');
     const scope = 'test-salon';
-    final safeScope = scope;
+    const safeScope = scope;
     final store = RecentImageStore(
       rootOverride: root,
       phoneRootOverride: phoneRoot,
