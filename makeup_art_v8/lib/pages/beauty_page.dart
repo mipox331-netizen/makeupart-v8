@@ -656,6 +656,11 @@ class _BeautyPageState extends State<BeautyPage> {
 
   void _openFilterFolder(String folder) {
     setState(() {
+      // A result belongs to the folder and options used to create it. Clear it
+      // whenever the user changes folders, including roadmap-only folders.
+      if (_selectedFilterFolder != folder) {
+        _clearProcessedResult();
+      }
       _selectedFilterFolder = folder;
 
       if (folder == 'Impression' || folder == 'Skin') {
