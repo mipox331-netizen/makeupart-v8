@@ -816,7 +816,6 @@ void main() {
     final presetChip = find.byKey(
       ValueKey('salon-look-preset-${saved.single.id}'),
     );
-    await _pumpUntilFound(tester, presetChip);
     final savedLooksPanel = find.byKey(const ValueKey('saved-salon-looks-panel'));
     editorController.jumpTo(0);
     await _pumpEditor(tester);
