@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -94,6 +95,19 @@ class _ConsentTestApi extends ApiClient {
   @override
   Future<Map<String, dynamic>?> getActiveConsent(String customerId) async =>
       {'id': 'stored-consent', 'customer_id': customerId};
+}
+
+class _ConsentRaceApi extends _ConsentTestApi {
+  final firstClientLookup = Completer<void>();
+
+  @override
+  Future<Map<String, dynamic>?> getActiveConsent(String customerId) async {
+    if (customerId == 'customer-a') {
+      await firstClientLookup.future;
+      throw Exception('simulated stale consent request failure');
+    }
+    return {'id': 'stored-consent', 'customer_id': customerId};
+  }
 }
 
 DioException _responseError(int status, Object data) {
@@ -275,6 +289,40 @@ void main() {
     expect(find.text('AI consent is active'), findsOneWidget);
   });
 
+
+  testWidgets('a late consent failure for the previous client cannot revoke the current client', (tester) async {
+    _useTallViewport(tester);
+    tester.view.physicalSize = const Size(800, 3200);
+    final api = _ConsentRaceApi();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BeautyPage(
+          api: api,
+          onLogout: () {},
+          salonId: 'consent-race-test',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final dropdown = find.byType(DropdownButtonFormField<String>);
+    await tester.tap(dropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alice One').last);
+    await tester.pumpAndSettle();
+
+    // Alice's consent lookup is still pending. Select Bob before it fails.
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bob Two').last);
+    await tester.pumpAndSettle();
+    expect(find.text('AI consent is active'), findsOneWidget);
+
+    api.firstClientLookup.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('AI consent is active'), findsOneWidget);
+  });
 
   testWidgets('Face filter folders route to real tools and label unfinished categories', (tester) async {
     _useTallViewport(tester);
