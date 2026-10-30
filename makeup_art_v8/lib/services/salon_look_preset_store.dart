@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 /// A salon-scoped, device-local recipe for repeating a beauty edit.
+///
 /// Presets contain settings only; they never store client photos or personal data.
 class SalonLookPreset {
   const SalonLookPreset({
@@ -44,7 +45,7 @@ class SalonLookPreset {
     String requiredString(String key) {
       final value = json[key];
       if (value is! String || value.trim().isEmpty) {
-        throw FormatException('Invalid salon look preset field: $key');
+        throw FormatException('Invalid salon look preset field: ' + key);
       }
       return value.trim();
     }
@@ -107,145 +108,31 @@ class SalonLookPresetStore {
   final Directory? rootOverride;
   final String scope;
 
-  // Encode the complete salon identifier instead of replacing characters.
-  // Character replacement can make two different salon IDs share one folder.
   String get _safeScope {
     final normalizedScope = scope.trim();
     if (normalizedScope.isEmpty) {
       throw ArgumentError.value(scope, 'scope', 'must not be empty');
     }
-    if (RegExp(r'^[A-Za-z0-9_-]+  }
-
-  Future<File> _file({required bool createDirectory}) async {
-    final root = rootOverride ?? await getApplicationDocumentsDirectory();
-    final directory = Directory(
-      '${root.path}${Platform.pathSeparator}salon_look_presets${Platform.pathSeparator}$_safeScope',
-    );
-    if (createDirectory && !await directory.exists()) {
-      await directory.create(recursive: true);
-    }
-    return File(
-      '${directory.path}${Platform.pathSeparator}presets.json',
-    );
-  }
-
-  Future<List<SalonLookPreset>> list() async {
-    final file = await _file(createDirectory: false);
-    if (!await file.exists()) return const [];
-
-    final decoded = jsonDecode(await file.readAsString());
-    if (decoded is! Map<String, dynamic> ||
-        decoded['schema_version'] != 1 ||
-        decoded['presets'] is! List) {
-      throw const FormatException('Saved salon looks file has an unsupported format');
-    }
-
-    final presets = <SalonLookPreset>[];
-    for (final value in decoded['presets'] as List<dynamic>) {
-      if (value is! Map<String, dynamic>) continue;
-      try {
-        presets.add(SalonLookPreset.fromJson(value));
-      } on FormatException {
-        // Ignore a damaged individual record without discarding other saved looks.
-      }
-    }
-    presets.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    return presets;
-  }
-
-  Future<SalonLookPreset> save({
-    required String name,
-    required String folder,
-    required String engine,
-    required String makeupStyle,
-    required String generativeLook,
-    required String photoFinish,
-    required double intensity,
-  }) async {
-    final cleanName = name.trim();
-    if (cleanName.isEmpty || cleanName.length > maxNameLength) {
-      throw ArgumentError('Name must contain 1–$maxNameLength characters.');
-    }
-    if (!supportedFolders.contains(folder)) {
-      throw ArgumentError('This filter folder cannot be saved as a preset.');
-    }
-    if (!const {'classic', 'generative'}.contains(engine)) {
-      throw ArgumentError('Unknown beauty engine.');
-    }
-    if (!intensity.isFinite || intensity < 0 || intensity > 1) {
-      throw ArgumentError('Intensity must be between 0 and 1.');
-    }
-    if (makeupStyle.trim().isEmpty ||
-        generativeLook.trim().isEmpty ||
-        photoFinish.trim().isEmpty) {
-      throw ArgumentError('Preset settings cannot be empty.');
-    }
-
-    final existing = await list();
-    final existingName = existing.where(
-      (preset) => preset.name.toLowerCase() == cleanName.toLowerCase(),
-    );
-    final previous = existingName.isEmpty ? null : existingName.first;
-    final now = DateTime.now().toUtc();
-    final preset = SalonLookPreset(
-      id: previous?.id ?? now.microsecondsSinceEpoch.toString(),
-      name: cleanName,
-      folder: folder,
-      engine: engine,
-      makeupStyle: makeupStyle,
-      generativeLook: generativeLook,
-      photoFinish: photoFinish,
-      intensity: intensity,
-      updatedAt: now,
-    );
-    final next = <SalonLookPreset>[
-      preset,
-      ...existing.where((item) => item.id != preset.id),
-    ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-
-    await _write(next.take(maxPresets).toList());
-    return preset;
-  }
-
-  Future<void> delete(String id) async {
-    final existing = await list();
-    final next = existing.where((preset) => preset.id != id).toList();
-    if (next.length == existing.length) return;
-    await _write(next);
-  }
-
-  Future<void> _write(List<SalonLookPreset> presets) async {
-    final file = await _file(createDirectory: true);
-    final temporary = File('${file.path}.tmp');
-    if (await temporary.exists()) await temporary.delete();
-    await temporary.writeAsString(
-      jsonEncode({
-        'schema_version': 1,
-        'presets': presets.map((preset) => preset.toJson()).toList(),
-      }),
-      flush: true,
-    );
-    // Rename within the same directory so readers never observe a half-written JSON file.
-    await temporary.rename(file.path);
-  }
-}
-).hasMatch(normalizedScope)) {
+    // Keep the existing on-device folder for UUIDs and other safe identifiers.
+    if (RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(normalizedScope)) {
       return normalizedScope;
     }
-    return '~${base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '')}';
+    // A leading tilde is outside the safe character set, preventing collisions.
+    return '~' + base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '');
   }
 
   Future<File> _file({required bool createDirectory}) async {
     final root = rootOverride ?? await getApplicationDocumentsDirectory();
-    final directory = Directory(
-      '${root.path}${Platform.pathSeparator}salon_look_presets${Platform.pathSeparator}$_safeScope',
-    );
+    final path = root.path +
+        Platform.pathSeparator +
+        'salon_look_presets' +
+        Platform.pathSeparator +
+        _safeScope;
+    final directory = Directory(path);
     if (createDirectory && !await directory.exists()) {
       await directory.create(recursive: true);
     }
-    return File(
-      '${directory.path}${Platform.pathSeparator}presets.json',
-    );
+    return File(directory.path + Platform.pathSeparator + 'presets.json');
   }
 
   Future<List<SalonLookPreset>> list() async {
@@ -283,7 +170,7 @@ class SalonLookPresetStore {
   }) async {
     final cleanName = name.trim();
     if (cleanName.isEmpty || cleanName.length > maxNameLength) {
-      throw ArgumentError('Name must contain 1–$maxNameLength characters.');
+      throw ArgumentError('Name must contain 1–' + maxNameLength.toString() + ' characters.');
     }
     if (!supportedFolders.contains(folder)) {
       throw ArgumentError('This filter folder cannot be saved as a preset.');
@@ -335,7 +222,7 @@ class SalonLookPresetStore {
 
   Future<void> _write(List<SalonLookPreset> presets) async {
     final file = await _file(createDirectory: true);
-    final temporary = File('${file.path}.tmp');
+    final temporary = File(file.path + '.tmp');
     if (await temporary.exists()) await temporary.delete();
     await temporary.writeAsString(
       jsonEncode({
