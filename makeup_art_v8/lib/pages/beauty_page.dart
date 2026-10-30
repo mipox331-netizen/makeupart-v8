@@ -411,9 +411,27 @@ class _BeautyPageState extends State<BeautyPage> {
     try {
       final consent = await widget.api.getActiveConsent(id);
       if (!mounted || customerId != id) return;
-      setState(() => customerConsentActive = consent != null);
+      final isActive = consent != null;
+      setState(() {
+        if (customerConsentActive != isActive) {
+          customerConsentActive = isActive;
+          // A consent change invalidates all previous confirmations and outputs.
+          consentConfirmed = false;
+          externalAiConsentConfirmed = false;
+          _clearProcessedResult();
+        }
+      });
     } catch (_) {
-      if (mounted) setState(() => customerConsentActive = false);
+      // An older client's failed request must never overwrite the current client's state.
+      if (!mounted || customerId != id) return;
+      setState(() {
+        if (customerConsentActive != false) {
+          customerConsentActive = false;
+          consentConfirmed = false;
+          externalAiConsentConfirmed = false;
+          _clearProcessedResult();
+        }
+      });
     }
   }
 
@@ -428,9 +446,7 @@ class _BeautyPageState extends State<BeautyPage> {
         // A grant/revocation changes the consent state; require a fresh operator confirmation.
         consentConfirmed = false;
         externalAiConsentConfirmed = false;
-        result = null;
-        afterImageFuture = null;
-        error = null;
+        _clearProcessedResult();
       });
       await _refreshCustomerConsent(id);
     } catch (_) {
