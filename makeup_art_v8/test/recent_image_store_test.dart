@@ -23,7 +23,7 @@ void main() {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_');
     final phoneRoot = await Directory.systemTemp.createTemp('makeupart_phone_');
     const scope = 'test-salon';
-    final safeScope = base64Url.encode(utf8.encode(scope)).replaceAll('=', '');
+    final safeScope = scope;
     final store = RecentImageStore(
       rootOverride: root,
       phoneRootOverride: phoneRoot,
@@ -104,11 +104,11 @@ void main() {
 
       final firstArchive = Directory(
         '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
-        '${Platform.pathSeparator}${base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '')}',
+        '${Platform.pathSeparator}${'~${base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '')}'}',
       );
       final secondArchive = Directory(
         '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
-        '${Platform.pathSeparator}${base64Url.encode(utf8.encode('salon?one')).replaceAll('=', '')}',
+        '${Platform.pathSeparator}${'~${base64Url.encode(utf8.encode('salon?one')).replaceAll('=', '')}'}',
       );
       expect(firstArchive.path, isNot(secondArchive.path));
     } finally {
@@ -140,7 +140,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 2));
       }
 
-      final defaultScope = base64Url.encode(utf8.encode('default')).replaceAll('=', '');
+      const defaultScope = 'default';
       final privateDirectory = Directory(
         '${root.path}${Platform.pathSeparator}recent_ai_results'
         '${Platform.pathSeparator}$defaultScope',
