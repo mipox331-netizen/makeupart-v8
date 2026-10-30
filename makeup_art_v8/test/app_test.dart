@@ -230,6 +230,14 @@ Future<void> _pumpUntilFound(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  test('API client tolerates Render free-tier service cold starts', () {
+    final api = ApiClient();
+    expect(api.dio.options.connectTimeout, const Duration(seconds: 75));
+    expect(api.dio.options.sendTimeout, const Duration(seconds: 90));
+    api.dio.close(force: true);
+  });
+
+
   testWidgets('MakeupArt V8 identifies MOOG 343 as creator', (tester) async {
     await tester.pumpWidget(const MakeupArtApp());
     await tester.pump();
