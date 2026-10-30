@@ -305,14 +305,7 @@ class _MakeupArtSettingsPageState extends State<MakeupArtSettingsPage> {
                           title: const Text('MakeupArt V8'),
                           subtitle: Text('Version $version'),
                         ),
-                        const Divider(height: 1, indent: 56),
-                        const ListTile(
-                          leading: Icon(Icons.tune_rounded),
-                          title: Text('App preferences'),
-                          subtitle: Text(
-                            'Display, language and notification preferences will appear here when supported by this release.',
-                          ),
-                        ),
+
                       ],
                     ),
                   ),
