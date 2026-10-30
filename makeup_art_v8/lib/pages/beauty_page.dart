@@ -451,7 +451,9 @@ class _BeautyPageState extends State<BeautyPage> {
       });
       await _refreshCustomerConsent(id);
     } catch (_) {
-      if (mounted) setState(() => error = 'Could not update client consent.');
+      if (mounted && customerId == id) {
+        setState(() => error = 'Could not update client consent.');
+      }
     }
   }
 
