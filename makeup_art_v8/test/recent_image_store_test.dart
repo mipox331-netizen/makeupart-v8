@@ -102,13 +102,15 @@ void main() {
       expect(await (await first.list()).single.readAsBytes(), equals([1, 2, 3]));
       expect(await (await second.list()).single.readAsBytes(), equals([7, 8, 9]));
 
+      final firstScope = '~${base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '')}';
+      final secondScope = '~${base64Url.encode(utf8.encode('salon?one')).replaceAll('=', '')}';
       final firstArchive = Directory(
         '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
-        '${Platform.pathSeparator}${'~${base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '')}'}',
+        '${Platform.pathSeparator}$firstScope',
       );
       final secondArchive = Directory(
         '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
-        '${Platform.pathSeparator}${'~${base64Url.encode(utf8.encode('salon?one')).replaceAll('=', '')}'}',
+        '${Platform.pathSeparator}$secondScope',
       );
       expect(firstArchive.path, isNot(secondArchive.path));
     } finally {
