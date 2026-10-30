@@ -865,7 +865,7 @@ class _BeautyPageState extends State<BeautyPage> {
       _showPlanRequired('Pro', 'Skin Polish');
       return;
     }
-    if (folder == 'Impression' && !availableFinishes.contains(selectedLook)) {
+    if (!availableFinishes.contains(selectedLook)) {
       _showPlanRequired(selectedLook == 'Soft Glam' ? 'Basic' : 'Pro', selectedLook);
       return;
     }
@@ -1081,11 +1081,10 @@ class _BeautyPageState extends State<BeautyPage> {
     );
     final needsSkinOnly = const {'Impression', 'Skin'}
         .contains(_selectedFilterFolder);
-    final needsPhotoFinish = _selectedFilterFolder == 'Impression';
     final selectedFolderToolsAvailable = _canProcessSelectedFolder() &&
         (selectedEngine != 'generative' || generativeAvailable) &&
         (!needsSkinOnly || availableMakeupStyles.contains('skin_only')) &&
-        (!needsPhotoFinish || availablePhotoFinishes.contains(selectedLook)) &&
+        availablePhotoFinishes.contains(selectedLook) &&
         (_selectedFilterFolder != 'Makeup' ||
             selectedEngine == 'generative' ||
             availableMakeupStyles.contains(selectedMakeupStyle));
@@ -1886,6 +1885,15 @@ class _BeautyPageState extends State<BeautyPage> {
                             'This folder is in the filter roadmap, but its image-processing effect is not implemented yet. It will not change the photo until a real processor is connected and tested.',
                       ),
                     ],
+                  ],
+                  if (!availablePhotoFinishes.contains(selectedLook)) ...[
+                    const SizedBox(height: 8),
+                    _FolderInformation(
+                      icon: Icons.workspace_premium_outlined,
+                      title: 'Photo finish requires a higher plan',
+                      message:
+                          '$selectedLook is not included in this salon plan. Choose an included finish in Impression or upgrade the salon plan before processing.',
+                    ),
                   ],
                   if (selectedFolderToolsAvailable) ...[
                     const SizedBox(height: 6),
