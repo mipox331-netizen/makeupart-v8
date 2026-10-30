@@ -107,10 +107,15 @@ class SalonLookPresetStore {
   final Directory? rootOverride;
   final String scope;
 
-  String get _safeScope =>
-      scope.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_').isEmpty
-          ? 'default'
-          : scope.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+  // Encode the complete salon identifier instead of replacing characters.
+  // Character replacement can make two different salon IDs share one folder.
+  String get _safeScope {
+    final normalizedScope = scope.trim();
+    if (normalizedScope.isEmpty) {
+      throw ArgumentError.value(scope, 'scope', 'must not be empty');
+    }
+    return base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '');
+  }
 
   Future<File> _file({required bool createDirectory}) async {
     final root = rootOverride ?? await getApplicationDocumentsDirectory();
