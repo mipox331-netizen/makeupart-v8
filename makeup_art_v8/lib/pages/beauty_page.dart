@@ -1001,8 +1001,6 @@ class _BeautyPageState extends State<BeautyPage> {
     return 'Selected client';
   }
 
-  @override
-
   Widget _buildFaceEditorToolbar() {
     return Container(
       key: const ValueKey('face-filter-folders-grid'),
@@ -1047,6 +1045,7 @@ class _BeautyPageState extends State<BeautyPage> {
     );
   }
 
+  @override
   Widget build(BuildContext context) {
     final portraitHeight = (MediaQuery.sizeOf(context).height * 0.42)
         .clamp(260.0, 420.0)
