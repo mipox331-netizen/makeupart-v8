@@ -105,8 +105,13 @@ void main() {
     );
     Future<void> archive(Uint8List bytes, String fileName) async {
       await galleryDirectory.create(recursive: true);
+      // Mirror GalleryExporter's filename normalization on Android.
+      final safeFileName = fileName.replaceAll(
+        RegExp(r'[^A-Za-z0-9_.-]'),
+        '_',
+      );
       await File(
-        '${galleryDirectory.path}${Platform.pathSeparator}$fileName',
+        '${galleryDirectory.path}${Platform.pathSeparator}$safeFileName',
       ).writeAsBytes(bytes, flush: true);
     }
 
@@ -141,7 +146,7 @@ void main() {
 
       expect(await first.list(), hasLength(10));
       expect(await second.list(), hasLength(10));
-      final firstScope = '~${base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '')}';
+      final firstScope = '.${base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '')}';
       const secondScope = 'c2Fsb246b25l';
       final archivedFiles = await galleryDirectory
           .list()
