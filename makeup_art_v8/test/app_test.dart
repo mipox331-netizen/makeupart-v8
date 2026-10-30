@@ -516,8 +516,12 @@ void main() {
     await _pumpEditor(tester);
 
     final impressionFolder = find.byKey(const ValueKey('filter-folder-Impression'));
-    await tester.ensureVisible(impressionFolder);
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      impressionFolder,
+      120,
+      scrollable: folderScrollView,
+    );
+    await _pumpEditor(tester);
     await tester.tap(impressionFolder);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('photo-finishes-grid')), findsOneWidget);
@@ -526,20 +530,33 @@ void main() {
     expect(find.textContaining('Skin polish strength'), findsOneWidget);
 
     final back = find.byKey(const ValueKey('back-to-filter-folders'));
-    await tester.ensureVisible(back);
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      back,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _pumpEditor(tester);
     await tester.tap(back);
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.byKey(const ValueKey('filter-folder-Makeup')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('filter-folder-Makeup')));
+    final makeupFolder = find.byKey(const ValueKey('filter-folder-Makeup'));
+    await tester.scrollUntilVisible(
+      makeupFolder,
+      120,
+      scrollable: folderScrollView,
+    );
+    await _pumpEditor(tester);
+    await tester.tap(makeupFolder);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('classic-options-grid')), findsOneWidget);
     final eyesCategory = find.byKey(const ValueKey('classic-category-Eyes'));
-    await tester.ensureVisible(eyesCategory);
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      eyesCategory,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _pumpEditor(tester);
     await tester.tap(eyesCategory);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('classic-option-smokey_eye')), findsOneWidget);
@@ -550,9 +567,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(back);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const ValueKey('filter-folder-Skin')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('filter-folder-Skin')));
+    final skinFolder = find.byKey(const ValueKey('filter-folder-Skin'));
+    await tester.scrollUntilVisible(
+      skinFolder,
+      120,
+      scrollable: folderScrollView,
+    );
+    await _pumpEditor(tester);
+    await tester.tap(skinFolder);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('classic-option-skin_only')), findsOneWidget);
@@ -562,9 +584,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(back);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const ValueKey('filter-folder-Sizes')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('filter-folder-Sizes')));
+    final sizesFolder = find.byKey(const ValueKey('filter-folder-Sizes'));
+    await tester.scrollUntilVisible(
+      sizesFolder,
+      120,
+      scrollable: folderScrollView,
+    );
+    await _pumpEditor(tester);
+    await tester.tap(sizesFolder);
     await tester.pumpAndSettle();
 
     expect(find.text('Coming soon'), findsOneWidget);
@@ -574,8 +601,12 @@ void main() {
     );
 
     final creatorCredit = find.text('MOOG 343');
-    await tester.ensureVisible(creatorCredit);
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      creatorCredit,
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _pumpEditor(tester);
     expect(creatorCredit, findsOneWidget);
   });
 
@@ -612,7 +643,21 @@ void main() {
 
     final presetChip = find.byKey(ValueKey('salon-look-preset-${saved.id}'));
     await _pumpUntilFound(tester, presetChip);
-    await tester.ensureVisible(presetChip);
+    final savedLooksPanel = find.byKey(const ValueKey('saved-salon-looks-panel'));
+    await tester.scrollUntilVisible(
+      savedLooksPanel,
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final presetScrollView = find.descendant(
+      of: savedLooksPanel,
+      matching: find.byType(Scrollable),
+    ).first;
+    await tester.scrollUntilVisible(
+      presetChip,
+      120,
+      scrollable: presetScrollView,
+    );
     await tester.tap(presetChip);
     await _pumpEditor(tester);
 
@@ -640,12 +685,24 @@ void main() {
     await _pumpEditor(tester);
 
     final impressionFolder = find.byKey(const ValueKey('filter-folder-Impression'));
-    await tester.ensureVisible(impressionFolder);
+    final folderScrollView = find.descendant(
+      of: find.byKey(const ValueKey('face-filter-folders-grid')),
+      matching: find.byType(Scrollable),
+    ).first;
+    await tester.scrollUntilVisible(
+      impressionFolder,
+      120,
+      scrollable: folderScrollView,
+    );
     await tester.tap(impressionFolder);
     await _pumpEditor(tester);
 
     final saveButton = find.byKey(const ValueKey('save-current-salon-look'));
-    await tester.ensureVisible(saveButton);
+    await tester.scrollUntilVisible(
+      saveButton,
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(saveButton);
     // The name field requests keyboard focus and has a blinking caret. A
     // bounded frame pump avoids waiting forever for that intentional ticker.
