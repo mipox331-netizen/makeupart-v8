@@ -161,6 +161,52 @@ void main() {
     expect((await store.list()).single.id, saved.id);
   });
 
+  test('does not silently evict saved looks when the 24-preset limit is reached', () async {
+    final store = SalonLookPresetStore(rootOverride: root, scope: 'salon-a');
+
+    for (var index = 0; index < SalonLookPresetStore.maxPresets; index++) {
+      await store.save(
+        name: 'Look $index',
+        folder: 'Makeup',
+        engine: 'classic',
+        makeupStyle: 'natural',
+        generativeLook: 'natural',
+        photoFinish: 'Natural Finish',
+        intensity: 0.5,
+      );
+    }
+
+    await expectLater(
+      store.save(
+        name: 'Look 24',
+        folder: 'Makeup',
+        engine: 'classic',
+        makeupStyle: 'natural',
+        generativeLook: 'natural',
+        photoFinish: 'Natural Finish',
+        intensity: 0.5,
+      ),
+      throwsA(isA<SalonLookPresetLimitException>()),
+    );
+
+    final saved = await store.list();
+    expect(saved, hasLength(SalonLookPresetStore.maxPresets));
+    expect(saved.map((preset) => preset.name), contains('Look 0'));
+    expect(saved.map((preset) => preset.name), contains('Look 23'));
+
+    // Updating an existing preset remains allowed at the limit.
+    await store.save(
+      name: 'Look 0',
+      folder: 'Makeup',
+      engine: 'classic',
+      makeupStyle: 'soft_glam',
+      generativeLook: 'natural',
+      photoFinish: 'Natural Finish',
+      intensity: 0.7,
+    );
+    expect(await store.list(), hasLength(SalonLookPresetStore.maxPresets));
+  });
+
   test('deletes a preset by id', () async {
     final store = SalonLookPresetStore(rootOverride: root, scope: 'salon-a');
     final saved = await store.save(
