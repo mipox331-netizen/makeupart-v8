@@ -54,9 +54,10 @@ class RecentImageStore {
   }
 
   String _galleryArchiveFileName(File file) {
-    // Android MediaStore publishes archives in the public Pictures/MakeupArtV8
-    // gallery. Prefix the encoded salon scope to keep salons isolated on-device.
-    final scopeToken = _safeScope.replaceFirst('~', '');
+    // Keep the encoding marker in the public filename. Without it, an encoded
+    // scope could collide with a different salon whose literal ID equals the
+    // Base64 token (even though their private app directories remain separate).
+    final scopeToken = _safeScope;
     return 'archive_${scopeToken}_${file.uri.pathSegments.last}';
   }
 
