@@ -29,23 +29,20 @@ class RecentImageStore {
     }
     // Tilde is excluded from the safe character set, so encoded values cannot
     // collide with a literal safe scope or with another normalized scope.
-    return '~' + base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '');
+    return '~${base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '')}';
   }
 
   String _safeJobToken(String value) {
     if (RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value)) {
       return value;
     }
-    return '~' + base64Url.encode(utf8.encode(value)).replaceAll('=', '');
+    return '~${base64Url.encode(utf8.encode(value)).replaceAll('=', '')}';
   }
 
   Future<Directory> _directory() async {
     final root = rootOverride ?? await getApplicationDocumentsDirectory();
-    final path = root.path +
-        Platform.pathSeparator +
-        _directoryName +
-        Platform.pathSeparator +
-        _safeScope;
+    final path =
+        '${root.path}${Platform.pathSeparator}$_directoryName${Platform.pathSeparator}$_safeScope';
     final directory = Directory(path);
     if (!await directory.exists()) {
       await directory.create(recursive: true);
@@ -116,7 +113,7 @@ class RecentImageStore {
           .where((entity) => entity is File)
           .cast<File>()
           .where(
-            (file) => file.uri.pathSegments.last.endsWith('_' + safeJobId + '.png'),
+            (file) => file.uri.pathSegments.last.endsWith('_${safeJobId}.png'),
           )
           .toList();
       matches.sort(
@@ -138,12 +135,9 @@ class RecentImageStore {
     }
 
     final fileJobId = safeJobId.isEmpty ? 'result' : safeJobId;
-    final filename = 'ai_' +
-        DateTime.now().microsecondsSinceEpoch.toString() +
-        '_' +
-        fileJobId +
-        '.png';
-    final file = File(directory.path + Platform.pathSeparator + filename);
+    final filename =
+        'ai_${DateTime.now().microsecondsSinceEpoch}_$fileJobId.png';
+    final file = File('${directory.path}${Platform.pathSeparator}$filename');
 
     await file.writeAsBytes(bytes, flush: true);
     await trim();
