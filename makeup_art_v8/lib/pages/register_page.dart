@@ -26,6 +26,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final phone = TextEditingController();
   final password = TextEditingController();
   bool loading = false;
+  bool passwordVisible = false;
   bool accountCreated = false;
   String? error;
 
@@ -187,9 +188,21 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
             const SizedBox(height: 14),
             TextField(
+              key: const ValueKey('register-password-input'),
               controller: password,
-              obscureText: true,
-              decoration: decoration('Password', Icons.lock_outline),
+              obscureText: !passwordVisible,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  key: const ValueKey('register-password-visibility-toggle'),
+                  tooltip: passwordVisible ? 'Hide password' : 'Show password',
+                  onPressed: () => setState(() => passwordVisible = !passwordVisible),
+                  icon: Icon(
+                    passwordVisible ? Icons.visibility_off : Icons.visibility,
+                  ),
+                ),
+              ),
             ),
             if (error != null) ...[
               const SizedBox(height: 14),
