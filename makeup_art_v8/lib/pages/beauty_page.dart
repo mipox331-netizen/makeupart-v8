@@ -70,19 +70,18 @@ class _BeautyPageState extends State<BeautyPage> {
     'skin_only': 'Skin Polish Only',
   };
 
-  // Keep tested effects separate from filters that still need a real processor.
-  static const _readyFilterFolders = <String>[
+  // Ordered like a familiar face-editor tool strip. Unimplemented tools stay
+  // visible but clearly report their status instead of pretending to work.
+  static const _faceEditorFolderOrder = <String>[
     'Impression',
     'Skin',
-    'Makeup',
-  ];
-
-  static const _upcomingFilterFolders = <String>[
     'Sizes',
+    'Hairstyles',
     'Hair Colors',
     'Smiles',
     'Features',
     'Beards',
+    'Makeup',
     'Age',
     'Gender',
     'Glasses',
@@ -243,6 +242,7 @@ class _BeautyPageState extends State<BeautyPage> {
   String selectedLook = 'Natural Finish';
   String selectedMakeupStyle = 'natural';
   String? _selectedFilterFolder;
+  final GlobalKey _filterToolsAnchorKey = GlobalKey();
   String _selectedClassicCategory = 'Looks';
   String _selectedGenerativeCategory = 'Looks';
   bool savingGallery = false;
@@ -696,6 +696,18 @@ class _BeautyPageState extends State<BeautyPage> {
         }
       }
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _filterToolsAnchorKey.currentContext;
+      if (target != null && target.mounted) {
+        Scrollable.ensureVisible(
+          target,
+          alignment: 0.08,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
   }
 
   void _selectEngine(String engine) {
@@ -990,7 +1002,55 @@ class _BeautyPageState extends State<BeautyPage> {
   }
 
   @override
+
+  Widget _buildFaceEditorToolbar() {
+    return Container(
+      key: const ValueKey('face-filter-folders-grid'),
+      decoration: const BoxDecoration(
+        color: Color(0xFF10121B),
+        border: Border(
+          top: BorderSide(color: Color(0x22FFFFFF)),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 82,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            itemCount: _faceEditorFolderOrder.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 3),
+            itemBuilder: (context, index) {
+              final folder = _faceEditorFolderOrder[index];
+              final status = _filterFolderStatus(folder);
+              final ready = status == 'AVAILABLE' || status == 'GENERATIVE AI';
+              final statusLabel = switch (status) {
+                'PRO REQUIRED' => 'PRO',
+                'AI NOT READY' => 'SETUP',
+                'COMING SOON' => 'SOON',
+                _ => '',
+              };
+              return _FaceEditorToolItem(
+                key: ValueKey('filter-folder-$folder'),
+                title: folder,
+                icon: _faceFilterFolderIcons[folder] ?? Icons.face_retouching_natural,
+                selected: _selectedFilterFolder == folder,
+                ready: ready,
+                statusLabel: statusLabel,
+                onTap: loading ? null : () => _openFilterFolder(folder),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget build(BuildContext context) {
+    final portraitHeight = (MediaQuery.sizeOf(context).height * 0.42)
+        .clamp(260.0, 420.0)
+        .toDouble();
     final availableMakeupStyles = _availableOptions(
       'available_makeup_styles',
       _makeupStyles.keys.toList(),
@@ -1017,45 +1077,6 @@ class _BeautyPageState extends State<BeautyPage> {
         !loadingSubscription &&
         !loading &&
         (customerId == null || customerConsentActive == true);
-
-    final readyFilterFolders = <String>[
-      ..._readyFilterFolders,
-      if (generativeAvailable) 'Hairstyles',
-    ];
-    final needsAiSetupFolders = generativeAvailable
-        ? const <String>[]
-        : const <String>['Hairstyles'];
-
-    Widget buildFolderRail({
-      required String railKey,
-      required List<String> folders,
-    }) {
-      return SizedBox(
-        height: 164,
-        child: SingleChildScrollView(
-          key: ValueKey<String>(railKey),
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: folders.map((folder) {
-              return Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: SizedBox(
-                  width: 164,
-                  height: 164,
-                  child: _FilterFolderTile(
-                    key: ValueKey('filter-folder-$folder'),
-                    title: folder,
-                    description: _faceFilterFolderDescriptions[folder]!,
-                    status: _filterFolderStatus(folder),
-                    onTap: loading ? null : () => _openFilterFolder(folder),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      );
-    }
 
     Widget buildOptionRail({
       required Key railKey,
@@ -1085,8 +1106,14 @@ class _BeautyPageState extends State<BeautyPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MakeupArt Studio'),
+        title: const Text('Editor'),
         actions: [
+          if (displayedAfterBytes != null)
+            IconButton(
+              tooltip: 'Save edited photo',
+              onPressed: savingGallery || loading ? null : _saveResultToGallery,
+              icon: const Icon(Icons.download_rounded),
+            ),
           IconButton(
             tooltip: 'Settings',
             onPressed: loading
@@ -1112,61 +1139,6 @@ class _BeautyPageState extends State<BeautyPage> {
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
-          Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF44255C), Color(0xFF191B2D), Color(0xFF10131C)],
-              ),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(Icons.auto_awesome_rounded, size: 28),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('BEAUTY WORKSPACE',
-                              style: TextStyle(fontSize: 11, letterSpacing: 1.6)),
-                          SizedBox(height: 4),
-                          Text('Create a salon-ready result',
-                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Choose a portrait, open a filter folder, adjust a supported effect, compare the result and save a branded image.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: .78),
-                      ),
-                ),
-                const SizedBox(height: 12),
-                const Align(
-                  alignment: Alignment.centerRight,
-                  child: DeveloperBranding(compact: true),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
           Card(
             key: const ValueKey('portrait-editor-canvas'),
             child: Padding(
@@ -1197,8 +1169,8 @@ class _BeautyPageState extends State<BeautyPage> {
                   borderRadius: BorderRadius.circular(16),
                   child: Image.file(
                   File(selected!.path),
-                  height: 300,
-                  fit: BoxFit.cover,
+                  height: portraitHeight,
+                  fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => const SizedBox(
                   height: 120,
                   child: Center(
@@ -1209,7 +1181,7 @@ class _BeautyPageState extends State<BeautyPage> {
                   )
                   else
                   Container(
-                  height: 220,
+                  height: portraitHeight,
                   decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
@@ -1547,93 +1519,18 @@ class _BeautyPageState extends State<BeautyPage> {
                   if (_selectedFilterFolder == null) ...[
                     const _EditorSectionHeading(
                       step: '04',
-                      title: 'Choose a filter',
-                      subtitle: 'Supported tools first. Planned effects are clearly separated below.',
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Style samples are illustrations, not edited client photos. The real result appears after processing your portrait.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            height: 1.35,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Ready to use',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    buildFolderRail(
-                      railKey: 'face-filter-folders-grid',
-                      folders: readyFilterFolders,
-                    ),
-                    if (needsAiSetupFolders.isNotEmpty) ...[
-                      const SizedBox(height: 18),
-                      Text(
-                        'AI access required',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Hairstyle previews require a configured Generative AI provider and an eligible salon plan.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                      ),
-                      const SizedBox(height: 10),
-                      buildFolderRail(
-                        railKey: 'ai-setup-filter-folders-grid',
-                        folders: needsAiSetupFolders,
-                      ),
-                    ],
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'More filters in development',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '${_upcomingFilterFolders.length} planned',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'These folders are on the roadmap. Their effects are not yet applied to photos.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                      title: 'Editing tools',
+                      subtitle: 'Choose a tool from the bottom strip to open its controls.',
                     ),
                     const SizedBox(height: 10),
-                    buildFolderRail(
-                      railKey: 'coming-soon-filter-folders-grid',
-                      folders: _upcomingFilterFolders,
+                    const _FolderInformation(
+                      icon: Icons.touch_app_rounded,
+                      title: 'Choose a face tool',
+                      message: 'Start with Impression, Skin or Makeup. More face tools are listed below and will become available as their image processors are completed.',
                     ),
                   ] else ...[
                     Row(
+                      key: _filterToolsAnchorKey,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         IconButton(
@@ -2138,6 +2035,7 @@ class _BeautyPageState extends State<BeautyPage> {
           ],
         ],
       ),
+      bottomNavigationBar: _buildFaceEditorToolbar(),
     );
   }
 }
@@ -2202,96 +2100,6 @@ class _EditorSectionHeading extends StatelessWidget {
   }
 }
 
-class _FilterFolderTile extends StatelessWidget {
-  const _FilterFolderTile({
-    super.key,
-    required this.title,
-    required this.description,
-    required this.status,
-    required this.onTap,
-  });
-
-  final String title;
-  final String description;
-  final String status;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final comingSoon = status == 'COMING SOON';
-    final unavailable = status == 'AI NOT READY';
-
-    return Material(
-      color: colors.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.outlineVariant, width: 0.8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              FaceSampleArtwork(
-                label: title,
-                height: 58,
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  _FilterFolderStatus(status: status),
-                ],
-              ),
-              const SizedBox(height: 3),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: Text(
-                    description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          fontSize: 10.5,
-                          height: 1.2,
-                        ),
-                  ),
-                ),
-              ),
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Icon(
-                  comingSoon || unavailable
-                      ? Icons.info_outline_rounded
-                      : Icons.arrow_forward_rounded,
-                  size: 15,
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _FilterFolderStatus extends StatelessWidget {
   const _FilterFolderStatus({required this.status});
 
@@ -2325,6 +2133,100 @@ class _FilterFolderStatus extends StatelessWidget {
           fontSize: 8,
           fontWeight: FontWeight.w800,
           letterSpacing: .25,
+        ),
+      ),
+    );
+  }
+}
+
+
+class _FaceEditorToolItem extends StatelessWidget {
+  const _FaceEditorToolItem({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.selected,
+    required this.ready,
+    required this.statusLabel,
+    required this.onTap,
+  });
+
+  final String title;
+  final IconData icon;
+  final bool selected;
+  final bool ready;
+  final String statusLabel;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 70,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        enabled: onTap != null,
+        label: '$title${statusLabel.isEmpty ? '' : ', $statusLabel'}',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: 37,
+                    height: 37,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? colors.primaryContainer
+                          : colors.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                      border: selected
+                          ? Border.all(color: colors.primary, width: 1.4)
+                          : null,
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 19,
+                      color: selected
+                          ? colors.onPrimaryContainer
+                          : ready
+                              ? colors.onSurface
+                              : colors.onSurfaceVariant.withValues(alpha: 0.72),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      color: selected ? colors.primary : colors.onSurface,
+                    ),
+                  ),
+                  if (statusLabel.isNotEmpty)
+                    Text(
+                      statusLabel,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 7,
+                        letterSpacing: 0.35,
+                        fontWeight: FontWeight.w800,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

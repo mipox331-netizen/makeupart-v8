@@ -291,18 +291,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final foldersGrid = find.byKey(const ValueKey('face-filter-folders-grid'));
-    await tester.scrollUntilVisible(
-      foldersGrid,
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    final foldersToolbar = find.byKey(const ValueKey('face-filter-folders-grid'));
+    expect(foldersToolbar, findsOneWidget);
 
     expect(find.byKey(const ValueKey('saved-salon-looks-panel')), findsOneWidget);
-    expect(find.byType(FaceSampleArtwork), findsAtLeastNWidgets(12));
-    expect(find.text('Ready to use'), findsOneWidget);
-    expect(find.text('AI access required'), findsOneWidget);
-    expect(find.text('More filters in development'), findsOneWidget);
+    expect(find.text('Editing tools'), findsOneWidget);
+    expect(find.text('Ready to use'), findsNothing);
+    expect(find.text('More filters in development'), findsNothing);
     expect(find.text('Impression'), findsOneWidget);
     expect(find.text('Skin'), findsOneWidget);
     expect(find.text('Sizes'), findsOneWidget);

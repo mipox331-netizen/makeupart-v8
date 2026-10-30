@@ -266,9 +266,9 @@ class _MakeupArtSettingsPageState extends State<MakeupArtSettingsPage> {
                   ],
                   const SizedBox(height: 20),
                   _sectionTitle(context, 'PRIVACY & STORAGE'),
-                  Card(
+                  const Card(
                     child: Column(
-                      children: const [
+                      children: [
                         ListTile(
                           leading: Icon(Icons.verified_user_outlined),
                           title: Text('Client photo consent'),
