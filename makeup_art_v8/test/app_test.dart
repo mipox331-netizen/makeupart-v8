@@ -778,7 +778,7 @@ void main() {
     );
     await _pumpEditor(tester);
 
-    final editorScrollView = find.descendant(
+    final editorScrollView = find.ancestor(
       of: find.byKey(const ValueKey('beauty-editor-scroll-view')),
       matching: find.byType(Scrollable),
     ).first;
