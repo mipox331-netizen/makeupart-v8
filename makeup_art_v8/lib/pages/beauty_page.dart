@@ -720,16 +720,20 @@ class _BeautyPageState extends State<BeautyPage> {
       }
     });
 
+    _scrollToFilterTools();
+  }
+
+  void _scrollToFilterTools() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final target = _filterToolsAnchorKey.currentContext;
-      if (target != null && target.mounted) {
-        Scrollable.ensureVisible(
-          target,
-          alignment: 0.08,
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOutCubic,
-        );
-      }
+      if (target == null || !target.mounted) return;
+      Scrollable.ensureVisible(
+        target,
+        alignment: 0.08,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
     });
   }
 
@@ -975,6 +979,8 @@ class _BeautyPageState extends State<BeautyPage> {
               : 'Looks';
       _clearProcessedResult();
     });
+
+    _scrollToFilterTools();
 
     if (preset.engine == 'generative' && !generativeAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1916,7 +1922,13 @@ class _BeautyPageState extends State<BeautyPage> {
                       value: intensity,
                       onChanged: loading
                           ? null
-                          : (value) => setState(() => intensity = value),
+                          : (value) => setState(() {
+                                if (value == intensity) return;
+                                intensity = value;
+                                // A processed image belongs to the previous intensity.
+                                // Never leave an old result visible as if it used this value.
+                                _clearProcessedResult();
+                              }),
                     ),
                     const SizedBox(height: 8),
                   ],
