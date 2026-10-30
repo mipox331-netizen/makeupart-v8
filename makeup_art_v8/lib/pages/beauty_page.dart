@@ -1571,7 +1571,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 8),
                     buildFolderRail(
-                      railKey: const ValueKey('face-filter-folders-grid'),
+                      railKey: 'face-filter-folders-grid',
                       folders: readyFilterFolders,
                     ),
                     if (needsAiSetupFolders.isNotEmpty) ...[
@@ -1591,7 +1591,7 @@ class _BeautyPageState extends State<BeautyPage> {
                       ),
                       const SizedBox(height: 10),
                       buildFolderRail(
-                        railKey: const ValueKey('ai-setup-filter-folders-grid'),
+                        railKey: 'ai-setup-filter-folders-grid',
                         folders: needsAiSetupFolders,
                       ),
                     ],
@@ -1633,7 +1633,7 @@ class _BeautyPageState extends State<BeautyPage> {
                     ),
                     const SizedBox(height: 10),
                     buildFolderRail(
-                      railKey: const ValueKey('coming-soon-filter-folders-grid'),
+                      railKey: 'coming-soon-filter-folders-grid',
                       folders: _upcomingFilterFolders,
                     ),
                   ] else ...[
