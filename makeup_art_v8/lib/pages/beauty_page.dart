@@ -37,6 +37,7 @@ class BeautyPage extends StatefulWidget {
 
 class _BeautyPageState extends State<BeautyPage> {
   final picker = ImagePicker();
+  final ScrollController _editorScrollController = ScrollController();
 
   static const _generativeLooks = <String, String>{
     'natural': 'Natural',
@@ -267,6 +268,12 @@ class _BeautyPageState extends State<BeautyPage> {
   List<SalonLookPreset> savedLookPresets = [];
   bool loadingSavedLookPresets = true;
   bool savingLookPreset = false;
+
+  @override
+  void dispose() {
+    _editorScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -1206,6 +1213,7 @@ class _BeautyPageState extends State<BeautyPage> {
       ),
       body: ListView(
         key: const ValueKey('beauty-editor-scroll-view'),
+        controller: _editorScrollController,
         padding: const EdgeInsets.all(18),
         children: [
           Card(
