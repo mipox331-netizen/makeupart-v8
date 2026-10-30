@@ -6,6 +6,7 @@ DioException _failure({
   int? statusCode,
   Object? data,
   Map<String, List<String>>? headers,
+  DioExceptionType type = DioExceptionType.unknown,
 }) {
   final request = RequestOptions(path: '/beauty/process-upload');
   final response = statusCode == null
@@ -16,7 +17,11 @@ DioException _failure({
           data: data,
           headers: headers == null ? null : Headers.fromMap(headers),
         );
-  return DioException(requestOptions: request, response: response);
+  return DioException(
+    requestOptions: request,
+    response: response,
+    type: type,
+  );
 }
 
 void main() {
@@ -75,6 +80,15 @@ void main() {
         ),
       ),
       'The server could not process this photo. Support reference: beauty-123.',
+    );
+  });
+
+  test('explains the Render cold-start timeout separately from lost internet', () {
+    expect(
+      beautyProcessingErrorMessage(
+        _failure(type: DioExceptionType.connectionTimeout),
+      ),
+      contains('server is waking up'),
     );
   });
 
