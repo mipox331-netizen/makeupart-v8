@@ -936,10 +936,13 @@ class _BeautyPageState extends State<BeautyPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Saved “${name.trim()}” to this salon on this device.')),
       );
-    } catch (_) {
+    } catch (exception) {
       if (!mounted) return;
+      final message = exception is SalonLookPresetLimitException
+          ? exception.message
+          : 'Could not save this look on the device.';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save this look on the device.')),
+        SnackBar(content: Text(message)),
       );
     } finally {
       if (mounted) setState(() => savingLookPreset = false);
