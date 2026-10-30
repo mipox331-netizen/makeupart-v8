@@ -54,6 +54,10 @@ The checked-in Docker Compose + Caddy stack remains available as a self-hosted d
 - Customer deletion removes associated consent, consultation, job and media records.
 - Classic MediaPipe/OpenCV processing works without a paid external image-provider key.
 
+## On-device photo history
+
+The Android app keeps the ten most recent processed results in salon-scoped private app storage. When an older result is archived, it is published through Android MediaStore to the public `Pictures/MakeupArtV8` gallery with a salon-scoped filename. The private source is deleted only after Gallery confirms the save; permission or storage failures leave the original in app storage. This device archive is separate from the encrypted Google Drive production-media backup and does not replace the server-side recovery checks below.
+
 ## Photo durability and disaster recovery
 
 The backend now contains a private Google Drive media adapter for salon logos and before/after photos. It uses Google's OAuth `drive.file` scope, stores objects privately, verifies restored content, and can restore missing local media. The legacy Modal deployment workflow can pass `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, and `GOOGLE_DRIVE_REFRESH_TOKEN` into Modal; the active Render service requires these variables to be set separately in Render's environment settings. **Drive durability is not active or verified until those credentials are set and a real upload plus restore after a service restart succeeds.**
