@@ -93,43 +93,73 @@ void main() {
     }
   });
 
-  test('different salon IDs never share private history or archived storage', () async {
+  test('different salon IDs never share private history or archived gallery images', () async {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_isolation_');
-    final phoneRoot = await Directory.systemTemp.createTemp('makeupart_phone_isolation_');
+    final galleryRoot = await Directory.systemTemp.createTemp('makeupart_gallery_isolation_');
+    final galleryDirectory = Directory(
+      '${galleryRoot.path}${Platform.pathSeparator}Pictures'
+      '${Platform.pathSeparator}MakeupArtV8',
+    );
+    Future<void> archive(Uint8List bytes, String fileName) async {
+      await galleryDirectory.create(recursive: true);
+      await File(
+        '${galleryDirectory.path}${Platform.pathSeparator}$fileName',
+      ).writeAsBytes(bytes, flush: true);
+    }
+
     final first = RecentImageStore(
       rootOverride: root,
-      phoneRootOverride: phoneRoot,
+      galleryArchiveWriter: archive,
       scope: 'salon:one',
     );
     final second = RecentImageStore(
       rootOverride: root,
-      phoneRootOverride: phoneRoot,
+      galleryArchiveWriter: archive,
       scope: 'salon?one',
     );
 
     try {
-      await first.save(Uint8List.fromList([1, 2, 3]), jobId: 'same-job');
-      await second.save(Uint8List.fromList([7, 8, 9]), jobId: 'same-job');
+      for (var index = 0; index < 11; index++) {
+        await first.save(
+          Uint8List.fromList(List<int>.filled(16, index)),
+          jobId: 'first-$index',
+        );
+      }
+      for (var index = 0; index < 11; index++) {
+        await second.save(
+          Uint8List.fromList(List<int>.filled(16, 100 + index)),
+          jobId: 'second-$index',
+        );
+      }
 
-      expect(await first.list(), hasLength(1));
-      expect(await second.list(), hasLength(1));
-      expect(await (await first.list()).single.readAsBytes(), equals([1, 2, 3]));
-      expect(await (await second.list()).single.readAsBytes(), equals([7, 8, 9]));
-
-      final firstScope = '~${base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '')}';
-      final secondScope = '~${base64Url.encode(utf8.encode('salon?one')).replaceAll('=', '')}';
-      final firstArchive = Directory(
-        '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
-        '${Platform.pathSeparator}$firstScope',
+      expect(await first.list(), hasLength(10));
+      expect(await second.list(), hasLength(10));
+      final firstScope = base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '');
+      final secondScope = base64Url.encode(utf8.encode('salon?one')).replaceAll('=', '');
+      final archivedFiles = await galleryDirectory
+          .list()
+          .where((entity) => entity is File)
+          .cast<File>()
+          .toList();
+      final firstArchives = archivedFiles
+          .where((file) => file.uri.pathSegments.last.startsWith('archive_${firstScope}_'))
+          .toList();
+      final secondArchives = archivedFiles
+          .where((file) => file.uri.pathSegments.last.startsWith('archive_${secondScope}_'))
+          .toList();
+      expect(firstArchives, hasLength(1));
+      expect(secondArchives, hasLength(1));
+      expect(
+        await firstArchives.single.readAsBytes(),
+        equals(List<int>.filled(16, 0)),
       );
-      final secondArchive = Directory(
-        '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
-        '${Platform.pathSeparator}$secondScope',
+      expect(
+        await secondArchives.single.readAsBytes(),
+        equals(List<int>.filled(16, 100)),
       );
-      expect(firstArchive.path, isNot(secondArchive.path));
     } finally {
       await root.delete(recursive: true);
-      await phoneRoot.delete(recursive: true);
+      await galleryRoot.delete(recursive: true);
     }
   });
 
