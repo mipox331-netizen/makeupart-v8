@@ -419,6 +419,47 @@ void main() {
   });
 
 
+  testWidgets('a saved premium photo finish cannot bypass a free salon plan', (tester) async {
+    _useTallViewport(tester);
+    final root = await Directory.systemTemp.createTemp('makeupart-premium-finish-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final presetStore = SalonLookPresetStore(
+      rootOverride: root,
+      scope: 'free-salon',
+    );
+    final saved = await presetStore.save(
+      name: 'Studio Gold',
+      folder: 'Makeup',
+      engine: 'classic',
+      makeupStyle: 'natural',
+      generativeLook: 'full_glam',
+      photoFinish: 'Golden Hour',
+      intensity: 0.6,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BeautyPage(
+          api: _ConsentTestApi(),
+          onLogout: () {},
+          salonId: 'free-salon',
+          lookPresetStore: presetStore,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final presetChip = find.byKey(ValueKey('salon-look-preset-${saved.id}'));
+    await tester.ensureVisible(presetChip);
+    await tester.tap(presetChip);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Photo finish requires a higher plan'), findsOneWidget);
+    expect(find.text('Process with AI'), findsNothing);
+  });
+
   testWidgets('salon look presets can be saved and reapplied', (tester) async {
     _useTallViewport(tester);
     final root = await Directory.systemTemp.createTemp('makeupart-preset-widget-');
