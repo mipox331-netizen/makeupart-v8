@@ -778,10 +778,10 @@ void main() {
     );
     await _pumpEditor(tester);
 
-    final editorScrollView = find.ancestor(
-      of: find.byKey(const ValueKey('beauty-editor-scroll-view')),
-      matching: find.byType(Scrollable),
-    ).first;
+    final editorList = find.byKey(
+      const ValueKey('beauty-editor-scroll-view'),
+    );
+    final editorController = tester.widget<ListView>(editorList).controller!;
     final impressionFolder = find.byKey(const ValueKey('filter-folder-Impression'));
     final folderScrollView = find.descendant(
       of: find.byKey(const ValueKey('face-filter-folders-grid')),
@@ -796,11 +796,8 @@ void main() {
     await _pumpEditor(tester);
 
     final saveButton = find.byKey(const ValueKey('save-current-salon-look'));
-    await tester.scrollUntilVisible(
-      saveButton,
-      160,
-      scrollable: editorScrollView,
-    );
+    editorController.jumpTo(editorController.position.maxScrollExtent);
+    await _pumpEditor(tester);
     await tester.tap(saveButton);
     // The name field requests keyboard focus and has a blinking caret. A
     // bounded frame pump avoids waiting forever for that intentional ticker.
@@ -821,11 +818,9 @@ void main() {
     );
     await _pumpUntilFound(tester, presetChip);
     final savedLooksPanel = find.byKey(const ValueKey('saved-salon-looks-panel'));
-    await tester.scrollUntilVisible(
-      savedLooksPanel,
-      160,
-      scrollable: editorScrollView,
-    );
+    editorController.jumpTo(0);
+    await _pumpEditor(tester);
+    await _pumpUntilFound(tester, presetChip);
     final presetScrollView = find.descendant(
       of: savedLooksPanel,
       matching: find.byType(Scrollable),
