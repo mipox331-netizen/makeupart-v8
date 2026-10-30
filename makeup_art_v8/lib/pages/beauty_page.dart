@@ -13,7 +13,7 @@ import '../widgets/license_page_button.dart';
 import '../widgets/developer_branding.dart';
 import '../widgets/before_after_comparison.dart';
 import '../widgets/face_sample_artwork.dart';
-import 'branding_settings_page.dart';
+import 'settings_page.dart';
 
 class BeautyPage extends StatefulWidget {
   const BeautyPage({
@@ -1088,28 +1088,25 @@ class _BeautyPageState extends State<BeautyPage> {
       appBar: AppBar(
         title: const Text('MakeupArt Studio'),
         actions: [
-          if (widget.canManageBranding)
-            IconButton(
-              tooltip: 'Salon branding and watermark',
-              onPressed: loading
-                  ? null
-                  : () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => BrandingSettingsPage(api: widget.api),
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: loading
+                ? null
+                : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => MakeupArtSettingsPage(
+                          api: widget.api,
+                          canManageBranding: widget.canManageBranding,
+                          onLogout: widget.onLogout,
                         ),
                       ),
-              icon: const Icon(Icons.tune_rounded),
-            ),
-          const LicensePageButton(),
+                    ),
+            icon: const Icon(Icons.settings_outlined),
+          ),
           IconButton(
             onPressed: loading ? null : _loadCustomers,
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh clients',
-          ),
-          IconButton(
-            onPressed: loading ? null : widget.onLogout,
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
           ),
         ],
       ),
