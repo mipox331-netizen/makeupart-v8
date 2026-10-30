@@ -3,6 +3,18 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+class SalonLookPresetLimitException implements Exception {
+  const SalonLookPresetLimitException(this.limit);
+
+  final int limit;
+
+  String get message =>
+      'You can save up to $limit salon looks. Delete one before adding another.';
+
+  @override
+  String toString() => message;
+}
+
 /// A salon-scoped, device-local recipe for repeating a beauty edit.
 ///
 /// Presets contain settings only; they never store client photos or personal data.
@@ -211,6 +223,11 @@ class SalonLookPresetStore {
       (preset) => preset.name.toLowerCase() == cleanName.toLowerCase(),
     );
     final previous = existingName.isEmpty ? null : existingName.first;
+    if (previous == null && existing.length >= maxPresets) {
+      // Never silently evict an existing salon recipe when the user saves
+      // a new one. Existing presets can still be updated at the limit.
+      throw const SalonLookPresetLimitException(maxPresets);
+    }
     final now = DateTime.now().toUtc();
     final preset = SalonLookPreset(
       id: previous?.id ?? now.microsecondsSinceEpoch.toString(),
