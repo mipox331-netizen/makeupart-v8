@@ -1205,6 +1205,7 @@ class _BeautyPageState extends State<BeautyPage> {
         ],
       ),
       body: ListView(
+        key: const ValueKey('beauty-editor-scroll-view'),
         padding: const EdgeInsets.all(18),
         children: [
           Card(
