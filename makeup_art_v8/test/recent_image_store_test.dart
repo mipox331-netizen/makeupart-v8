@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -22,6 +23,7 @@ void main() {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_');
     final phoneRoot = await Directory.systemTemp.createTemp('makeupart_phone_');
     const scope = 'test-salon';
+    final safeScope = base64Url.encode(utf8.encode(scope)).replaceAll('=', '');
     final store = RecentImageStore(
       rootOverride: root,
       phoneRootOverride: phoneRoot,
@@ -39,7 +41,7 @@ void main() {
 
       final privateDirectory = Directory(
         '${root.path}${Platform.pathSeparator}recent_ai_results'
-        '${Platform.pathSeparator}$scope',
+        '${Platform.pathSeparator}$safeScope',
       );
       final phoneDirectory = Directory(
         '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
@@ -72,6 +74,54 @@ void main() {
       expect(updated.path, original.path);
       expect(await store.list(), hasLength(1));
       expect(await updated.readAsBytes(), equals([7, 8, 9]));
+    } finally {
+      await root.delete(recursive: true);
+    }
+  });
+
+  test('different salon IDs never share private history or archived storage', () async {
+    final root = await Directory.systemTemp.createTemp('makeupart_recent_isolation_');
+    final phoneRoot = await Directory.systemTemp.createTemp('makeupart_phone_isolation_');
+    final first = RecentImageStore(
+      rootOverride: root,
+      phoneRootOverride: phoneRoot,
+      scope: 'salon:one',
+    );
+    final second = RecentImageStore(
+      rootOverride: root,
+      phoneRootOverride: phoneRoot,
+      scope: 'salon?one',
+    );
+
+    try {
+      await first.save(Uint8List.fromList([1, 2, 3]), jobId: 'same-job');
+      await second.save(Uint8List.fromList([7, 8, 9]), jobId: 'same-job');
+
+      expect(await first.list(), hasLength(1));
+      expect(await second.list(), hasLength(1));
+      expect(await (await first.list()).single.readAsBytes(), equals([1, 2, 3]));
+      expect(await (await second.list()).single.readAsBytes(), equals([7, 8, 9]));
+
+      final firstArchive = Directory(
+        '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
+        '${Platform.pathSeparator}${base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '')}',
+      );
+      final secondArchive = Directory(
+        '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
+        '${Platform.pathSeparator}${base64Url.encode(utf8.encode('salon?one')).replaceAll('=', '')}',
+      );
+      expect(firstArchive.path, isNot(secondArchive.path));
+    } finally {
+      await root.delete(recursive: true);
+      await phoneRoot.delete(recursive: true);
+    }
+  });
+
+  test('rejects an empty salon scope', () async {
+    final root = await Directory.systemTemp.createTemp('makeupart_recent_empty_scope_');
+    final store = RecentImageStore(rootOverride: root, scope: '  ');
+    try {
+      await expectLater(store.list(), throwsArgumentError);
     } finally {
       await root.delete(recursive: true);
     }
