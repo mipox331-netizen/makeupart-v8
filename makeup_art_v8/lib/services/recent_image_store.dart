@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -19,9 +20,8 @@ class RecentImageStore {
 
   Future<Directory> _directory() async {
     final root = rootOverride ?? await getApplicationDocumentsDirectory();
-    final safeScope = scope.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
     final directory = Directory(
-      '${root.path}${Platform.pathSeparator}$_directoryName${Platform.pathSeparator}$safeScope',
+      '${root.path}${Platform.pathSeparator}$_directoryName${Platform.pathSeparator}$_safeScope',
     );
     if (!await directory.exists()) {
       await directory.create(recursive: true);
@@ -53,8 +53,15 @@ class RecentImageStore {
     return _scopedPhoneStorageDirectory(directories.first.path);
   }
 
-  String get _safeScope =>
-      scope.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+  // Keep private history and archived phone photos isolated by the full
+  // salon ID. Replacing punctuation with underscores can merge two salons.
+  String get _safeScope {
+    final normalizedScope = scope.trim();
+    if (normalizedScope.isEmpty) {
+      throw ArgumentError.value(scope, 'scope', 'must not be empty');
+    }
+    return base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '');
+  }
 
   Future<List<File>> list() async {
     final directory = await _directory();
