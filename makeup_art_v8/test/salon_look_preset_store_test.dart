@@ -128,6 +128,39 @@ void main() {
     expect(await store.list(), isEmpty);
   });
 
+  test('quarantines malformed JSON and allows new presets to be saved', () async {
+    final store = SalonLookPresetStore(rootOverride: root, scope: 'salon-a');
+    final directory = Directory(
+      '${root.path}${Platform.pathSeparator}salon_look_presets'
+      '${Platform.pathSeparator}salon-a',
+    );
+    await directory.create(recursive: true);
+    final file = File('${directory.path}${Platform.pathSeparator}presets.json');
+    await file.writeAsString('{ malformed json');
+
+    expect(await store.list(), isEmpty);
+    expect(await file.exists(), isFalse);
+
+    final quarantined = await directory
+        .list()
+        .where((entity) => entity is File)
+        .cast<File>()
+        .toList();
+    expect(quarantined, hasLength(1));
+    expect(quarantined.single.path, contains('.corrupt-'));
+
+    final saved = await store.save(
+      name: 'Fresh Start',
+      folder: 'Skin',
+      engine: 'classic',
+      makeupStyle: 'skin_only',
+      generativeLook: 'natural',
+      photoFinish: 'Natural Finish',
+      intensity: 0.5,
+    );
+    expect((await store.list()).single.id, saved.id);
+  });
+
   test('deletes a preset by id', () async {
     final store = SalonLookPresetStore(rootOverride: root, scope: 'salon-a');
     final saved = await store.save(
