@@ -132,15 +132,37 @@ class SalonLookPresetStore {
     return File('${directory.path}${Platform.pathSeparator}presets.json');
   }
 
+  Future<void> _quarantineCorruptFile(File file) async {
+    final suffix = DateTime.now().toUtc().microsecondsSinceEpoch;
+    final backup = File('${file.path}.corrupt-$suffix');
+    await file.rename(backup.path);
+  }
+
   Future<List<SalonLookPreset>> list() async {
     final file = await _file(createDirectory: false);
     if (!await file.exists()) return const [];
 
-    final decoded = jsonDecode(await file.readAsString());
-    if (decoded is! Map<String, dynamic> ||
-        decoded['schema_version'] != 1 ||
-        decoded['presets'] is! List) {
-      throw const FormatException('Saved salon looks file has an unsupported format');
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(await file.readAsString());
+    } on FormatException {
+      // Preserve damaged data for recovery, but do not let one corrupt file
+      // permanently block saving new presets on this device.
+      await _quarantineCorruptFile(file);
+      return const [];
+    }
+
+    if (decoded is! Map<String, dynamic>) {
+      await _quarantineCorruptFile(file);
+      return const [];
+    }
+    if (decoded['schema_version'] != 1) {
+      // A newer schema may contain data this app cannot safely rewrite.
+      throw const FormatException('Saved salon looks file has an unsupported schema version');
+    }
+    if (decoded['presets'] is! List) {
+      await _quarantineCorruptFile(file);
+      return const [];
     }
 
     final presets = <SalonLookPreset>[];
