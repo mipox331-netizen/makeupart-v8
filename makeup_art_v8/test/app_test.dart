@@ -421,6 +421,11 @@ void main() {
       find.textContaining('image-processing effect is not implemented yet'),
       findsOneWidget,
     );
+
+    final creatorCredit = find.text('MOOG 343');
+    await tester.ensureVisible(creatorCredit);
+    await tester.pumpAndSettle();
+    expect(creatorCredit, findsOneWidget);
   });
 
 
