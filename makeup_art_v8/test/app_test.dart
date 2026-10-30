@@ -310,17 +310,22 @@ void main() {
     await tester.tap(dropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Alice One').last);
-    await tester.pumpAndSettle();
+    // The intentionally pending consent request can keep unrelated UI
+    // animations alive. Advance the dropdown transition without settling it.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     // Alice's consent lookup is still pending. Select Bob before it fails.
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Bob Two').last);
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('AI consent is active'), findsOneWidget);
 
     api.firstClientLookup.complete();
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('AI consent is active'), findsOneWidget);
   });
 
