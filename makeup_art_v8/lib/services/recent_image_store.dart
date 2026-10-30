@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:path_provider/path_provider.dart';
 
+import 'gallery_exporter.dart';
+
 class RecentImageStore {
   static const maxImages = 10;
   static const _directoryName = 'recent_ai_results';
@@ -58,20 +60,11 @@ class RecentImageStore {
     return directory;
   }
 
-  Future<Directory?> _phoneStorageDirectory() async {
-    final override = phoneRootOverride;
-    if (override != null) {
-      return _scopedPhoneStorageDirectory(override.path);
-    }
-
-    if (!Platform.isAndroid) return null;
-    final directories = await getExternalStorageDirectories(
-      type: StorageDirectory.pictures,
-    );
-    if (directories == null || directories.isEmpty) return null;
-
-    // Isolate archived client photos by salon on the device as well as in app storage.
-    return _scopedPhoneStorageDirectory(directories.first.path);
+  String _galleryArchiveFileName(File file) {
+    // Android MediaStore publishes archives in the public Pictures/MakeupArtV8
+    // gallery. Prefix the encoded salon scope to keep salons isolated on-device.
+    final scopeToken = _safeScope.replaceFirst('~', '');
+    return 'archive_${scopeToken}_${file.uri.pathSegments.last}';
   }
 
   Future<List<File>> list() async {
@@ -157,33 +150,37 @@ class RecentImageStore {
     });
 
     final overflow = files.skip(maxImages);
-    final phoneDirectory = await _phoneStorageDirectory();
 
     for (final file in overflow) {
-      File? target;
       try {
-        if (phoneDirectory == null) {
-          // Preserve older photos when external phone storage is unavailable.
-          // They may temporarily remain in app storage until archiving succeeds.
+        final override = phoneRootOverride;
+        if (override != null) {
+          // A filesystem override keeps storage behavior deterministic in tests.
+          final phoneDirectory =
+              await _scopedPhoneStorageDirectory(override.path);
+          final target = File(
+            '${phoneDirectory.path}${Platform.pathSeparator}'
+            '${file.uri.pathSegments.last}',
+          );
+          await file.copy(target.path);
+        } else if (Platform.isAndroid) {
+          // Public MediaStore storage survives app removal and is visible in
+          // Gallery/Photos. Keep the private source until publication succeeds.
+          await GalleryExporter.savePng(
+            bytes: await file.readAsBytes(),
+            fileName: _galleryArchiveFileName(file),
+          );
+        } else {
+          // On platforms without a public gallery archive writer, retain the
+          // overflow in app storage rather than deleting the only copy.
           continue;
         }
 
-        target = File(
-          phoneDirectory.path +
-              Platform.pathSeparator +
-              file.uri.pathSegments.last,
-        );
-        await file.copy(target.path);
         await file.delete();
-      } on FileSystemException {
-        // Never delete the only remaining copy if archiving fails.
-        if (target != null) {
-          try {
-            await target.delete();
-          } on FileSystemException {
-            // The partial archive may already have been removed.
-          }
-        }
+      } catch (_) {
+        // Gallery permission, MediaStore or filesystem failures must never
+        // delete the only remaining copy of a customer's photo.
+        continue;
       }
     }
   }
