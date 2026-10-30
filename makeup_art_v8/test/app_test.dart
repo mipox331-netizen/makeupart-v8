@@ -563,8 +563,12 @@ void main() {
     expect(find.text('Smokey Eye'), findsOneWidget);
     expect(find.text('Natural'), findsNothing);
 
-    await tester.ensureVisible(back);
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      back,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _pumpEditor(tester);
     await tester.tap(back);
     await tester.pumpAndSettle();
     final skinFolder = find.byKey(const ValueKey('filter-folder-Skin'));
@@ -580,8 +584,12 @@ void main() {
     expect(find.byKey(const ValueKey('classic-option-skin_only')), findsOneWidget);
     expect(find.text('Skin Polish Only'), findsOneWidget);
 
-    await tester.ensureVisible(back);
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      back,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _pumpEditor(tester);
     await tester.tap(back);
     await tester.pumpAndSettle();
     final sizesFolder = find.byKey(const ValueKey('filter-folder-Sizes'));
@@ -722,7 +730,21 @@ void main() {
       ValueKey('salon-look-preset-${saved.single.id}'),
     );
     await _pumpUntilFound(tester, presetChip);
-    await tester.ensureVisible(presetChip);
+    final savedLooksPanel = find.byKey(const ValueKey('saved-salon-looks-panel'));
+    await tester.scrollUntilVisible(
+      savedLooksPanel,
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final presetScrollView = find.descendant(
+      of: savedLooksPanel,
+      matching: find.byType(Scrollable),
+    ).first;
+    await tester.scrollUntilVisible(
+      presetChip,
+      120,
+      scrollable: presetScrollView,
+    );
     await tester.tap(presetChip);
     await _pumpEditor(tester);
     expect(find.byKey(const ValueKey('photo-finishes-grid')), findsOneWidget);
