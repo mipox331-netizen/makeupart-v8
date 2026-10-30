@@ -17,6 +17,12 @@ String beautyProcessingErrorMessage(Object exception) {
     return 'Could not process this image. Please try another clear portrait.';
   }
 
+  if (exception.type == DioExceptionType.connectionTimeout ||
+      exception.type == DioExceptionType.sendTimeout ||
+      exception.type == DioExceptionType.receiveTimeout) {
+    return 'The server is waking up or responding slowly. Keep your internet connected and try processing again.';
+  }
+
   final status = exception.response?.statusCode;
   final payload = exception.response?.data;
   final detail = payload is Map ? payload['detail']?.toString().trim() : null;
