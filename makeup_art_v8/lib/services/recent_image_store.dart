@@ -110,7 +110,7 @@ class RecentImageStore {
           .where((entity) => entity is File)
           .cast<File>()
           .where(
-            (file) => file.uri.pathSegments.last.endsWith('_${safeJobId}.png'),
+            (file) => file.uri.pathSegments.last.endsWith('_$safeJobId.png'),
           )
           .toList();
       matches.sort(
