@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
+import '../services/beauty_error_message.dart';
 import '../services/gallery_exporter.dart';
 import '../services/photo_look_service.dart';
 import '../services/recent_image_store.dart';
@@ -630,16 +631,7 @@ class _BeautyPageState extends State<BeautyPage> {
       });
     } catch (exception) {
       if (!mounted) return;
-      final message = exception.toString().toLowerCase();
-      setState(() {
-        error = message.contains('external generative ai provider')
-            ? 'Confirm that the client agrees to external AI processing.'
-            : message.contains('generative makeup is not enabled')
-                ? 'Generative AI is not configured on the server. Classic AI is still available.'
-                : message.contains('consent')
-                    ? 'Client consent is required before processing.'
-                    : 'Could not process this image. Check the API and image quality.';
-      });
+      setState(() => error = beautyProcessingErrorMessage(exception));
     } finally {
       if (mounted) setState(() => loading = false);
     }
