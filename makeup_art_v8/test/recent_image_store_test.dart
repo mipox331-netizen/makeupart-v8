@@ -21,13 +21,20 @@ void main() {
 
   test('keeps only ten recent results in app storage and archives overflow', () async {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_');
-    final phoneRoot = await Directory.systemTemp.createTemp('makeupart_phone_');
+    final galleryRoot = await Directory.systemTemp.createTemp('makeupart_gallery_');
     const scope = 'test-salon';
-    const safeScope = scope;
     final store = RecentImageStore(
       rootOverride: root,
-      phoneRootOverride: phoneRoot,
       scope: scope,
+      galleryArchiveWriter: (bytes, fileName) async {
+        final directory = Directory(
+          '${galleryRoot.path}${Platform.pathSeparator}Pictures'
+          '${Platform.pathSeparator}MakeupArtV8',
+        );
+        await directory.create(recursive: true);
+        await File('${directory.path}${Platform.pathSeparator}$fileName')
+            .writeAsBytes(bytes, flush: true);
+      },
     );
 
     try {
@@ -43,17 +50,24 @@ void main() {
         '${root.path}${Platform.pathSeparator}recent_ai_results'
         '${Platform.pathSeparator}$safeScope',
       );
-      final phoneDirectory = Directory(
-        '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
-        '${Platform.pathSeparator}$safeScope',
+      final galleryDirectory = Directory(
+        '${galleryRoot.path}${Platform.pathSeparator}Pictures'
+        '${Platform.pathSeparator}MakeupArtV8',
       );
 
       expect(await store.list(), hasLength(10));
       expect(await countPngFiles(privateDirectory), 10);
-      expect(await countPngFiles(phoneDirectory), 2);
+      expect(await countPngFiles(galleryDirectory), 2);
+      final archivedNames = (await galleryDirectory.list())
+          .whereType<File>()
+          .map((file) => file.uri.pathSegments.last);
+      expect(
+        archivedNames.every((name) => name.startsWith('archive_${scope}_')),
+        isTrue,
+      );
     } finally {
       await root.delete(recursive: true);
-      await phoneRoot.delete(recursive: true);
+      await galleryRoot.delete(recursive: true);
     }
   });
 
