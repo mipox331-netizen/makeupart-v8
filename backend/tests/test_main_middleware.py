@@ -45,7 +45,40 @@ def test_oversized_request_id_is_replaced_with_safe_trace_id(client):
     assert response.json()["request_id"] == response_request_id
 
 
-def test_production_readiness_fails_when_drive_is_missing_even_if_flag_is_false(client, monkeypatch):
+def test_api_readiness_does_not_depend_on_drive_oauth(client, monkeypatch):
+    import app.main as main_module
+    from app.core.config import settings
+    from app.services.google_drive_media import GoogleDriveMediaError
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, statement):
+            return None
+
+    monkeypatch.setattr(main_module.engine, "connect", lambda: FakeConnection())
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
+    monkeypatch.setattr(
+        main_module.google_drive_media,
+        "verify_connection",
+        lambda: (_ for _ in ()).throw(GoogleDriveMediaError("Drive unavailable")),
+    )
+
+    response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+
+
+def test_production_media_readiness_fails_closed_without_drive_oauth(client, monkeypatch):
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")
@@ -54,7 +87,7 @@ def test_production_readiness_fails_when_drive_is_missing_even_if_flag_is_false(
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
 
-    response = client.get("/health/ready")
+    response = client.get("/health/media-ready")
 
     assert response.status_code == 503
     assert response.json() == {
@@ -63,22 +96,36 @@ def test_production_readiness_fails_when_drive_is_missing_even_if_flag_is_false(
     }
 
 
-def test_readiness_fails_closed_when_durable_drive_storage_is_required(client, monkeypatch):
+def test_media_readiness_requires_successful_drive_verification(client, monkeypatch):
+    import app.main as main_module
     from app.core.config import settings
 
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
     monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", True)
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "client-id")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "client-secret")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "refresh-token")
+    monkeypatch.setattr(main_module.google_drive_media, "verify_connection", lambda: None)
+
+    response = client.get("/health/media-ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "storage": "google_drive"}
+
+
+def test_local_media_readiness_reports_local_only_mode(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
 
-    response = client.get("/health/ready")
+    response = client.get("/health/media-ready")
 
-    assert response.status_code == 503
-    assert response.json() == {
-        "status": "not_ready",
-        "reason": "media_storage_unavailable",
-    }
-
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "storage": "local_only"}
 
 
 def test_readiness_reports_running_render_commit(client, monkeypatch):

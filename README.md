@@ -15,7 +15,12 @@ cp .env.example .env
 docker compose up --build
 ```
 
-The API runs on port 8000. Health endpoints are `/health`, `/health/live`, and `/health/ready`.
+The API runs on port 8000. Health endpoints are:
+- `/health/live` — process liveness.
+- `/health/ready` — database/API readiness used by Render. A temporary third-party Drive outage does not restart the API process.
+- `/health/media-ready` — private customer-photo storage readiness. Production reports ready only after Google Drive OAuth and the private media root are verified.
+
+Media uploads continue to fail closed when durable storage is unavailable. Production APK publication separately requires `/health/media-ready` to return `storage: google_drive`; a healthy login/API endpoint alone is not a customer-photo release gate.
 
 ## Flutter development
 From `makeup_art_v8/`:

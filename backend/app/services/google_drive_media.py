@@ -147,8 +147,24 @@ def _access_token() -> str:
         except httpx.HTTPError as exc:
             raise GoogleDriveMediaError("Google Drive OAuth token refresh failed.") from exc
         if response.status_code != 200:
+            error_code = "unknown"
+            try:
+                error_payload = response.json()
+            except ValueError:
+                error_payload = None
+            if isinstance(error_payload, dict):
+                candidate = error_payload.get("error")
+                if (
+                    isinstance(candidate, str)
+                    and candidate.isascii()
+                    and 0 < len(candidate) <= 64
+                    and candidate.replace("_", "").replace("-", "").isalnum()
+                ):
+                    error_code = candidate
+            # Never log provider descriptions or OAuth credentials/tokens.
             raise GoogleDriveMediaError(
-                f"Google Drive OAuth token refresh failed (HTTP {response.status_code})."
+                "Google Drive OAuth token refresh failed "
+                f"(HTTP {response.status_code}, error={error_code})."
             )
         try:
             body = response.json()
