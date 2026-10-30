@@ -114,7 +114,125 @@ class SalonLookPresetStore {
     if (normalizedScope.isEmpty) {
       throw ArgumentError.value(scope, 'scope', 'must not be empty');
     }
-    return base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '');
+    if (RegExp(r'^[A-Za-z0-9_-]+  }
+
+  Future<File> _file({required bool createDirectory}) async {
+    final root = rootOverride ?? await getApplicationDocumentsDirectory();
+    final directory = Directory(
+      '${root.path}${Platform.pathSeparator}salon_look_presets${Platform.pathSeparator}$_safeScope',
+    );
+    if (createDirectory && !await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+    return File(
+      '${directory.path}${Platform.pathSeparator}presets.json',
+    );
+  }
+
+  Future<List<SalonLookPreset>> list() async {
+    final file = await _file(createDirectory: false);
+    if (!await file.exists()) return const [];
+
+    final decoded = jsonDecode(await file.readAsString());
+    if (decoded is! Map<String, dynamic> ||
+        decoded['schema_version'] != 1 ||
+        decoded['presets'] is! List) {
+      throw const FormatException('Saved salon looks file has an unsupported format');
+    }
+
+    final presets = <SalonLookPreset>[];
+    for (final value in decoded['presets'] as List<dynamic>) {
+      if (value is! Map<String, dynamic>) continue;
+      try {
+        presets.add(SalonLookPreset.fromJson(value));
+      } on FormatException {
+        // Ignore a damaged individual record without discarding other saved looks.
+      }
+    }
+    presets.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return presets;
+  }
+
+  Future<SalonLookPreset> save({
+    required String name,
+    required String folder,
+    required String engine,
+    required String makeupStyle,
+    required String generativeLook,
+    required String photoFinish,
+    required double intensity,
+  }) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty || cleanName.length > maxNameLength) {
+      throw ArgumentError('Name must contain 1–$maxNameLength characters.');
+    }
+    if (!supportedFolders.contains(folder)) {
+      throw ArgumentError('This filter folder cannot be saved as a preset.');
+    }
+    if (!const {'classic', 'generative'}.contains(engine)) {
+      throw ArgumentError('Unknown beauty engine.');
+    }
+    if (!intensity.isFinite || intensity < 0 || intensity > 1) {
+      throw ArgumentError('Intensity must be between 0 and 1.');
+    }
+    if (makeupStyle.trim().isEmpty ||
+        generativeLook.trim().isEmpty ||
+        photoFinish.trim().isEmpty) {
+      throw ArgumentError('Preset settings cannot be empty.');
+    }
+
+    final existing = await list();
+    final existingName = existing.where(
+      (preset) => preset.name.toLowerCase() == cleanName.toLowerCase(),
+    );
+    final previous = existingName.isEmpty ? null : existingName.first;
+    final now = DateTime.now().toUtc();
+    final preset = SalonLookPreset(
+      id: previous?.id ?? now.microsecondsSinceEpoch.toString(),
+      name: cleanName,
+      folder: folder,
+      engine: engine,
+      makeupStyle: makeupStyle,
+      generativeLook: generativeLook,
+      photoFinish: photoFinish,
+      intensity: intensity,
+      updatedAt: now,
+    );
+    final next = <SalonLookPreset>[
+      preset,
+      ...existing.where((item) => item.id != preset.id),
+    ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+    await _write(next.take(maxPresets).toList());
+    return preset;
+  }
+
+  Future<void> delete(String id) async {
+    final existing = await list();
+    final next = existing.where((preset) => preset.id != id).toList();
+    if (next.length == existing.length) return;
+    await _write(next);
+  }
+
+  Future<void> _write(List<SalonLookPreset> presets) async {
+    final file = await _file(createDirectory: true);
+    final temporary = File('${file.path}.tmp');
+    if (await temporary.exists()) await temporary.delete();
+    await temporary.writeAsString(
+      jsonEncode({
+        'schema_version': 1,
+        'presets': presets.map((preset) => preset.toJson()).toList(),
+      }),
+      flush: true,
+    );
+    // Rename within the same directory so readers never observe a half-written JSON file.
+    await temporary.rename(file.path);
+  }
+}
+).hasMatch(normalizedScope)) {
+      return normalizedScope;
+    }
+    return '~${base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '')}';
   }
 
   Future<File> _file({required bool createDirectory}) async {
