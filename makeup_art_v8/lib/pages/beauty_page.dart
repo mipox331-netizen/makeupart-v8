@@ -9,7 +9,6 @@ import '../services/gallery_exporter.dart';
 import '../services/photo_look_service.dart';
 import '../services/recent_image_store.dart';
 import '../services/salon_look_preset_store.dart';
-import '../widgets/developer_branding.dart';
 import '../widgets/before_after_comparison.dart';
 import '../widgets/face_sample_artwork.dart';
 import 'settings_page.dart';
