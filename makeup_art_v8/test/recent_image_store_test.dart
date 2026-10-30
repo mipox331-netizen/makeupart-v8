@@ -45,7 +45,7 @@ void main() {
       );
       final phoneDirectory = Directory(
         '${phoneRoot.path}${Platform.pathSeparator}MakeupArtV8'
-        '${Platform.pathSeparator}$scope',
+        '${Platform.pathSeparator}$safeScope',
       );
 
       expect(await store.list(), hasLength(10));
@@ -140,9 +140,10 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 2));
       }
 
+      final defaultScope = base64Url.encode(utf8.encode('default')).replaceAll('=', '');
       final privateDirectory = Directory(
         '${root.path}${Platform.pathSeparator}recent_ai_results'
-        '${Platform.pathSeparator}default',
+        '${Platform.pathSeparator}$defaultScope',
       );
       expect(await store.list(), hasLength(10));
       expect(await countPngFiles(privateDirectory), 11);
