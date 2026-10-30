@@ -951,6 +951,47 @@ class _BeautyPageState extends State<BeautyPage> {
   }
 
   void _applyLookPreset(SalonLookPreset preset) {
+    // Saved settings are untrusted historical input: a preset created while a
+    // salon had Pro access must not bypass the current server-provided plan.
+    final availableStyles = _availableOptions(
+      'available_makeup_styles',
+      _makeupStyles.keys.toList(),
+    );
+    final availableFinishes = _availableOptions(
+      'available_photo_finishes',
+      PhotoLookService.names,
+    );
+
+    if (!availableFinishes.contains(preset.photoFinish)) {
+      _showPlanRequired(
+        preset.photoFinish == 'Soft Glam' ? 'Basic' : 'Pro',
+        preset.photoFinish,
+      );
+      return;
+    }
+    if ((preset.folder == 'Skin' || preset.folder == 'Impression') &&
+        !availableStyles.contains('skin_only')) {
+      _showPlanRequired('Pro', 'Skin Polish');
+      return;
+    }
+    if (preset.folder == 'Makeup' &&
+        preset.engine == 'classic' &&
+        !availableStyles.contains(preset.makeupStyle)) {
+      _showPlanRequired(
+        preset.makeupStyle == 'soft_glam' ? 'Basic' : 'Pro',
+        _makeupStyles[preset.makeupStyle] ?? 'this makeup style',
+      );
+      return;
+    }
+    if (preset.engine == 'generative' && !generativeAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This saved look needs Generative AI and an eligible salon plan.'),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _selectedFilterFolder = preset.folder;
       selectedEngine = preset.engine;
