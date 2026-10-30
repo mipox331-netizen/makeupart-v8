@@ -58,9 +58,12 @@ void main() {
       expect(await store.list(), hasLength(10));
       expect(await countPngFiles(privateDirectory), 10);
       expect(await countPngFiles(galleryDirectory), 2);
-      final archivedNames = (await galleryDirectory.list())
-          .whereType<File>()
-          .map((file) => file.uri.pathSegments.last);
+      final archivedNames = await galleryDirectory
+          .list()
+          .where((entity) => entity is File)
+          .cast<File>()
+          .map((file) => file.uri.pathSegments.last)
+          .toList();
       expect(
         archivedNames.every((name) => name.startsWith('archive_${scope}_')),
         isTrue,
@@ -124,12 +127,14 @@ void main() {
           Uint8List.fromList(List<int>.filled(16, index)),
           jobId: 'first-$index',
         );
+        await Future<void>.delayed(const Duration(milliseconds: 2));
       }
       for (var index = 0; index < 11; index++) {
         await second.save(
           Uint8List.fromList(List<int>.filled(16, 100 + index)),
           jobId: 'second-$index',
         );
+        await Future<void>.delayed(const Duration(milliseconds: 2));
       }
 
       expect(await first.list(), hasLength(10));
