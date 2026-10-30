@@ -16,6 +16,12 @@ on:
 permissions:
   contents: read
 
+# Only the newest PR revision needs an iOS compile; avoid spending macOS
+# runner minutes on commits that have already been superseded.
+concurrency:
+  group: makeupart-v8-ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ios-build:
     runs-on: macos-latest
