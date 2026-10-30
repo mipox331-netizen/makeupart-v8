@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -95,6 +94,63 @@ class _ConsentTestApi extends ApiClient {
   @override
   Future<Map<String, dynamic>?> getActiveConsent(String customerId) async =>
       {'id': 'stored-consent', 'customer_id': customerId};
+}
+
+
+class _InMemorySalonLookPresetStore extends SalonLookPresetStore {
+  _InMemorySalonLookPresetStore({
+    required super.scope,
+    Iterable<SalonLookPreset> initial = const [],
+  }) : _items = initial.toList();
+
+  final List<SalonLookPreset> _items;
+  int _nextId = 0;
+
+  @override
+  Future<List<SalonLookPreset>> list() async =>
+      List<SalonLookPreset>.unmodifiable(_items);
+
+  @override
+  Future<SalonLookPreset> save({
+    required String name,
+    required String folder,
+    required String engine,
+    required String makeupStyle,
+    required String generativeLook,
+    required String photoFinish,
+    required double intensity,
+  }) async {
+    final cleanName = name.trim();
+    final existingIndex = _items.indexWhere(
+      (item) => item.name.toLowerCase() == cleanName.toLowerCase(),
+    );
+    if (existingIndex < 0 && _items.length >= SalonLookPresetStore.maxPresets) {
+      throw const SalonLookPresetLimitException(SalonLookPresetStore.maxPresets);
+    }
+    final existing = existingIndex < 0 ? null : _items[existingIndex];
+    final preset = SalonLookPreset(
+      id: existing?.id ?? 'memory-${_nextId++}',
+      name: cleanName,
+      folder: folder,
+      engine: engine,
+      makeupStyle: makeupStyle,
+      generativeLook: generativeLook,
+      photoFinish: photoFinish,
+      intensity: intensity,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    if (existingIndex < 0) {
+      _items.add(preset);
+    } else {
+      _items[existingIndex] = preset;
+    }
+    return preset;
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    _items.removeWhere((item) => item.id == id);
+  }
 }
 
 class _ConsentRaceApi extends _ConsentTestApi {
@@ -517,15 +573,8 @@ void main() {
 
   testWidgets('a saved premium photo finish cannot bypass a free salon plan', (tester) async {
     _useTallViewport(tester);
-    final root = await Directory.systemTemp.createTemp('makeupart-premium-finish-');
-    addTearDown(() async {
-      if (await root.exists()) await root.delete(recursive: true);
-    });
-    final presetStore = SalonLookPresetStore(
-      rootOverride: root,
-      scope: 'free-salon',
-    );
-    final saved = await presetStore.save(
+    final saved = SalonLookPreset(
+      id: 'premium-look-1',
       name: 'Studio Gold',
       folder: 'Makeup',
       engine: 'classic',
@@ -533,6 +582,11 @@ void main() {
       generativeLook: 'full_glam',
       photoFinish: 'Golden Hour',
       intensity: 0.6,
+      updatedAt: DateTime.utc(2026, 10, 30),
+    );
+    final presetStore = _InMemorySalonLookPresetStore(
+      scope: 'free-salon',
+      initial: [saved],
     );
 
     await tester.pumpWidget(
@@ -545,11 +599,6 @@ void main() {
         ),
       ),
     );
-    await tester.runAsync(() async {
-      // Let the device-local file read finish without waiting for repeating UI
-      // animations such as the cursor or capability progress indicator.
-      await presetStore.list();
-    });
     await _pumpEditor(tester);
 
     final presetChip = find.byKey(ValueKey('salon-look-preset-${saved.id}'));
@@ -558,20 +607,16 @@ void main() {
     await tester.tap(presetChip);
     await _pumpEditor(tester);
 
-    expect(find.text('Photo finish requires a higher plan'), findsOneWidget);
+    expect(
+      find.textContaining('Golden Hour requires the Pro plan or higher'),
+      findsOneWidget,
+    );
     expect(find.text('Process with AI'), findsNothing);
   });
 
   testWidgets('salon look presets can be saved and reapplied', (tester) async {
     _useTallViewport(tester);
-    final root = await Directory.systemTemp.createTemp('makeupart-preset-widget-');
-    addTearDown(() async {
-      if (await root.exists()) await root.delete(recursive: true);
-    });
-    final presetStore = SalonLookPresetStore(
-      rootOverride: root,
-      scope: 'widget-salon',
-    );
+    final presetStore = _InMemorySalonLookPresetStore(scope: 'widget-salon');
 
     await tester.pumpWidget(
       MaterialApp(
@@ -601,13 +646,6 @@ void main() {
     expect(nameField, findsOneWidget);
     await tester.enterText(nameField, 'Warm Studio');
     await tester.tap(find.byKey(const ValueKey('save-salon-look-confirm')));
-    await tester.runAsync(() async {
-      final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (DateTime.now().isBefore(deadline)) {
-        if ((await presetStore.list()).isNotEmpty) return;
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      }
-    });
     await _pumpEditor(tester);
 
     final saved = await presetStore.list();
