@@ -220,6 +220,12 @@ class _SessionGateState extends State<SessionGate> {
   }
 
   String _sessionLoadError(DioException exception) {
+    if (exception.type == DioExceptionType.connectionTimeout ||
+        exception.type == DioExceptionType.sendTimeout ||
+        exception.type == DioExceptionType.receiveTimeout) {
+      return 'The server is waking up or responding slowly. Keep your internet connected and try again.';
+    }
+
     final statusCode = exception.response?.statusCode;
     final data = exception.response?.data;
     final detail = data is Map ? data['detail'] : null;
