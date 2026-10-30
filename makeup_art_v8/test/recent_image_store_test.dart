@@ -115,10 +115,12 @@ void main() {
       galleryArchiveWriter: archive,
       scope: 'salon:one',
     );
+    // This literal safe salon ID is the Base64URL token for "salon:one".
+    // It must remain distinct from the encoded unsafe ID in Gallery filenames.
     final second = RecentImageStore(
       rootOverride: root,
       galleryArchiveWriter: archive,
-      scope: 'salon?one',
+      scope: 'c2Fsb246b25l',
     );
 
     try {
@@ -139,8 +141,8 @@ void main() {
 
       expect(await first.list(), hasLength(10));
       expect(await second.list(), hasLength(10));
-      final firstScope = base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '');
-      final secondScope = base64Url.encode(utf8.encode('salon?one')).replaceAll('=', '');
+      final firstScope = '~${base64Url.encode(utf8.encode('salon:one')).replaceAll('=', '')}';
+      const secondScope = 'c2Fsb246b25l';
       final archivedFiles = await galleryDirectory
           .list()
           .where((entity) => entity is File)
