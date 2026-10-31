@@ -3,6 +3,11 @@ name: MakeupArt V8 Encrypted Production Database Backup
 on:
   schedule:
     - cron: "30 2 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/production-database-backup.yml"
+      - "backend/scripts/google_drive_backup_upload.py"
   workflow_dispatch:
   # Capture the database only after the additive Supabase migration succeeds.
   workflow_run:
@@ -24,6 +29,9 @@ jobs:
     environment: production
     timeout-minutes: 25
     steps:
+      - name: Checkout backup uploader code
+        uses: actions/checkout@v4
+
       - name: Validate backup secrets without printing values
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
