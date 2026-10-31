@@ -4,12 +4,13 @@ on:
   schedule:
     - cron: "45 2 * * *"
   workflow_dispatch:
-  push:
+  workflow_run:
+    workflows: ["MakeupArt V8 Render Supabase Recovery"]
+    types: [completed]
     branches: [main]
-    paths:
-      - ".github/workflows/production-media-backup.yml"
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -18,122 +19,63 @@ concurrency:
 
 jobs:
   backup:
+    if: \${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 45
+    env:
+      SUPABASE_URL: "https://riakbjcxcaqjaqagncmu.supabase.co"
+      SUPABASE_MEDIA_BUCKET: "makeupart-media"
     steps:
-      - name: Validate Modal and encryption secrets without exposing values
+      - name: Validate Supabase and encryption secrets without exposing values
         shell: bash
         env:
-          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
-          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
-          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_ENCRYPTION_PASSPHRASE: \${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
-          test -n "${MODAL_TOKEN_ID:-}" || { echo "::error::Missing Modal token ID in the GitHub production environment."; exit 1; }
-          test -n "${MODAL_TOKEN_SECRET:-}" || { echo "::error::Missing Modal token secret in the GitHub production environment."; exit 1; }
-          test -n "${BACKUP_ENCRYPTION_PASSPHRASE:-}" || { echo "::error::Missing BACKUP_ENCRYPTION_PASSPHRASE in the GitHub production environment."; exit 1; }
-          [[ "${#BACKUP_ENCRYPTION_PASSPHRASE}" -ge 24 ]] || { echo "::error::BACKUP_ENCRYPTION_PASSPHRASE must be at least 24 characters."; exit 1; }
-          echo "Required secrets are present; values are not printed."
+          missing=()
+          [[ -n "\${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SECRET or SUPABASE_SERVICE_ROLE_KEY")
+          [[ -n "\${BACKUP_ENCRYPTION_PASSPHRASE:-}" ]] || missing+=("BACKUP_ENCRYPTION_PASSPHRASE")
+          if (( \${#missing[@]} > 0 )); then
+            echo "::error::Missing production GitHub environment secrets: \${missing[*]}"
+            exit 1
+          fi
+          [[ "\${#BACKUP_ENCRYPTION_PASSPHRASE}" -ge 24 ]] || {
+            echo "::error::BACKUP_ENCRYPTION_PASSPHRASE must be at least 24 characters."
+            exit 1
+          }
+          echo "Required private-media backup credentials are present."
+
+      - name: Checkout verified application backup code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install Modal CLI
-        run: python -m pip install --disable-pip-version-check --no-input "modal==1.6.3"
+      - name: Install private-media backup dependency
+        run: python -m pip install --disable-pip-version-check --no-input requests
 
-      - name: Validate Modal access
-        env:
-          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
-          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
-        run: modal token info
-
-      - name: Download private Modal Volume media and build integrity manifest
+      - name: Download private Supabase media and build integrity manifest
         shell: bash
         env:
-          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
-          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
+          SUPABASE_URL: "https://riakbjcxcaqjaqagncmu.supabase.co"
+          SUPABASE_MEDIA_BUCKET: "makeupart-media"
+          SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
           BACKUP_DIR="$RUNNER_TEMP/makeupart-media-backup"
           STAGE="$BACKUP_DIR/stage"
           mkdir -p "$STAGE/media"
           chmod 700 "$BACKUP_DIR" "$STAGE" "$STAGE/media"
-
-          # The app commits each saved photo/logo to this named Modal Volume.
-          # Download only the committed snapshot; the live app and source Volume
-          # are never modified by the backup job.
-          modal volume get -e main makeupart-v8-media / "$STAGE/media"
-
-          python - "$STAGE/media" "$STAGE/manifest.json" <<'PY'
-          import hashlib
-          import json
-          import sys
-          from datetime import datetime, timezone
-          from pathlib import Path, PurePosixPath
-
-          root = Path(sys.argv[1]).resolve()
-          manifest_path = Path(sys.argv[2])
-          entries = []
-          seen = set()
-          total_bytes = 0
-          max_file_bytes = 512 * 1024 * 1024
-          max_total_bytes = 3 * 1024 * 1024 * 1024
-
-          if not root.is_dir():
-              raise SystemExit("Modal media Volume download did not produce a media directory.")
-
-          for item in sorted(root.rglob("*")):
-              if item.is_symlink():
-                  raise SystemExit("A symbolic link was found in private media; refusing an unsafe backup.")
-              if not item.is_file():
-                  continue
-              relative = item.relative_to(root).as_posix()
-              key = PurePosixPath(relative)
-              if not relative or key.is_absolute() or key.as_posix() != relative or any(
-                  part in ("", ".", "..") for part in key.parts
-              ):
-                  raise SystemExit("A private media item has an unsafe relative path; backup stopped.")
-              if relative in seen:
-                  raise SystemExit("Duplicate private media paths were found; backup stopped.")
-              seen.add(relative)
-
-              digest = hashlib.sha256()
-              size = 0
-              with item.open("rb") as source:
-                  for block in iter(lambda: source.read(1024 * 1024), b""):
-                      size += len(block)
-                      total_bytes += len(block)
-                      if size > max_file_bytes or total_bytes > max_total_bytes:
-                          raise SystemExit("Private media exceeds the supported encrypted backup limits.")
-                      digest.update(block)
-              if size == 0:
-                  raise SystemExit("An empty private media object was found; backup stopped.")
-              entries.append({"path": relative, "size": size, "sha256": digest.hexdigest()})
-
-          if not entries:
-              raise SystemExit("Modal private media Volume is empty; refusing to claim customer-photo backup success.")
-
-          manifest = {
-              "format": "makeupart-modal-volume-media-backup-v1",
-              "created_at": datetime.now(timezone.utc).isoformat(),
-              "file_count": len(entries),
-              "total_bytes": total_bytes,
-              "files": entries,
-          }
-          manifest_path.write_text(
-              json.dumps(manifest, separators=(",", ":"), sort_keys=True),
-              encoding="utf-8",
-          )
-          print(f"Modal private media inventory captured: files={len(entries)}, bytes={total_bytes}. Customer paths and image contents were not logged.")
-          PY
+          python backend/scripts/supabase_media_backup.py "$STAGE/media" "$STAGE/manifest.json"
 
       - name: Encrypt archive and verify a complete isolated restore
         shell: bash
         env:
-          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          BACKUP_ENCRYPTION_PASSPHRASE: \${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
           BACKUP_DIR="$RUNNER_TEMP/makeupart-media-backup"
@@ -143,19 +85,16 @@ jobs:
           DECRYPTED="$BACKUP_DIR/verify.tar.gz"
           VERIFY_DIR="$BACKUP_DIR/verify"
           trap 'rm -f "$PASSFILE" "$DECRYPTED" "$BACKUP_DIR/makeupart-media.tar.gz"; rm -rf "$VERIFY_DIR" "$STAGE"' EXIT
-
           printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSFILE"
           chmod 600 "$PASSFILE"
           tar --sort=name --owner=0 --group=0 --numeric-owner -czf "$BACKUP_DIR/makeupart-media.tar.gz" -C "$STAGE" media manifest.json
           gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-file "$PASSFILE" \
             --symmetric --cipher-algo AES256 --output "$ARCHIVE" "$BACKUP_DIR/makeupart-media.tar.gz"
           rm -f "$BACKUP_DIR/makeupart-media.tar.gz"
-
           gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-file "$PASSFILE" \
             --decrypt --output "$DECRYPTED" "$ARCHIVE"
           mkdir -p "$VERIFY_DIR"
           tar -xzf "$DECRYPTED" -C "$VERIFY_DIR"
-
           python - "$VERIFY_DIR/media" "$VERIFY_DIR/manifest.json" <<'PY'
           import hashlib
           import json
@@ -164,13 +103,12 @@ jobs:
 
           root = Path(sys.argv[1]).resolve()
           manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-          if manifest.get("format") != "makeupart-modal-volume-media-backup-v1":
-              raise SystemExit("Unknown Modal media backup manifest format.")
+          if manifest.get("format") != "makeupart-supabase-storage-media-backup-v1":
+              raise SystemExit("Unknown private Supabase media backup manifest format.")
           rows = manifest.get("files", [])
           expected = {row["path"]: row for row in rows}
           if len(expected) != len(rows):
               raise SystemExit("Media restore verification failed: duplicate manifest paths.")
-
           actual = {}
           for item in root.rglob("*"):
               if item.is_symlink():
@@ -185,7 +123,6 @@ jobs:
                       size += len(block)
                       digest.update(block)
               actual[relative] = {"path": relative, "size": size, "sha256": digest.hexdigest()}
-
           expected_hashes = {
               path: {"path": row["path"], "size": row["size"], "sha256": row["sha256"]}
               for path, row in expected.items()
@@ -196,18 +133,18 @@ jobs:
           if len(actual) != manifest.get("file_count") or total != manifest.get("total_bytes"):
               raise SystemExit("Media restore verification failed: manifest totals differ.")
           if not actual:
-              raise SystemExit("Media restore verification failed: archive contains no customer media.")
-          print(f"Encrypted Modal media archive decrypted and restored in isolation: files={len(actual)}, bytes={total}. Production Volume was not modified.")
+              raise SystemExit("Media restore verification failed: archive contains no customer photos or logos.")
+          print(f"Encrypted private Supabase media archive decrypted and restored in isolation: files={len(actual)}, bytes={total}. Production storage was not modified.")
           PY
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 
       - name: Upload encrypted backup artifact
         uses: actions/upload-artifact@v4
         with:
-          name: makeupart-media-backup-${{ github.run_id }}
+          name: makeupart-media-backup-\${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg
-            ${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg.sha256
+            \${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg
+            \${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg.sha256
           if-no-files-found: error
           retention-days: 14
 
