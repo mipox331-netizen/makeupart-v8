@@ -20,14 +20,14 @@ jobs:
     environment: production
     timeout-minutes: 10
     env:
-      DATABASE_URL: \${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
       MEDIA_BUCKET: makeupart-media
     steps:
       - name: Validate database connection secret presence
         shell: bash
         run: |
           set -euo pipefail
-          test -n "\${DATABASE_URL:-}" || {
+          test -n "${DATABASE_URL:-}" || {
             echo "::error::Missing production Supabase PostgreSQL connection secret."
             exit 1
           }
@@ -46,7 +46,7 @@ jobs:
       - name: Read production record counts and media references only
         shell: bash
         env:
-          DATABASE_URL: \${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
           MEDIA_BUCKET: makeupart-media
         run: |
           set -euo pipefail
