@@ -10,28 +10,28 @@ A newly generated upload key is safe only when this application has not previous
 
 From the repository root, run this only after confirming the compatibility check above:
 
-\`\`\`bash
+```bash
 MAKEUPART_ALLOW_NEW_UPLOAD_KEY=YES bash scripts/generate_android_release_signing.sh
-\`\`\`
+```
 
 The script uses the installed JDK and OpenSSL, generates a 3072-bit RSA JKS key, validates its alias, and saves everything outside the repository under:
 
-\`\`\`text
+```text
 $HOME/.config/makeupart-v8/android-release/
-\`\`\`
+```
 
-It creates a local file named \`github-production-secrets.txt\` containing the four values required by the release workflow. The file is created with owner-only permissions; do not commit it, send it in chat, or upload it as an Actions artifact.
+It creates a local file named `github-production-secrets.txt` containing the four values required by the release workflow. The file is created with owner-only permissions; do not commit it, send it in chat, or upload it as an Actions artifact.
 
 ## Configure GitHub
 
 Open **GitHub → Settings → Environments → production → Environment secrets** and set:
 
-- \`ANDROID_KEYSTORE_BASE64\`
-- \`ANDROID_KEY_ALIAS\`
-- \`ANDROID_STORE_PASSWORD\`
-- \`ANDROID_KEY_PASSWORD\`
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_STORE_PASSWORD`
+- `ANDROID_KEY_PASSWORD`
 
-The current workflow logs confirm that the last three secrets are already present; \`ANDROID_KEYSTORE_BASE64\` is the missing value on the latest release attempt. Recheck the secrets before changing them.
+The current workflow logs confirm that the last three secrets are already present; `ANDROID_KEYSTORE_BASE64` is the missing value on the latest release attempt. Recheck the secrets before changing them.
 
 Keep an encrypted offline copy of the JKS and its passwords. Loss of the key can prevent future APK updates unless Google Play App Signing allows an upload-key reset.
 
