@@ -103,3 +103,28 @@ def test_backup_refuses_empty_media_bucket(monkeypatch, tmp_path):
 
     with pytest.raises(backup.BackupError, match="bucket is empty"):
         backup.backup_media(destination, manifest_path)
+
+def test_backup_derives_supabase_project_url_from_pooler_username(monkeypatch, tmp_path):
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.setenv(
+        "SUPABASE_DB_URL",
+        "postgresql://postgres.project-ref-123:secret@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres",
+    )
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "server-only-test-key")
+    monkeypatch.setenv("SUPABASE_MEDIA_BUCKET", "makeupart-media")
+    destination = tmp_path / "media"
+    manifest_path = tmp_path / "manifest.json"
+    payload = b"private image"
+
+    def fake_request(self, method, url, headers=None, **kwargs):
+        assert url.startswith("https://project-ref-123.supabase.co/storage/v1/")
+        if method == "GET":
+            return make_response(200, payload={"id": "makeupart-media", "public": False})
+        if method == "POST":
+            return make_response(200, payload=[])
+        raise AssertionError(f"Unexpected request: {method} {url}")
+
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
+    # The endpoint derivation is validated before the inventory is read.
+    with pytest.raises(backup.BackupError, match="bucket is empty"):
+        backup.backup_media(destination, manifest_path)
