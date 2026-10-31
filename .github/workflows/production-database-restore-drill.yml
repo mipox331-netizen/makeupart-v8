@@ -200,7 +200,7 @@ jobs:
           )
 
           revision="$("${psql_cmd[@]}" --command='SELECT version_num FROM public.alembic_version')"
-          [[ "$revision" == "0010_nullable_similarity" ]] || {
+          [[ "$revision" == "0013_watermark_content" ]] || {
             echo "::error::Restored Alembic revision does not match expected migration head."
             exit 1
           }
@@ -211,11 +211,11 @@ jobs:
             WHERE table_schema='public'
               AND table_name = ANY(ARRAY[
                 'alembic_version','users','salons','subscriptions','refresh_sessions',
-                'customers','consents','beauty_jobs','beauty_results','consultations','watermarks'
+                'customers','consents','beauty_jobs','beauty_results','consultations','watermarks','payment_records'
               ]);
           ")"
-          [[ "$table_count" == "11" ]] || {
-            echo "::error::Restore schema check failed: expected 11 required tables."
+          [[ "$table_count" == "12" ]] || {
+            echo "::error::Restore schema check failed: expected 12 required tables."
             exit 1
           }
 
