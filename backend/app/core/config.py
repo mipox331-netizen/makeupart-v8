@@ -21,13 +21,13 @@ class Settings(BaseSettings):
     SUPABASE_DB_URL: str = ""
     CORS_ORIGINS: str = ""
     MEDIA_ROOT: str = "./media"
-    # Select the private durable media backend. Modal uses its mounted Volume;
-    # Render can use the private Supabase Storage bucket.
+    # Select private media storage. Google Drive is the default durable backend;
+    # Modal Volume and private Supabase Storage remain optional alternatives.
     MEDIA_STORAGE_BACKEND: str = "google_drive"
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_MEDIA_BUCKET: str = "makeupart-media"
-    # Optional private Google Drive media mirror; use OAuth user credentials, not a service account.
+    # Private Google Drive media storage uses user OAuth credentials, not a service account.
     GOOGLE_DRIVE_CLIENT_ID: str = ""
     GOOGLE_DRIVE_CLIENT_SECRET: str = ""
     GOOGLE_DRIVE_REFRESH_TOKEN: str = ""

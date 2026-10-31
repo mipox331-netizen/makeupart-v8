@@ -132,6 +132,28 @@ jobs:
           echo "Encrypted PostgreSQL backup created and archive readability verified."
           echo "::notice::This database backup excludes private customer photos and logos; the separate encrypted private-media backup must also pass."
 
+      - name: Set up Python for private Drive backup upload
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Google Drive backup upload dependency
+        run: |
+          python -m pip install --disable-pip-version-check --no-input requests
+          python -m py_compile backend/scripts/google_drive_backup_upload.py
+
+      - name: Store encrypted PostgreSQL backup in private Google Drive
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID || secrets.GDRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET || secrets.GDRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN || secrets.GDRIVE_REFRESH_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t ARCHIVES < <(find "$RUNNER_TEMP/makeupart-db-backup" -maxdepth 1 -type f -name '*.dump.gpg' -print)
+          [[ "${#ARCHIVES[@]}" -eq 1 ]] || { echo "::error::Expected exactly one encrypted database archive."; exit 1; }
+          python backend/scripts/google_drive_backup_upload.py "${ARCHIVES[0]}" "${ARCHIVES[0]}.sha256" "$GITHUB_RUN_ID-a$GITHUB_RUN_ATTEMPT"
+
       - name: Upload encrypted backup artifact
         uses: actions/upload-artifact@v4
         with:

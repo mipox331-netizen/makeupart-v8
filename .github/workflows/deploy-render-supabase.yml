@@ -1,4 +1,4 @@
-name: MakeupArt V8 Render Supabase Recovery
+name: MakeupArt V8 Render PostgreSQL and Google Drive Recovery
 
 on:
   push:
@@ -23,7 +23,9 @@ jobs:
     env:
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID || secrets.GDRIVE_CLIENT_ID }}
+      GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET || secrets.GDRIVE_CLIENT_SECRET }}
+      GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN || secrets.GDRIVE_REFRESH_TOKEN }}
       RENDER_SERVICE_ID: "srv-dav25so473hc73d7ee0g"
       API_URL: "https://makeupart-api.onrender.com"
 
@@ -35,19 +37,23 @@ jobs:
           missing=()
           [[ -n "${RENDER_API_KEY:-}" ]] || missing+=("RENDER_API_KEY or RENDER_API_TOKEN")
           [[ -n "${SUPABASE_DB_URL:-}" ]] || missing+=("SUPABASE_DB_URL or SUPABASE_DB_URL_SECRET")
-          [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SECRET or SUPABASE_SERVICE_ROLE_KEY")
+          [[ -n "${GOOGLE_DRIVE_CLIENT_ID:-}" ]] || missing+=("GOOGLE_DRIVE_CLIENT_ID or GDRIVE_CLIENT_ID")
+          [[ -n "${GOOGLE_DRIVE_CLIENT_SECRET:-}" ]] || missing+=("GOOGLE_DRIVE_CLIENT_SECRET or GDRIVE_CLIENT_SECRET")
+          [[ -n "${GOOGLE_DRIVE_REFRESH_TOKEN:-}" ]] || missing+=("GOOGLE_DRIVE_REFRESH_TOKEN or GDRIVE_REFRESH_TOKEN")
           if (( ${#missing[@]} > 0 )); then
             echo "::error::Cannot deploy Render recovery. Missing production GitHub environment secrets: ${missing[*]}."
             exit 1
           fi
-          echo "Render API and Supabase server credentials are present."
+          echo "Render API, PostgreSQL and Google Drive OAuth credentials are present."
 
-      - name: Apply Supabase database and private storage settings to Render
+      - name: Apply PostgreSQL and private Google Drive settings to Render
         shell: bash
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID || secrets.GDRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET || secrets.GDRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN || secrets.GDRIVE_REFRESH_TOKEN }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -60,32 +66,20 @@ jobs:
           service_id = os.environ["RENDER_SERVICE_ID"]
           token = os.environ["RENDER_API_KEY"]
           database_url = os.environ["SUPABASE_DB_URL"]
-          service_role = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-          from urllib.parse import unquote, urlsplit
+          drive_client_id = os.environ["GOOGLE_DRIVE_CLIENT_ID"]
+          drive_client_secret = os.environ["GOOGLE_DRIVE_CLIENT_SECRET"]
+          drive_refresh_token = os.environ["GOOGLE_DRIVE_REFRESH_TOKEN"]
 
-          parsed_db = urlsplit(database_url)
-          hostname = (parsed_db.hostname or "").lower()
-          project_ref = ""
-          if hostname.endswith(".supabase.co"):
-              project_ref = hostname.removesuffix(".supabase.co")
-          elif parsed_db.username and "." in unquote(parsed_db.username):
-              candidate = unquote(parsed_db.username).split(".", 1)[1]
-              if candidate.replace("-", "").isalnum():
-                  project_ref = candidate
-          supabase_url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
-          if not supabase_url and project_ref:
-              supabase_url = f"https://{project_ref}.supabase.co"
-          if not supabase_url.startswith("https://") or not supabase_url.endswith(".supabase.co"):
-              raise SystemExit("Could not safely derive the Supabase project URL from the configured database secret.")
-
-          # Preserve existing CORS configuration and unrelated production settings.
+          # Keep PostgreSQL for relational application data. Google Drive is the
+          # durable private media store; no Supabase Storage service-role key is
+          # sent to the runtime.
           values = {
               "DATABASE_URL": database_url,
               "SUPABASE_DB_URL": database_url,
-              "SUPABASE_URL": supabase_url,
-              "SUPABASE_SERVICE_ROLE_KEY": service_role,
-              "SUPABASE_MEDIA_BUCKET": "makeupart-media",
-              "MEDIA_STORAGE_BACKEND": "supabase_storage",
+              "GOOGLE_DRIVE_CLIENT_ID": drive_client_id,
+              "GOOGLE_DRIVE_CLIENT_SECRET": drive_client_secret,
+              "GOOGLE_DRIVE_REFRESH_TOKEN": drive_refresh_token,
+              "MEDIA_STORAGE_BACKEND": "google_drive",
               "REQUIRE_DURABLE_MEDIA": "true",
               "ENVIRONMENT": "production",
           }
@@ -231,7 +225,7 @@ jobs:
           endpoints = {
               "/health/live": ("alive", None),
               "/health/ready": ("ready", None),
-              "/health/media-ready": ("ready", "supabase_storage"),
+              "/health/media-ready": ("ready", "google_drive"),
           }
           for path, (expected, expected_storage) in endpoints.items():
               last_error = "no response"
@@ -257,5 +251,5 @@ jobs:
                       time.sleep(10)
               else:
                   raise SystemExit(f"Production endpoint failed verification: {path} ({last_error}).")
-          print("Render API, Supabase database readiness and private media storage are live.")
+          print("Render API, PostgreSQL database readiness and private Google Drive media storage are live.")
           PY
