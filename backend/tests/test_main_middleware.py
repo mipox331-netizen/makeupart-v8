@@ -157,3 +157,21 @@ def test_readiness_reports_running_render_commit(client, monkeypatch):
         "status": "ready",
         "deployment_commit": "test-deployment-commit",
     }
+
+
+
+def test_supabase_storage_media_readiness(client, monkeypatch):
+    import app.main as main_module
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "MEDIA_STORAGE_BACKEND", "supabase_storage")
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://project.supabase.co")
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", "server-only-test-key")
+    monkeypatch.setattr(settings, "SUPABASE_MEDIA_BUCKET", "makeupart-media")
+    monkeypatch.setattr(main_module.google_drive_media, "verify_connection", lambda: None)
+
+    response = client.get("/health/media-ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "storage": "supabase_storage"}
