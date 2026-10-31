@@ -93,21 +93,26 @@ def test_backup_rejects_public_bucket(monkeypatch, tmp_path):
 def test_backup_creates_missing_bucket_from_nosuchbucket_400(monkeypatch, tmp_path):
     destination, manifest_path = configure(monkeypatch, tmp_path)
     calls = []
+    bucket_reads = 0
 
     def fake_request(self, method, url, headers=None, **kwargs):
+        nonlocal bucket_reads
         calls.append((method, url))
-        if method == "GET":
-            return make_response(
-                400,
-                payload={"code": "NoSuchBucket", "message": "Bucket not found"},
-            )
-        if method == "POST" and url.endswith("/bucket"):
-            assert kwargs["json"]["public"] is False
-            assert kwargs["json"]["file_size_limit"] == 50 * 1024 * 1024
+        if method == "GET" and url.endswith("/bucket/makeupart-media"):
+            bucket_reads += 1
+            if bucket_reads == 1:
+                return make_response(
+                    400,
+                    payload={"code": "NoSuchBucket", "message": "Bucket not found"},
+                )
             return make_response(
                 200,
                 payload={"id": "makeupart-media", "public": False},
             )
+        if method == "POST" and url.endswith("/bucket"):
+            assert kwargs["json"]["public"] is False
+            assert kwargs["json"]["file_size_limit"] == 50 * 1024 * 1024
+            return make_response(200, payload={"id": "makeupart-media"})
         if method == "POST" and "/object/list/" in url:
             return make_response(200, payload=[])
         raise AssertionError(f"Unexpected request: {method} {url}")
