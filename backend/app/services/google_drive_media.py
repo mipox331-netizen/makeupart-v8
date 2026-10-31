@@ -136,7 +136,7 @@ def _verify_supabase_bucket() -> None:
         # network and server errors must never be mistaken for a missing bucket.
         if "(HTTP 404)" not in str(exc) and "code=NoSuchBucket" not in str(exc):
             raise
-        response = _supabase_storage_request(
+        _supabase_storage_request(
             "POST",
             "/bucket",
             json={
@@ -149,11 +149,14 @@ def _verify_supabase_bucket() -> None:
                 ],
             },
         )
+        # The create response is not guaranteed to include privacy metadata.
+        # Read the persisted bucket state back before treating storage as ready.
+        response = _supabase_storage_request("GET", f"/bucket/{encoded_bucket}")
         try:
             body = response.json()
         except ValueError as parse_error:
             raise GoogleDriveMediaError(
-                "Supabase Storage returned invalid bucket-creation data."
+                "Supabase Storage returned invalid bucket metadata after creation."
             ) from parse_error
     else:
         try:
