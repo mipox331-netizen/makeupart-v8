@@ -16,6 +16,22 @@ ROOT_VALUE = "v1"
 RUN_KEY = "makeupart_backup_run_id"
 
 
+def oauth_error_code(response):
+    try:
+        payload = response.json()
+    except ValueError:
+        return "unknown"
+    candidate = payload.get("error") if isinstance(payload, dict) else None
+    if (
+        isinstance(candidate, str)
+        and candidate.isascii()
+        and 0 < len(candidate) <= 64
+        and candidate.replace("_", "").replace("-", "").isalnum()
+    ):
+        return candidate
+    return "unknown"
+
+
 def abort(message: str) -> None:
     raise SystemExit(message)
 
@@ -81,6 +97,8 @@ def main() -> None:
             )
         except requests.RequestException:
             abort("Google Drive OAuth token refresh could not reach Google.")
+        if token_response.status_code != 200:
+            abort(f"Google Drive OAuth token refresh failed (HTTP {token_response.status_code}, error={oauth_error_code(token_response)}).")
         token_body = checked_json(token_response, "Google Drive OAuth token refresh")
         token = token_body.get("access_token")
         if token_response.status_code != 200 or not isinstance(token, str) or not token:
