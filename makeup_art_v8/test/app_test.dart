@@ -59,6 +59,33 @@ class _ExpiredSessionApi extends ApiClient {
   }
 }
 
+class _TransientSessionApi extends ApiClient {
+  int currentUserCalls = 0;
+
+  @override
+  Future<Map<String, dynamic>> currentUser() async {
+    currentUserCalls++;
+    if (currentUserCalls == 1) {
+      final request = RequestOptions(path: '/auth/me');
+      throw DioException(
+        requestOptions: request,
+        type: DioExceptionType.connectionTimeout,
+      );
+    }
+    return {
+      'is_platform_admin': false,
+      'salon_id': 'retry-salon',
+      'role': 'owner',
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> getSubscription() async => {
+        'plan': 'free',
+        'status': 'inactive',
+      };
+}
+
 class _FakeLoginApi extends ApiClient {
   _FakeLoginApi(this.failure);
 
@@ -265,6 +292,35 @@ void main() {
     expect(api.tokensCleared, isTrue);
     expect(logoutRequested, isTrue);
     expect(find.textContaining('Could not load account status:'), findsNothing);
+  });
+
+  testWidgets('transient session failure can be retried without signing out', (tester) async {
+    _useTallViewport(tester);
+    final api = _TransientSessionApi();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SessionGate(
+          api: api,
+          onLogout: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(api.currentUserCalls, 1);
+    expect(
+      find.textContaining('server is waking up or responding slowly'),
+      findsOneWidget,
+    );
+    expect(find.text('Retry connection'), findsOneWidget);
+
+    await tester.tap(find.text('Retry connection'));
+    await tester.pumpAndSettle();
+
+    expect(api.currentUserCalls, 2);
+    expect(find.byType(SubscriptionPage), findsOneWidget);
+    expect(find.text('Retry connection'), findsNothing);
   });
 
   testWidgets('login password visibility can be toggled safely', (tester) async {
