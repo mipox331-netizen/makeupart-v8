@@ -294,9 +294,15 @@ class _SessionGateState extends State<SessionGate> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(error!, textAlign: TextAlign.center),
-                const SizedBox(height: 14),
-                FilledButton(
-                  onPressed: widget.onLogout,
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: loading ? null : _load,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry connection'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: loading ? null : widget.onLogout,
                   child: const Text('Sign out'),
                 ),
               ],
