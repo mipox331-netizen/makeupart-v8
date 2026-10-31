@@ -25,12 +25,13 @@ jobs:
     environment: production
     timeout-minutes: 45
     env:
-      SUPABASE_URL: "https://riakbjcxcaqjaqagncmu.supabase.co"
       SUPABASE_MEDIA_BUCKET: "makeupart-media"
     steps:
       - name: Validate Supabase and encryption secrets without exposing values
         shell: bash
         env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
@@ -62,7 +63,8 @@ jobs:
       - name: Download private Supabase media and build integrity manifest
         shell: bash
         env:
-          SUPABASE_URL: "https://riakbjcxcaqjaqagncmu.supabase.co"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
           SUPABASE_MEDIA_BUCKET: "makeupart-media"
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
