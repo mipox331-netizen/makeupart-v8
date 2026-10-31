@@ -320,7 +320,7 @@ jobs:
             if [[ -n "$EXPECTED" && "$deployed_sha" != "$EXPECTED" ]]; then
               revision_matches=false
             fi
-            if [[ "$live_code" == "200" && "$live_status" == "alive" && "$ready_code" == "200" && "$ready_status" == "ready" && "$media_code" == "200" && "$media_status" == "ready" && ( "$media_storage" == "google_drive" || "$media_storage" == "modal_volume" ) && "$revision_matches" == "true" ]]; then
+            if [[ "$live_code" == "200" && "$live_status" == "alive" && "$ready_code" == "200" && "$ready_status" == "ready" && "$media_code" == "200" && "$media_status" == "ready" && ( "$media_storage" == "google_drive" || "$media_storage" == "modal_volume" || "$media_storage" == "supabase_storage" ) && "$revision_matches" == "true" ]]; then
               echo "Production API liveness: $live_status"
               echo "Production API readiness: $ready_status"
               echo "Production media storage: $media_storage"
