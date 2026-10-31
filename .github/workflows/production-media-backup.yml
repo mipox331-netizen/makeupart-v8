@@ -12,6 +12,7 @@ on:
       - "backend/scripts/supabase_media_backup.py"
       - "backend/scripts/verify_supabase_media_empty_state.py"
       - ".github/workflows/production-media-backup.yml"
+      - ".github/workflows/production-media-restore-drill.yml"
 
 permissions:
   contents: read
