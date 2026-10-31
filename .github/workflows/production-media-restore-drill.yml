@@ -122,8 +122,11 @@ jobs:
 
           root = Path(sys.argv[1]).resolve()
           manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-          if manifest.get("format") != "makeupart-google-drive-media-backup-v1":
-              raise SystemExit("Unknown media backup manifest format.")
+          if manifest.get("format") not in {
+              "makeupart-google-drive-media-backup-v1",
+              "makeupart-modal-volume-media-backup-v1",
+          }:
+              raise SystemExit("Unknown private media backup manifest format.")
           expected_rows = manifest.get("files", [])
           expected = {
               row["path"]: {
@@ -158,5 +161,5 @@ jobs:
               raise SystemExit(
                   "Media restore drill failed: backup contains zero photos/logos, so customer-media recovery is not proven."
               )
-          print(f"Media restore drill passed: files={len(actual)}, bytes={total}. Production Drive was not modified; customer paths and image contents were not logged.")
+          print(f"Media restore drill passed: files={len(actual)}, bytes={total}. Production storage was not modified; customer paths and image contents were not logged.")
           PY
