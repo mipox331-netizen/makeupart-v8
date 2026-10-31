@@ -86,6 +86,15 @@ jobs:
                       raise SystemExit("Production media inventory cannot run; required media tables are missing.")
 
                   media = {
+                      "users": connection.execute(
+                          text("SELECT count(*) FROM public.users")
+                      ).scalar_one(),
+                      "salons": connection.execute(
+                          text("SELECT count(*) FROM public.salons")
+                      ).scalar_one(),
+                      "subscriptions": connection.execute(
+                          text("SELECT count(*) FROM public.subscriptions")
+                      ).scalar_one(),
                       "beauty_jobs": connection.execute(
                           text("SELECT count(*) FROM public.beauty_jobs")
                       ).scalar_one(),
@@ -93,6 +102,12 @@ jobs:
                           text("SELECT count(*) FROM public.beauty_results")
                       ).scalar_one(),
                   }
+                  media["orphaned_subscriptions"] = connection.execute(text("""
+                      SELECT count(*)
+                      FROM public.subscriptions subscription
+                      LEFT JOIN public.salons salon ON salon.id=subscription.salon_id
+                      WHERE salon.id IS NULL
+                  """)).scalar_one()
                   column_rows = connection.execute(text("""
                       SELECT table_name, column_name
                       FROM information_schema.columns
