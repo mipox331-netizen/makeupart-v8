@@ -264,10 +264,9 @@ def backup_media(destination: Path, manifest_path: Path) -> tuple[int, int]:
                 break
 
     list_prefix("")
-    if not entries:
-        raise BackupError(
-            "The private media bucket is empty. Refusing to claim customer-photo backup success."
-        )
+    # An empty bucket is represented explicitly in the manifest. A separate
+    # database-reference preflight must confirm that no live rows point to
+    # missing images/logos before the workflow may call this backup successful.
 
     entries.sort(key=lambda item: str(item["path"]))
     manifest = {
