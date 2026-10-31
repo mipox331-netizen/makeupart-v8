@@ -159,7 +159,7 @@ jobs:
           if len(actual) != manifest.get("file_count") or total != manifest.get("total_bytes"):
               raise SystemExit("Media restore drill failed: manifest totals differ.")
           if not actual:
-              if rows or manifest.get("file_count") != 0 or manifest.get("total_bytes") != 0:
+              if expected_rows or manifest.get("file_count") != 0 or manifest.get("total_bytes") != 0:
                   raise SystemExit("Empty media restore drill failed: manifest is not a consistent empty inventory.")
               print("Empty media restore drill passed: the backup manifest records zero customer media objects; the backup workflow separately verified zero database media references. Production storage was not modified.")
           else:
