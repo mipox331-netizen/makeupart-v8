@@ -13,6 +13,12 @@ def configure_media_volume(*, commit: Callable[[], object] | None = None) -> Non
         _commit_callback = commit
 
 
+def is_media_volume_configured() -> bool:
+    """Return true only when the running app has an injected durable Volume hook."""
+    with _lock:
+        return _commit_callback is not None
+
+
 def commit_media_volume() -> None:
     """Persist media writes/deletes on Modal; local development remains a no-op."""
     with _lock:
