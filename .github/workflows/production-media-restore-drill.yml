@@ -125,6 +125,7 @@ jobs:
           if manifest.get("format") not in {
               "makeupart-google-drive-media-backup-v1",
               "makeupart-modal-volume-media-backup-v1",
+              "makeupart-supabase-storage-media-backup-v1",
           }:
               raise SystemExit("Unknown private media backup manifest format.")
           expected_rows = manifest.get("files", [])
