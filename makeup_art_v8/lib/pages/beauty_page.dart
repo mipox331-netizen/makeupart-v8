@@ -895,14 +895,15 @@ class _BeautyPageState extends State<BeautyPage> {
       return;
     }
 
-    final controller = TextEditingController(text: _suggestedPresetName());
+    final suggestedName = _suggestedPresetName();
+    var enteredName = suggestedName;
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Save salon look'),
-        content: TextField(
+        content: TextFormField(
           key: const ValueKey('salon-look-name-field'),
-          controller: controller,
+          initialValue: suggestedName,
           autofocus: true,
           maxLength: SalonLookPresetStore.maxNameLength,
           textCapitalization: TextCapitalization.words,
@@ -910,7 +911,8 @@ class _BeautyPageState extends State<BeautyPage> {
             labelText: 'Look name',
             hintText: 'e.g. Bridal Glow',
           ),
-          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+          onChanged: (value) => enteredName = value,
+          onFieldSubmitted: (value) => Navigator.of(dialogContext).pop(value),
         ),
         actions: [
           TextButton(
@@ -919,13 +921,12 @@ class _BeautyPageState extends State<BeautyPage> {
           ),
           FilledButton(
             key: const ValueKey('save-salon-look-confirm'),
-            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            onPressed: () => Navigator.of(dialogContext).pop(enteredName),
             child: const Text('Save look'),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (name == null || !mounted) return;
 
     setState(() => savingLookPreset = true);
