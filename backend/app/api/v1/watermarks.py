@@ -246,7 +246,7 @@ async def upload_watermark_logo(
                 "A recovery copy was retained where available; do not retry until storage is checked."
             )
         elif isinstance(exc, GoogleDriveMediaError):
-            detail = "Private Google Drive storage could not confirm the upload. The previous logo was restored."
+            detail = "Private media storage could not confirm the upload. The previous logo was restored."
         elif isinstance(exc, OSError):
             detail = "Could not save the salon logo. The previous logo was restored."
         else:
@@ -318,7 +318,7 @@ def delete_watermark_logo(
     except GoogleDriveMediaError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not securely remove the salon logo from private Drive storage.",
+            detail="Could not securely remove the salon logo from private media storage.",
         ) from exc
     path.unlink(missing_ok=True)
     commit_media_volume()
