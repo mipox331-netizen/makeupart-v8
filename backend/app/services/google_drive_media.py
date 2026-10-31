@@ -143,7 +143,7 @@ def _verify_supabase_bucket() -> None:
                 "id": bucket,
                 "name": bucket,
                 "public": False,
-                "file_size_limit": _MAX_RESTORE_BYTES,
+                "file_size_limit": 50 * 1024 * 1024,
                 "allowed_mime_types": [
                     "image/jpeg", "image/png", "image/webp", "application/octet-stream"
                 ],
