@@ -28,25 +28,30 @@ def response(method, url, status=200, *, json_body=None, content=b""):
 
 def test_private_bucket_is_created_when_missing_and_never_public(supabase_media, monkeypatch):
     calls = []
+    bucket_reads = 0
 
     def fake_request(method, url, **kwargs):
+        nonlocal bucket_reads
         calls.append((method, url, kwargs))
         assert kwargs["headers"]["apikey"] == "test-service-role-key"
         assert kwargs["headers"]["Authorization"] == "Bearer test-service-role-key"
         if method == "GET":
-            return response(method, url, 400, json_body={"code": "NoSuchBucket", "message": "Bucket not found"})
+            bucket_reads += 1
+            if bucket_reads == 1:
+                return response(method, url, 400, json_body={"code": "NoSuchBucket", "message": "Bucket not found"})
+            return response(method, url, 200, json_body={"id": "makeupart-media", "public": False})
         if method == "POST":
             assert url.endswith("/storage/v1/bucket")
             assert kwargs["json"]["public"] is False
             assert kwargs["json"]["file_size_limit"] == 50 * 1024 * 1024
-            return response(method, url, 200, json_body={"id": "makeupart-media", "public": False})
+            return response(method, url, 200, json_body={"id": "makeupart-media"})
         raise AssertionError(f"Unexpected request: {method} {url}")
 
     monkeypatch.setattr(media.httpx, "request", fake_request)
 
     media.verify_connection()
 
-    assert [item[0] for item in calls] == ["GET", "POST"]
+    assert [item[0] for item in calls] == ["GET", "POST", "GET"]
 
 
 def test_supabase_upload_verifies_stored_bytes_and_keeps_private_object_key(
