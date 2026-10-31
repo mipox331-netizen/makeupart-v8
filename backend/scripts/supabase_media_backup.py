@@ -61,8 +61,31 @@ def backup_media(destination: Path, manifest_path: Path) -> tuple[int, int]:
     supabase_url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
     service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     bucket = os.environ.get("SUPABASE_MEDIA_BUCKET", "makeupart-media").strip()
+    if not supabase_url:
+        # Derive the project endpoint without embedding a project reference in source.
+        # Direct DB hosts use <project-ref>.supabase.co; Supavisor usernames are
+        # normally postgres.<project-ref>. If neither is available, require an
+        # explicit SUPABASE_URL secret rather than guessing.
+        from urllib.parse import unquote, urlsplit
+
+        database_url = os.environ.get("SUPABASE_DB_URL", "").strip()
+        parsed_database = urlsplit(database_url)
+        host = (parsed_database.hostname or "").lower()
+        project_ref = ""
+        if host.endswith(".supabase.co"):
+            project_ref = host.removesuffix(".supabase.co")
+        elif parsed_database.username and "." in unquote(parsed_database.username):
+            candidate = unquote(parsed_database.username).split(".", 1)[1]
+            if candidate.replace("-", "").isalnum():
+                project_ref = candidate
+        if project_ref:
+            supabase_url = f"https://{project_ref}.supabase.co"
+
     if not supabase_url or not service_key or not bucket or "/" in bucket:
-        raise BackupError("Supabase private-media backup configuration is incomplete.")
+        raise BackupError(
+            "Supabase private-media backup configuration is incomplete; "
+            "set SUPABASE_URL or a project-qualified SUPABASE_DB_URL."
+        )
     if not supabase_url.startswith("https://"):
         raise BackupError("SUPABASE_URL must use HTTPS.")
 
