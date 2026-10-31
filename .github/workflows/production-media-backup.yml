@@ -145,7 +145,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python backend/scripts/google_drive_backup_upload.py "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg" "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg.sha256" "$GITHUB_RUN_ID"
+          python backend/scripts/google_drive_backup_upload.py "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg" "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg.sha256" "$GITHUB_RUN_ID-a$GITHUB_RUN_ATTEMPT"
 
       - name: Upload short-lived restore-drill artifact
         uses: actions/upload-artifact@v4
