@@ -8,6 +8,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/production-database-backup.yml"
+      - ".github/workflows/supabase-migrate.yml"
+      - "backend/alembic/versions/**"
 
 permissions:
   contents: read
@@ -128,7 +130,7 @@ jobs:
           rm -f "$BACKUP_DIR/makeupart.dump" "$BACKUP_DIR/verify.dump"
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
           echo "Encrypted PostgreSQL backup created and archive readability verified."
-          echo "::notice::This database backup excludes private customer photos and logos; the separate Google Drive media backup must also pass."
+          echo "::notice::This database backup excludes private customer photos and logos; the separate encrypted private-media backup must also pass."
 
       - name: Upload encrypted backup artifact
         uses: actions/upload-artifact@v4
