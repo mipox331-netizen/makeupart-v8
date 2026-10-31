@@ -2,6 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +17,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     DATABASE_URL: str
+    # Prefer the Supabase production URL during a staged database cutover.
+    SUPABASE_DB_URL: str = ""
     CORS_ORIGINS: str = ""
     MEDIA_ROOT: str = "./media"
     # Select the private durable media backend. Modal uses its mounted Volume;
@@ -43,6 +46,15 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_IMAGE_MODEL: str = "gpt-image-2.5-sunburst"
     OPENAI_IMAGE_QUALITY: str = "medium"
+
+    @model_validator(mode="before")
+    @classmethod
+    def prefer_supabase_database_url(cls, values):
+        if isinstance(values, dict):
+            supabase_url = str(values.get("SUPABASE_DB_URL") or "").strip()
+            if supabase_url:
+                values["DATABASE_URL"] = supabase_url
+        return values
     LOGIN_MAX_FAILED_ATTEMPTS: int = 5
     LOGIN_WINDOW_MINUTES: int = 15
     LOGIN_LOCKOUT_MINUTES: int = 15
@@ -66,6 +78,8 @@ class Settings(BaseSettings):
         return Path(self.MEDIA_ROOT).expanduser().resolve()
 
     def validate_runtime(self) -> None:
+        if not self.DATABASE_URL.strip():
+            raise RuntimeError("DATABASE_URL or SUPABASE_DB_URL must be configured")
         if self.MEDIA_STORAGE_BACKEND.lower() not in {"google_drive", "modal_volume", "supabase_storage"}:
             raise RuntimeError(
                 "MEDIA_STORAGE_BACKEND must be google_drive, modal_volume or supabase_storage"
