@@ -1,7 +1,7 @@
-"""Private Google Drive media mirror for MakeUpArt V8.
+"""Private cloud media storage adapters for MakeUpArt V8.
 
-Uses a user-owned Google Drive OAuth refresh token and the narrow drive.file scope.
-Media is private: objects are never made public or served through share links.
+Supports user-owned Google Drive OAuth, private Supabase Storage and a mounted
+Modal Volume. Customer media is never intentionally made public or shared by URL.
 """
 from __future__ import annotations
 
