@@ -200,7 +200,7 @@ jobs:
           )
 
           revision="$("${psql_cmd[@]}" --command='SELECT version_num FROM public.alembic_version')"
-          [[ "$revision" == "0014_reconcile_beauty_media_paths" ]] || {
+          [[ "$revision" == "0014_beauty_media_paths" ]] || {
             echo "::error::Restored Alembic revision does not match expected migration head."
             exit 1
           }
