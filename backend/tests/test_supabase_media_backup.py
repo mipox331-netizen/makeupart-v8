@@ -103,6 +103,7 @@ def test_backup_creates_missing_bucket_from_nosuchbucket_400(monkeypatch, tmp_pa
             )
         if method == "POST" and url.endswith("/bucket"):
             assert kwargs["json"]["public"] is False
+            assert kwargs["json"]["file_size_limit"] == 50 * 1024 * 1024
             return make_response(
                 200,
                 payload={"id": "makeupart-media", "public": False},
