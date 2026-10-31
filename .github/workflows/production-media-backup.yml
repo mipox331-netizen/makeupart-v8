@@ -57,8 +57,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install private-media backup dependency
-        run: python -m pip install --disable-pip-version-check --no-input httpx
+      - name: Install private-media backup dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --no-input \
+            httpx "SQLAlchemy==2.0.54" "psycopg2-binary==2.9.13"
 
       - name: Download private Supabase media and build integrity manifest
         shell: bash
@@ -74,6 +76,15 @@ jobs:
           mkdir -p "$STAGE/media"
           chmod 700 "$BACKUP_DIR" "$STAGE" "$STAGE/media"
           python backend/scripts/supabase_media_backup.py "$STAGE/media" "$STAGE/manifest.json"
+
+      - name: Verify empty media inventory against live database references
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          python backend/scripts/verify_supabase_media_empty_state.py \
+            "$RUNNER_TEMP/makeupart-media-backup/stage/manifest.json"
 
       - name: Encrypt archive and verify a complete isolated restore
         shell: bash
