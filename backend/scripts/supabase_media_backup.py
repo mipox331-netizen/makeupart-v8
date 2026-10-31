@@ -7,7 +7,7 @@ import sys
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
-import requests
+import httpx
 
 MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 3 * 1024 * 1024 * 1024
@@ -19,7 +19,7 @@ class BackupError(RuntimeError):
 
 
 def _safe_request(
-    session: requests.Session,
+    session: httpx.Client,
     method: str,
     url: str,
     *,
@@ -29,9 +29,13 @@ def _safe_request(
 ) -> requests.Response:
     try:
         response = session.request(
-            method, url, headers=headers, timeout=timeout, **kwargs
+            method,
+            url,
+            headers=headers,
+            timeout=httpx.Timeout(timeout[1], connect=timeout[0]),
+            **kwargs,
         )
-    except requests.RequestException as exc:
+    except httpx.HTTPError as exc:
         raise BackupError("Supabase Storage request could not be completed.") from exc
     if response.status_code >= 400:
         raise BackupError(
@@ -68,7 +72,7 @@ def backup_media(destination: Path, manifest_path: Path) -> tuple[int, int]:
         "Authorization": "Bearer " + service_key,
         "Accept": "application/json",
     }
-    session = requests.Session()
+    session = httpx.Client(follow_redirects=True)
 
     # Ensure the source is the intended private bucket. Never back up a bucket
     # whose metadata says public=true.
