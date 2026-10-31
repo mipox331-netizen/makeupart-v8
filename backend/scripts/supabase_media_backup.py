@@ -37,9 +37,9 @@ def _safe_request(
         )
     except httpx.HTTPError as exc:
         raise BackupError("Supabase Storage request could not be completed.") from exc
+    provider_code = "unknown"
+    provider_message = "no structured error details"
     if response.status_code >= 400:
-        provider_code = "unknown"
-        provider_message = "no structured error details"
         try:
             payload = response.json()
             if isinstance(payload, dict):
@@ -125,7 +125,7 @@ def backup_media(destination: Path, manifest_path: Path) -> tuple[int, int]:
     try:
         bucket_response = _safe_request(session, "GET", bucket_url, headers=headers)
     except BackupError as exc:
-        if "(HTTP 404)" not in str(exc):
+        if "(HTTP 404)" not in str(exc) and "code=NoSuchBucket" not in str(exc):
             raise
         created = _safe_request(
             session,
