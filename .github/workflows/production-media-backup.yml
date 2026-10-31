@@ -148,8 +148,11 @@ jobs:
           if len(actual) != manifest.get("file_count") or total != manifest.get("total_bytes"):
               raise SystemExit("Media restore verification failed: manifest totals differ.")
           if not actual:
-              raise SystemExit("Media restore verification failed: archive contains no customer photos or logos.")
-          print(f"Encrypted private Supabase media archive decrypted and restored in isolation: files={len(actual)}, bytes={total}. Production storage was not modified.")
+              if rows or manifest.get("file_count") != 0 or manifest.get("total_bytes") != 0:
+                  raise SystemExit("Empty private-media archive is internally inconsistent.")
+              print("Encrypted empty-state media archive verified in isolation after the live database reference check.")
+          else:
+              print(f"Encrypted private Supabase media archive decrypted and restored in isolation: files={len(actual)}, bytes={total}. Production storage was not modified.")
           PY
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 
