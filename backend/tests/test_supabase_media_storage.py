@@ -38,6 +38,7 @@ def test_private_bucket_is_created_when_missing_and_never_public(supabase_media,
         if method == "POST":
             assert url.endswith("/storage/v1/bucket")
             assert kwargs["json"]["public"] is False
+            assert kwargs["json"]["file_size_limit"] == 50 * 1024 * 1024
             return response(method, url, 200, json_body={"id": "makeupart-media", "public": False})
         raise AssertionError(f"Unexpected request: {method} {url}")
 
