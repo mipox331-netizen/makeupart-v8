@@ -136,7 +136,7 @@ def backup_media(destination: Path, manifest_path: Path) -> tuple[int, int]:
                 "id": bucket,
                 "name": bucket,
                 "public": False,
-                "file_size_limit": MAX_FILE_BYTES,
+                "file_size_limit": 50 * 1024 * 1024,
                 "allowed_mime_types": [
                     "image/jpeg",
                     "image/png",
