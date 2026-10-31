@@ -813,12 +813,22 @@ void main() {
     expect(saved, hasLength(1));
     expect(saved.single.name, 'Warm Studio');
 
-    final presetChip = find.byKey(
-      ValueKey('salon-look-preset-${saved.single.id}'),
-    );
     final savedLooksPanel = find.byKey(const ValueKey('saved-salon-looks-panel'));
     editorController.jumpTo(0);
     await _pumpEditor(tester);
+    final editorScrollView = find.descendant(
+      of: editorList,
+      matching: find.byType(Scrollable),
+    ).first;
+    await tester.scrollUntilVisible(
+      savedLooksPanel,
+      160,
+      scrollable: editorScrollView,
+    );
+    await _pumpEditor(tester);
+    final presetChip = find.byKey(
+      ValueKey('salon-look-preset-${saved.single.id}'),
+    );
     await _pumpUntilFound(tester, presetChip);
     final presetScrollView = find.descendant(
       of: savedLooksPanel,
