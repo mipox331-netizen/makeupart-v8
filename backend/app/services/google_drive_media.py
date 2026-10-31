@@ -103,8 +103,17 @@ def _supabase_storage_request(
     except httpx.HTTPError as exc:
         raise GoogleDriveMediaError("Private Supabase Storage could not be reached.") from exc
     if response.status_code >= 400:
+        provider_code = "unknown"
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                provider_code = str(
+                    payload.get("code") or payload.get("error") or payload.get("statusCode") or "unknown"
+                )[:80]
+        except ValueError:
+            pass
         raise GoogleDriveMediaError(
-            f"Private Supabase Storage request failed (HTTP {response.status_code})."
+            f"Private Supabase Storage request failed (HTTP {response.status_code}, code={provider_code})."
         )
     return response
 
@@ -125,7 +134,7 @@ def _verify_supabase_bucket() -> None:
     except GoogleDriveMediaError as exc:
         # Create the bucket only when it truly does not exist. Unauthorized,
         # network and server errors must never be mistaken for a missing bucket.
-        if "(HTTP 404)" not in str(exc):
+        if "(HTTP 404)" not in str(exc) and "code=NoSuchBucket" not in str(exc):
             raise
         response = _supabase_storage_request(
             "POST",
