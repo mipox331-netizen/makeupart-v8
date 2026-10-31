@@ -34,7 +34,7 @@ def test_private_bucket_is_created_when_missing_and_never_public(supabase_media,
         assert kwargs["headers"]["apikey"] == "test-service-role-key"
         assert kwargs["headers"]["Authorization"] == "Bearer test-service-role-key"
         if method == "GET":
-            return response(method, url, 404, json_body={"message": "not found"})
+            return response(method, url, 400, json_body={"code": "NoSuchBucket", "message": "Bucket not found"})
         if method == "POST":
             assert url.endswith("/storage/v1/bucket")
             assert kwargs["json"]["public"] is False
