@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_IMAGE_MODEL: str = "gpt-image-2.5-sunburst"
     OPENAI_IMAGE_QUALITY: str = "medium"
+    LOGIN_MAX_FAILED_ATTEMPTS: int = 5
+    LOGIN_WINDOW_MINUTES: int = 15
+    LOGIN_LOCKOUT_MINUTES: int = 15
 
     @model_validator(mode="before")
     @classmethod
@@ -55,9 +58,6 @@ class Settings(BaseSettings):
             if supabase_url:
                 values["DATABASE_URL"] = supabase_url
         return values
-    LOGIN_MAX_FAILED_ATTEMPTS: int = 5
-    LOGIN_WINDOW_MINUTES: int = 15
-    LOGIN_LOCKOUT_MINUTES: int = 15
 
     @property
     def cors_origins_list(self) -> List[str]:
