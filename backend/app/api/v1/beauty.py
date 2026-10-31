@@ -62,6 +62,19 @@ def _media_dirs(salon_id: uuid.UUID) -> tuple[Path, Path]:
     return input_dir, output_dir
 
 
+def _persist_private_media_file(path: Path) -> None:
+    """Persist media before committing a customer job; production must be durable."""
+    persisted = google_drive_media.persist_media_file(path)
+    durable_required = (
+        settings.REQUIRE_DURABLE_MEDIA
+        or settings.ENVIRONMENT.lower() == "production"
+    )
+    if durable_required and not persisted and not google_drive_media.uses_modal_volume():
+        raise GoogleDriveMediaError(
+            "Private durable media storage is required but the configured backend did not persist the file."
+        )
+
+
 def _discard_local_and_drive_media(path: Path | None) -> None:
     if path is None:
         return
@@ -567,8 +580,8 @@ def process_beauty_upload(
         output_path = output_dir / f"{uuid.uuid4()}.png"
         shutil.move(generated_output, output_path)
         try:
-            google_drive_media.persist_media_file(input_path)
-            google_drive_media.persist_media_file(output_path)
+            _persist_private_media_file(input_path)
+            _persist_private_media_file(output_path)
         except GoogleDriveMediaError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

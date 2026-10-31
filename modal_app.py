@@ -121,6 +121,11 @@ def verify_runtime():
 )
 @modal.asgi_app()
 def fastapi_app():
+    import os
+
+    # Modal's mounted Volume is the durable customer-media backend. Select it
+    # before importing app settings so production never depends on expired Drive OAuth.
+    os.environ["MEDIA_STORAGE_BACKEND"] = "modal_volume"
     from app.services.media_volume import configure_media_volume
 
     configure_media_volume(commit=media_volume.commit)

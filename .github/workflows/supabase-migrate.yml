@@ -2,6 +2,13 @@ name: MakeupArt V8 Supabase Database Migration
 
 on:
   workflow_dispatch:
+  # Apply additive, backward-compatible schema migrations when backend changes
+  # reach main. This uses the production Supabase secret stored in GitHub.
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/supabase-migrate.yml"
 
 concurrency:
   # Share the same lock with Modal production deploy/migrations against this database.

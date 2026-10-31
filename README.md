@@ -15,7 +15,12 @@ cp .env.example .env
 docker compose up --build
 ```
 
-The API runs on port 8000. Health endpoints are `/health`, `/health/live`, and `/health/ready`.
+The API runs on port 8000. Health endpoints are:
+- `/health/live` — process liveness.
+- `/health/ready` — database/API readiness used by Render. A temporary third-party Drive outage does not restart the API process.
+- `/health/media-ready` — private customer-photo storage readiness. Production reports ready only after Google Drive OAuth and the private media root are verified.
+
+Media uploads continue to fail closed when durable storage is unavailable. Production APK publication separately requires `/health/media-ready` to return `storage: google_drive`; a healthy login/API endpoint alone is not a customer-photo release gate.
 
 ## Flutter development
 From `makeup_art_v8/`:
@@ -53,6 +58,10 @@ The checked-in Docker Compose + Caddy stack remains available as a self-hosted d
 - Media routes authenticate requests and enforce salon isolation.
 - Customer deletion removes associated consent, consultation, job and media records.
 - Classic MediaPipe/OpenCV processing works without a paid external image-provider key.
+
+## On-device photo history
+
+The Android app keeps the ten most recent processed results in salon-scoped private app storage. When an older result is archived, it is published through Android MediaStore to the public `Pictures/MakeupArtV8` gallery with a salon-scoped filename. The private source is deleted only after Gallery confirms the save; permission or storage failures leave the original in app storage. This device archive is separate from the encrypted Google Drive production-media backup and does not replace the server-side recovery checks below.
 
 ## Photo durability and disaster recovery
 

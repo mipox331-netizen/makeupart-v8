@@ -53,7 +53,7 @@ def _rollback_failed_logo_upload(
                 except OSError:
                     logger.exception("Could not remove temporary salon-logo restoration file")
             persisted = google_drive_media.persist_media_file(target)
-            if durable_required and not persisted:
+            if durable_required and not persisted and not google_drive_media.uses_modal_volume():
                 raise GoogleDriveMediaError(
                     "Could not confirm restoration of the previous logo in private storage."
                 )
@@ -61,7 +61,7 @@ def _rollback_failed_logo_upload(
             # Keep a first-time logo on disk until remote cleanup has succeeded;
             # otherwise a failed cleanup could leave an unreferenced Drive copy.
             deleted = google_drive_media.delete_media_file(target)
-            if durable_required and not deleted:
+            if durable_required and not deleted and not google_drive_media.uses_modal_volume():
                 raise GoogleDriveMediaError(
                     "Could not confirm cleanup of the failed logo upload in private storage."
                 )
@@ -107,6 +107,27 @@ def update_watermark(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.ADMIN)),
 ) -> WatermarkOut:
     watermark = get_or_create_watermark(db, current_user.salon)
+    if watermark_in.content_mode == 'logo':
+        if not watermark.logo_url:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail='Upload a salon logo before selecting logo-only mode.',
+            )
+        logo_path = _logo_path(current_user.salon_id)
+        if not logo_path.is_file():
+            try:
+                restored = google_drive_media.ensure_local_file(logo_path)
+            except GoogleDriveMediaError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail='The saved salon logo could not be restored from private storage.',
+                ) from exc
+            if not restored or not logo_path.is_file():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail='The saved salon logo is missing. Upload it again before selecting logo-only mode.',
+                )
+            commit_media_volume()
     for field, value in watermark_in.model_dump(exclude_unset=True).items():
         # Logo uploads must use the dedicated, validated binary upload route.
         if field != "logo_url":
@@ -189,7 +210,7 @@ async def upload_watermark_logo(
             settings.REQUIRE_DURABLE_MEDIA
             or settings.ENVIRONMENT.lower() == "production"
         )
-        if durable_required and not persisted:
+        if durable_required and not persisted and not google_drive_media.uses_modal_volume():
             raise GoogleDriveMediaError(
                 "Private media storage did not confirm that the salon logo was saved."
             )
@@ -304,6 +325,8 @@ def delete_watermark_logo(
 
     watermark = get_or_create_watermark(db, current_user.salon)
     watermark.logo_url = None
+    if watermark.content_mode == 'logo':
+        watermark.content_mode = 'text'
     current_user.salon.logo_url = None
     db.commit()
     db.refresh(watermark)

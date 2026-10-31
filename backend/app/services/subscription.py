@@ -19,15 +19,15 @@ PLAN_LIMITS: dict[SubscriptionPlan, int | None] = {
 }
 
 PLAN_MAKEUP_STYLES: dict[SubscriptionPlan, frozenset[str]] = {
-    SubscriptionPlan.FREE: frozenset({"natural"}),
-    SubscriptionPlan.BASIC: frozenset({"natural", "soft_glam"}),
+    SubscriptionPlan.FREE: frozenset({"natural", "skin_only"}),
+    SubscriptionPlan.BASIC: frozenset({"natural", "soft_glam", "skin_only"}),
     SubscriptionPlan.PRO: frozenset({
         "natural", "soft_glam", "bridal_rose", "evening_glam",
-        "smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush",
+        "smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush", "skin_only",
     }),
     SubscriptionPlan.ENTERPRISE: frozenset({
         "natural", "soft_glam", "bridal_rose", "evening_glam",
-        "smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush",
+        "smokey_eye", "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush", "skin_only",
     }),
 }
 

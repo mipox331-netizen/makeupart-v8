@@ -26,6 +26,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final phone = TextEditingController();
   final password = TextEditingController();
   bool loading = false;
+  bool passwordVisible = false;
   bool accountCreated = false;
   String? error;
 
@@ -42,6 +43,12 @@ class _RegisterPageState extends State<RegisterPage> {
   String _registrationError(Object exception) {
     if (exception is! DioException) {
       return 'Could not create the account. Please try again.';
+    }
+
+    if (exception.type == DioExceptionType.connectionTimeout ||
+        exception.type == DioExceptionType.sendTimeout ||
+        exception.type == DioExceptionType.receiveTimeout) {
+      return 'The server is waking up or responding slowly. Keep your internet connected and try again.';
     }
 
     final statusCode = exception.response?.statusCode;
@@ -187,9 +194,21 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
             const SizedBox(height: 14),
             TextField(
+              key: const ValueKey('register-password-input'),
               controller: password,
-              obscureText: true,
-              decoration: decoration('Password', Icons.lock_outline),
+              obscureText: !passwordVisible,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  key: const ValueKey('register-password-visibility-toggle'),
+                  tooltip: passwordVisible ? 'Hide password' : 'Show password',
+                  onPressed: () => setState(() => passwordVisible = !passwordVisible),
+                  icon: Icon(
+                    passwordVisible ? Icons.visibility_off : Icons.visibility,
+                  ),
+                ),
+              ),
             ),
             if (error != null) ...[
               const SizedBox(height: 14),

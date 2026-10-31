@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     CORS_ORIGINS: str = ""
     MEDIA_ROOT: str = "./media"
+    # Select the durable media backend. Modal deployments use their mounted Volume;
+    # Render/self-hosted deployments may use the private Google Drive mirror.
+    MEDIA_STORAGE_BACKEND: str = "google_drive"
     # Optional private Google Drive media mirror; use OAuth user credentials, not a service account.
     GOOGLE_DRIVE_CLIENT_ID: str = ""
     GOOGLE_DRIVE_CLIENT_SECRET: str = ""
@@ -60,6 +63,8 @@ class Settings(BaseSettings):
         return Path(self.MEDIA_ROOT).expanduser().resolve()
 
     def validate_runtime(self) -> None:
+        if self.MEDIA_STORAGE_BACKEND.lower() not in {"google_drive", "modal_volume"}:
+            raise RuntimeError("MEDIA_STORAGE_BACKEND must be google_drive or modal_volume")
         if self.ENVIRONMENT.lower() == "production":
             if len(self.SECRET_KEY) < 32:
                 raise RuntimeError("SECRET_KEY must be at least 32 characters in production")

@@ -23,7 +23,7 @@ jobs:
     env:
       API_BASE_URL: https://makeupart-api.onrender.com
     steps:
-      - name: Check production liveness and readiness
+      - name: Check production liveness, API readiness and media storage
         shell: bash
         run: |
           set -euo pipefail
@@ -32,6 +32,7 @@ jobs:
           check_health() {
             local endpoint="$1"
             local expected="$2"
+            local field="${3:-status}"
             local body http_code actual preview
             body="$(mktemp)"
             for attempt in 1 2 3; do
@@ -56,11 +57,11 @@ jobs:
               return 1
             fi
 
-            actual="$(python - "$body" <<'PY'
+            actual="$(python - "$body" "$field" <<'PY'
           import json, sys
           try:
               with open(sys.argv[1], encoding="utf-8") as handle:
-                  print(json.load(handle).get("status", ""))
+                  print(json.load(handle).get(sys.argv[2], ""))
           except Exception:
               print("")
           PY
@@ -75,3 +76,4 @@ jobs:
 
           check_health "/health/live" "alive"
           check_health "/health/ready" "ready"
+          check_health "/health/media-ready" "google_drive" "storage"

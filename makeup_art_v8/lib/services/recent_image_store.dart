@@ -1,60 +1,69 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:path_provider/path_provider.dart';
+
+import 'gallery_exporter.dart';
 
 class RecentImageStore {
   static const maxImages = 10;
   static const _directoryName = 'recent_ai_results';
 
   final Directory? rootOverride;
-  final Directory? phoneRootOverride;
+  final Future<void> Function(Uint8List bytes, String fileName)?
+      galleryArchiveWriter;
   final String scope;
 
   const RecentImageStore({
     this.rootOverride,
-    this.phoneRootOverride,
+    this.galleryArchiveWriter,
     this.scope = 'default',
   });
 
+  String get _safeScope {
+    final normalizedScope = scope.trim();
+    if (normalizedScope.isEmpty) {
+      throw ArgumentError.value(scope, 'scope', 'must not be empty');
+    }
+    // Preserve historical paths for UUIDs and the default scope.
+    if (RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(normalizedScope)) {
+      return normalizedScope;
+    }
+    // Tilde is excluded from the safe character set, so encoded values cannot
+    // collide with a literal safe scope or with another normalized scope.
+    return '~${base64Url.encode(utf8.encode(normalizedScope)).replaceAll('=', '')}';
+  }
+
+  String _safeJobToken(String value) {
+    if (RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value)) {
+      return value;
+    }
+    return '~${base64Url.encode(utf8.encode(value)).replaceAll('=', '')}';
+  }
+
   Future<Directory> _directory() async {
     final root = rootOverride ?? await getApplicationDocumentsDirectory();
-    final safeScope = scope.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
-    final directory = Directory(
-      '${root.path}${Platform.pathSeparator}$_directoryName${Platform.pathSeparator}$safeScope',
-    );
+    final path =
+        '${root.path}${Platform.pathSeparator}$_directoryName${Platform.pathSeparator}$_safeScope';
+    final directory = Directory(path);
     if (!await directory.exists()) {
       await directory.create(recursive: true);
     }
     return directory;
   }
 
-  Future<Directory> _scopedPhoneStorageDirectory(String parentPath) async {
-    final directory = Directory(
-      '$parentPath${Platform.pathSeparator}MakeupArtV8${Platform.pathSeparator}$_safeScope',
-    );
-    await directory.create(recursive: true);
-    return directory;
+  String _galleryArchiveFileName(File file) {
+    // GalleryExporter permits dots in filenames but replaces tildes. Use a
+    // dot as the encoded-scope marker so the marker survives native sanitization.
+    // Dots are excluded from plain salon IDs, so encoded and literal IDs cannot
+    // collide after the filename is normalized for MediaStore.
+    final safeScope = _safeScope;
+    final scopeToken = safeScope.startsWith('~')
+        ? '.${safeScope.substring(1)}'
+        : safeScope;
+    return 'archive_${scopeToken}_${file.uri.pathSegments.last}';
   }
-
-  Future<Directory?> _phoneStorageDirectory() async {
-    final override = phoneRootOverride;
-    if (override != null) {
-      return _scopedPhoneStorageDirectory(override.path);
-    }
-
-    if (!Platform.isAndroid) return null;
-    final directories = await getExternalStorageDirectories(
-      type: StorageDirectory.pictures,
-    );
-    if (directories == null || directories.isEmpty) return null;
-
-    // Isolate archived client photos by salon on the device as well as in app storage.
-    return _scopedPhoneStorageDirectory(directories.first.path);
-  }
-
-  String get _safeScope =>
-      scope.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
 
   Future<List<File>> list() async {
     final directory = await _directory();
@@ -75,14 +84,18 @@ class RecentImageStore {
   }
 
   Future<File> save(Uint8List bytes, {String? jobId}) async {
+    if (bytes.isEmpty) {
+      throw ArgumentError.value(bytes, 'bytes', 'Image bytes cannot be empty.');
+    }
+
     final directory = await _directory();
-    final safeJobId = (jobId ?? 'result')
-        .replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '');
+    final rawJobId = jobId ?? 'result';
+    final safeJobId = rawJobId.isEmpty ? 'result' : _safeJobToken(rawJobId);
 
     // Processing saves an image to history, and a later gallery export can
     // save the selected photo finish again. Reuse the same job's history entry
     // instead of creating duplicate tiles and archiving unrelated older photos.
-    if (jobId != null && safeJobId.isNotEmpty) {
+    if (jobId != null && jobId.isNotEmpty) {
       final matches = await directory
           .list()
           .where((entity) => entity is File)
@@ -112,9 +125,7 @@ class RecentImageStore {
     final fileJobId = safeJobId.isEmpty ? 'result' : safeJobId;
     final filename =
         'ai_${DateTime.now().microsecondsSinceEpoch}_$fileJobId.png';
-    final file = File(
-      '${directory.path}${Platform.pathSeparator}$filename',
-    );
+    final file = File('${directory.path}${Platform.pathSeparator}$filename');
 
     await file.writeAsBytes(bytes, flush: true);
     await trim();
@@ -137,31 +148,34 @@ class RecentImageStore {
     });
 
     final overflow = files.skip(maxImages);
-    final phoneDirectory = await _phoneStorageDirectory();
 
     for (final file in overflow) {
-      File? target;
       try {
-        if (phoneDirectory == null) {
-          // Preserve older photos when external phone storage is unavailable.
-          // They may temporarily remain in app storage until archiving succeeds.
+        final archiveWriter = galleryArchiveWriter;
+        if (archiveWriter != null) {
+          // An injected writer keeps public-gallery behavior deterministic in tests.
+          await archiveWriter(
+            await file.readAsBytes(),
+            _galleryArchiveFileName(file),
+          );
+        } else if (Platform.isAndroid) {
+          // Public MediaStore storage survives app removal and is visible in
+          // Gallery/Photos. Keep the private source until publication succeeds.
+          await GalleryExporter.savePng(
+            bytes: await file.readAsBytes(),
+            fileName: _galleryArchiveFileName(file),
+          );
+        } else {
+          // On platforms without a public gallery archive writer, retain the
+          // overflow in app storage rather than deleting the only copy.
           continue;
         }
 
-        target = File(
-          '${phoneDirectory.path}${Platform.pathSeparator}${file.uri.pathSegments.last}',
-        );
-        await file.copy(target.path);
         await file.delete();
-      } on FileSystemException {
-        // Never delete the only remaining copy if archiving fails.
-        if (target != null) {
-          try {
-            await target.delete();
-          } on FileSystemException {
-            // The partial archive may already have been removed.
-          }
-        }
+      } catch (_) {
+        // Gallery permission, MediaStore or filesystem failures must never
+        // delete the only remaining copy of a customer's photo.
+        continue;
       }
     }
   }

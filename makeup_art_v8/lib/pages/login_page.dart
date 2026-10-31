@@ -18,6 +18,7 @@ class _LoginPageState extends State<LoginPage> {
   final email = TextEditingController();
   final password = TextEditingController();
   bool loading = false;
+  bool passwordVisible = false;
   String? error;
 
   @override
@@ -30,6 +31,12 @@ class _LoginPageState extends State<LoginPage> {
   String _loginError(Object exception) {
     if (exception is! DioException) {
       return 'Could not sign in. Please try again.';
+    }
+
+    if (exception.type == DioExceptionType.connectionTimeout ||
+        exception.type == DioExceptionType.sendTimeout ||
+        exception.type == DioExceptionType.receiveTimeout) {
+      return 'The server is waking up or responding slowly. Keep your internet connected and try again.';
     }
 
     final statusCode = exception.response?.statusCode;
@@ -121,11 +128,20 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 14),
                   TextField(
+                    key: const ValueKey('login-password-input'),
                     controller: password,
-                    obscureText: true,
-                    decoration: const InputDecoration(
+                    obscureText: !passwordVisible,
+                    decoration: InputDecoration(
                       labelText: 'Password',
-                      prefixIcon: Icon(Icons.lock_outline),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        key: const ValueKey('login-password-visibility-toggle'),
+                        tooltip: passwordVisible ? 'Hide password' : 'Show password',
+                        onPressed: () => setState(() => passwordVisible = !passwordVisible),
+                        icon: Icon(
+                          passwordVisible ? Icons.visibility_off : Icons.visibility,
+                        ),
+                      ),
                     ),
                   ),
                   if (error != null) ...[

@@ -352,3 +352,32 @@ def test_rejects_upload_session_url_outside_google_hosts(monkeypatch, tmp_path):
     monkeypatch.setattr(drive, "_request", fake_request)
     with pytest.raises(drive.GoogleDriveMediaError, match="unsafe resumable upload URL"):
         drive.persist_media_file(media_path)
+
+
+def test_oauth_refresh_failure_reports_safe_provider_error_code(monkeypatch, tmp_path):
+    configure_drive(monkeypatch, tmp_path)
+    provider_description = "refresh token revoked; never include this text in logs"
+
+    def fake_token_post(url, **kwargs):
+        assert url == drive._TOKEN_URL
+        return make_response(
+            url,
+            status=400,
+            body={
+                "error": "invalid_grant",
+                "error_description": provider_description,
+            },
+        )
+
+    monkeypatch.setattr(drive.httpx, "post", fake_token_post)
+
+    with pytest.raises(
+        drive.GoogleDriveMediaError,
+        match=r"HTTP 400, error=invalid_grant",
+    ) as error:
+        drive._access_token()
+
+    assert provider_description not in str(error.value)
+    assert "test-client-secret" not in str(error.value)
+    assert "test-refresh-token" not in str(error.value)
+

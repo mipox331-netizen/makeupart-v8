@@ -24,7 +24,10 @@ class ApiClient {
     dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
-        connectTimeout: const Duration(seconds: 15),
+        // Render Free services can take around a minute to wake after idle.
+        // Give the first request enough time to survive a normal cold start.
+        connectTimeout: const Duration(seconds: 75),
+        sendTimeout: const Duration(seconds: 90),
         receiveTimeout: const Duration(seconds: 120),
         headers: {'Accept': 'application/json'},
       ),
@@ -289,11 +292,15 @@ class ApiClient {
     required bool showPhone,
     required bool showInstagram,
     required bool showTikTok,
+    required String contentMode,
+    required String watermarkText,
   }) async {
     final response = await dio.patch(
       '/watermarks/me',
       data: {
         'salon_name': true,
+        'content_mode': contentMode,
+        'watermark_text': watermarkText.trim().isEmpty ? null : watermarkText.trim(),
         'position': position,
         'opacity': opacity,
         'size': size,
@@ -337,9 +344,10 @@ class ApiClient {
       final refreshDio = Dio(
         BaseOptions(
           baseUrl: baseUrl,
-          connectTimeout: const Duration(seconds: 15),
-          sendTimeout: const Duration(seconds: 15),
-          receiveTimeout: const Duration(seconds: 20),
+          // Token refresh must tolerate the same Render cold-start delay.
+          connectTimeout: const Duration(seconds: 75),
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
           headers: const {'Accept': 'application/json'},
         ),
       );

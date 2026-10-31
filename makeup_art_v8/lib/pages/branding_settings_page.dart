@@ -20,6 +20,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
   final TextEditingController _phone = TextEditingController();
   final TextEditingController _instagram = TextEditingController();
   final TextEditingController _tiktok = TextEditingController();
+  final TextEditingController _watermarkText = TextEditingController();
   final _positions = const <String, String>{
     'bottom-right': 'Bottom right',
     'bottom-left': 'Bottom left',
@@ -28,6 +29,8 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
   };
 
   Uint8List? _logoBytes;
+  bool _hasLogo = false;
+  String _contentMode = 'both';
   String _position = 'bottom-right';
   double _opacity = 0.72;
   double _size = 20;
@@ -65,7 +68,14 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
       _phone.text = (salon['phone'] ?? '').toString();
       _instagram.text = (salon['instagram'] ?? '').toString();
       _tiktok.text = (salon['tiktok'] ?? '').toString();
+      _watermarkText.text = (data['watermark_text'] ?? salon['name'] ?? '').toString();
       setState(() {
+        _hasLogo = data['logo_url'] != null && logo != null;
+        _contentMode = data['content_mode'] == 'logo' && !_hasLogo
+            ? 'text'
+            : const ['text', 'logo', 'both'].contains(data['content_mode'])
+                ? data['content_mode'] as String
+                : 'both';
         _position = _positions.containsKey(data['position'])
             ? data['position'] as String
             : 'bottom-right';
@@ -105,6 +115,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
       if (!mounted) return;
       setState(() {
         _logoBytes = bytes;
+        _hasLogo = true;
       });
       _message('Salon logo uploaded. New AI results will include it.');
     } catch (_) {
@@ -125,8 +136,12 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
     try {
       await widget.api.deleteWatermarkLogo();
       if (!mounted) return;
-      setState(() => _logoBytes = null);
-      _message('Salon logo removed. The salon name watermark stays required.');
+      setState(() {
+        _logoBytes = null;
+        _hasLogo = false;
+        if (_contentMode == 'logo') _contentMode = 'text';
+      });
+      _message('Salon logo removed. Text watermark is selected.');
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'Could not remove the salon logo.');
@@ -137,6 +152,10 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
   }
 
   Future<void> _save() async {
+    if (_contentMode == 'logo' && !_hasLogo) {
+      setState(() => _error = 'Upload a salon logo before selecting logo-only mode.');
+      return;
+    }
     if (_salonName.text.trim().isEmpty) {
       setState(() => _error = 'Salon name is required.');
       return;
@@ -159,6 +178,8 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
         showPhone: _showPhone,
         showInstagram: _showInstagram,
         showTikTok: _showTikTok,
+        contentMode: _contentMode,
+        watermarkText: _watermarkText.text,
       );
       if (!mounted) return;
       _message('Branding settings saved for this salon.');
@@ -185,6 +206,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
     _phone.dispose();
     _instagram.dispose();
     _tiktok.dispose();
+    _watermarkText.dispose();
     super.dispose();
   }
 
@@ -301,6 +323,58 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                             prefixIcon: Icon(Icons.music_note_outlined),
                             hintText: '@your-salon',
                             border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Watermark content', style: theme.textTheme.titleLarge),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Choose whether each new edited photo carries text, your uploaded salon logo, or both.',
+                        ),
+                        const SizedBox(height: 14),
+                        DropdownButtonFormField<String>(
+                          initialValue: _contentMode,
+                          decoration: const InputDecoration(
+                            labelText: 'Watermark type',
+                            prefixIcon: Icon(Icons.branding_watermark_outlined),
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'text', child: Text('Text only')),
+                            DropdownMenuItem(value: 'logo', child: Text('Logo only')),
+                            DropdownMenuItem(value: 'both', child: Text('Logo + text')),
+                          ],
+                          onChanged: _busy
+                              ? null
+                              : (value) {
+                                  if (value != null) {
+                                    setState(() => _contentMode = value);
+                                  }
+                                },
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _watermarkText,
+                          enabled: !_busy && _contentMode != 'logo',
+                          maxLength: 80,
+                          textCapitalization: TextCapitalization.words,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            labelText: 'Watermark text',
+                            hintText: 'Your salon name or brand text',
+                            prefixIcon: Icon(Icons.text_fields_rounded),
+                            border: OutlineInputBorder(),
+                            helperText: 'Up to 80 characters. Leave blank to use your salon name.',
                           ),
                         ),
                       ],
@@ -490,7 +564,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        if (_logoBytes != null) ...[
+                                        if (_contentMode != 'text' && _logoBytes != null) ...[
                                           Image.memory(
                                             _logoBytes!,
                                             width: _size * 2.2,
@@ -499,14 +573,15 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                                           ),
                                           const SizedBox(width: 8),
                                         ],
-                                        Column(
+                                        if (_contentMode != 'logo')
+                                          Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Text(
-                                              _salonName.text.trim().isEmpty
-                                                  ? 'Your Salon'
-                                                  : _salonName.text.trim(),
+                                              _watermarkText.text.trim().isEmpty
+                                                  ? (_salonName.text.trim().isEmpty ? 'Your Salon' : _salonName.text.trim())
+                                                  : _watermarkText.text.trim(),
                                               style: TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.w800,
@@ -515,7 +590,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                                                     .toDouble(),
                                               ),
                                             ),
-                                            if (_showPhone && _phone.text.trim().isNotEmpty)
+                                            if (_contentMode != 'logo' && _showPhone && _phone.text.trim().isNotEmpty)
                                               Text(
                                                 _phone.text.trim(),
                                                 style: const TextStyle(
@@ -523,7 +598,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                                                   fontSize: 10,
                                                 ),
                                               ),
-                                            if (_showInstagram && _instagram.text.trim().isNotEmpty)
+                                            if (_contentMode != 'logo' && _showInstagram && _instagram.text.trim().isNotEmpty)
                                               Text(
                                                 _instagram.text.trim().startsWith('@')
                                                     ? _instagram.text.trim()
@@ -533,7 +608,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                                                   fontSize: 10,
                                                 ),
                                               ),
-                                            if (_showTikTok && _tiktok.text.trim().isNotEmpty)
+                                            if (_contentMode != 'logo' && _showTikTok && _tiktok.text.trim().isNotEmpty)
                                               Text(
                                                 _tiktok.text.trim().startsWith('@')
                                                     ? _tiktok.text.trim()

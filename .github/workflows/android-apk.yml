@@ -265,7 +265,7 @@ jobs:
       - name: Run Flutter tests
         run: flutter test
 
-      - name: Verify live backend revision, liveness and readiness
+      - name: Verify backend revision, API readiness and durable media readiness
         env:
           EXPECTED_BACKEND_SHA: ${{ needs.classify-push.outputs.expected_backend_sha }}
         shell: bash
@@ -279,7 +279,8 @@ jobs:
           fi
           live_body="$(mktemp)"
           ready_body="$(mktemp)"
-          trap 'rm -f "$live_body" "$ready_body"' EXIT
+          media_body="$(mktemp)"
+          trap 'rm -f "$live_body" "$ready_body" "$media_body"' EXIT
 
           read_json_field() {
             local file="$1"
@@ -297,25 +298,32 @@ jobs:
 
           live_code=""
           ready_code=""
+          media_code=""
           live_status=""
           ready_status=""
+          media_status=""
+          media_storage=""
           deployed_sha=""
           # Render Free may need a cold start. Keep waiting, but fail closed if
-          # the live service never reports the exact source revision expected.
+          # the API, exact backend revision or private photo storage is not ready.
           for attempt in $(seq 1 18); do
             live_code="$(curl --silent --show-error --output "$live_body" --write-out '%{http_code}' --connect-timeout 10 --max-time 45 "$API_ROOT/health/live" || true)"
             ready_code="$(curl --silent --show-error --output "$ready_body" --write-out '%{http_code}' --connect-timeout 10 --max-time 45 "$API_ROOT/health/ready" || true)"
+            media_code="$(curl --silent --show-error --output "$media_body" --write-out '%{http_code}' --connect-timeout 10 --max-time 45 "$API_ROOT/health/media-ready" || true)"
             live_status="$(read_json_field "$live_body" status)"
             ready_status="$(read_json_field "$ready_body" status)"
+            media_status="$(read_json_field "$media_body" status)"
+            media_storage="$(read_json_field "$media_body" storage)"
             deployed_sha="$(read_json_field "$ready_body" deployment_commit)"
 
             revision_matches=true
             if [[ -n "$EXPECTED" && "$deployed_sha" != "$EXPECTED" ]]; then
               revision_matches=false
             fi
-            if [[ "$live_code" == "200" && "$live_status" == "alive" && "$ready_code" == "200" && "$ready_status" == "ready" && "$revision_matches" == "true" ]]; then
+            if [[ "$live_code" == "200" && "$live_status" == "alive" && "$ready_code" == "200" && "$ready_status" == "ready" && "$media_code" == "200" && "$media_status" == "ready" && ( "$media_storage" == "google_drive" || "$media_storage" == "modal_volume" ) && "$revision_matches" == "true" ]]; then
               echo "Production API liveness: $live_status"
               echo "Production API readiness: $ready_status"
+              echo "Production media storage: $media_storage"
               echo "Production API deployed commit: ${deployed_sha:-not reported}"
               if [[ -n "$EXPECTED" ]]; then
                 echo "Production API commit matched the CI-verified source: $EXPECTED"
@@ -325,19 +333,19 @@ jobs:
               exit 0
             fi
 
-            echo "Attempt $attempt/18: live_http=${live_code:-000}, live_status=${live_status:-unknown}, ready_http=${ready_code:-000}, ready_status=${ready_status:-unknown}, deployed_commit=${deployed_sha:-unknown}, expected_commit=$EXPECTED_LABEL"
+            echo "Attempt $attempt/18: live_http=${live_code:-000}, live_status=${live_status:-unknown}, ready_http=${ready_code:-000}, ready_status=${ready_status:-unknown}, media_http=${media_code:-000}, media_status=${media_status:-unknown}, media_storage=${media_storage:-unknown}, deployed_commit=${deployed_sha:-unknown}, expected_commit=$EXPECTED_LABEL"
             if [[ "$attempt" -lt 18 ]]; then
               sleep 20
             fi
           done
 
           if [[ -n "$EXPECTED" ]]; then
-            echo "::error::Refusing to publish an APK: production did not report a ready API running the expected backend commit."
+            echo "::error::Refusing to publish an APK: production API or private media storage is not ready on the expected backend commit."
             echo "::error::Expected backend commit: $EXPECTED"
           else
-            echo "::error::Refusing to publish an APK: production API did not report healthy liveness and readiness."
+            echo "::error::Refusing to publish an APK: production API or private media storage is not ready."
           fi
-          echo "::error::Last observed live_http=${live_code:-000}, live_status=${live_status:-unknown}, ready_http=${ready_code:-000}, ready_status=${ready_status:-unknown}, deployed_commit=${deployed_sha:-unknown}"
+          echo "::error::Last observed live_http=${live_code:-000}, live_status=${live_status:-unknown}, ready_http=${ready_code:-000}, ready_status=${ready_status:-unknown}, media_http=${media_code:-000}, media_status=${media_status:-unknown}, media_storage=${media_storage:-unknown}, deployed_commit=${deployed_sha:-unknown}"
           exit 1
 
       - name: Build Android release APK

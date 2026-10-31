@@ -59,26 +59,30 @@ def get_or_create_watermark(db: Session, salon: Salon) -> Watermark:
 
 def _watermark_lines(salon: Salon, watermark: Watermark) -> list[str]:
     lines: list[str] = []
+    content_mode = getattr(watermark, "content_mode", None) or "both"
 
-    # Enforce salon branding even if a legacy row stores salon_name=False.
-    name = salon.name.strip()
-    if name:
-        lines.append(name)
+    # Preserve the historic salon-name watermark by default, while allowing an
+    # owner to replace it with their own short brand text.
+    if content_mode in {"text", "both"}:
+        custom_text = " ".join((getattr(watermark, "watermark_text", None) or "").split())
+        name = custom_text or salon.name.strip()
+        if name:
+            lines.append(name)
 
-    if watermark.phone and salon.phone:
-        lines.append(salon.phone.strip())
+        if watermark.phone and salon.phone:
+            lines.append(salon.phone.strip())
 
-    if watermark.instagram and salon.instagram:
-        handle = salon.instagram.strip()
-        if handle and not handle.startswith("@"):
-            handle = f"@{handle}"
-        lines.append(handle)
+        if watermark.instagram and salon.instagram:
+            handle = salon.instagram.strip()
+            if handle and not handle.startswith("@"):
+                handle = f"@{handle}"
+            lines.append(handle)
 
-    if watermark.tiktok and salon.tiktok:
-        handle = salon.tiktok.strip()
-        if handle and not handle.startswith("@"):
-            handle = f"@{handle}"
-        lines.append(handle)
+        if watermark.tiktok and salon.tiktok:
+            handle = salon.tiktok.strip()
+            if handle and not handle.startswith("@"):
+                handle = f"@{handle}"
+            lines.append(handle)
 
     return [line for line in lines if line]
 
@@ -93,68 +97,77 @@ def apply_watermark(
     if image is None:
         raise ValueError("Could not load processed image for watermarking")
 
+    mode = getattr(watermark, "content_mode", None) or "both"
+    if mode not in {"text", "logo", "both"}:
+        mode = "both"
     lines = _watermark_lines(salon, watermark)
-    if not lines:
+    draw_logo = mode in {"logo", "both"} and bool(watermark.logo_url)
+    logo_path = salon_logo_path(str(salon.id)) if draw_logo else None
+    logo_available = logo_path is not None and logo_path.is_file()
+
+    if mode == "logo" and not logo_available:
+        raise ValueError("Logo-only watermark requires an available salon logo.")
+    if not lines and not logo_available:
         return False
 
     height, width = image.shape[:2]
-    scale = float(np.clip(float(watermark.size) / 18.0, 0.45, 2.0))
-    thickness = max(1, int(round(scale * 1.5)))
-    padding = max(10, int(round(scale * 12)))
-    line_gap = max(6, int(round(scale * 10)))
-
-    text_sizes = [
-        cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)[0]
-        for line in lines
-    ]
-    box_width = max(size[0] for size in text_sizes) + padding * 2
-    box_height = sum(size[1] for size in text_sizes) + line_gap * (len(lines) - 1) + padding * 2
-
     margin = max(12, int(round(min(width, height) * 0.02)))
     position = (watermark.position or "bottom-right").strip().lower()
     if position not in _ALLOWED_POSITIONS:
         position = "bottom-right"
 
-    if position.endswith("right"):
-        x1 = width - box_width - margin
-    else:
-        x1 = margin
-
-    if position.startswith("bottom"):
-        y1 = height - box_height - margin
-    else:
-        y1 = margin
-
-    x1 = max(margin, min(x1, max(margin, width - box_width - margin)))
-    y1 = max(margin, min(y1, max(margin, height - box_height - margin)))
-    x2 = min(width - margin, x1 + box_width)
-    y2 = min(height - margin, y1 + box_height)
-
-    alpha = float(np.clip(float(watermark.opacity), 0.0, 1.0))
-    overlay = image.copy()
-    cv2.rectangle(overlay, (x1, y1), (x2, y2), (0, 0, 0), thickness=-1)
-    image = cv2.addWeighted(overlay, alpha, image, 1.0 - alpha, 0.0)
-
-    baseline_y = y1 + padding + text_sizes[0][1]
-    for index, line in enumerate(lines):
-        if index > 0:
-            baseline_y += line_gap + text_sizes[index][1]
-        cv2.putText(
-            image,
-            line,
-            (x1 + padding, baseline_y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            scale,
-            (255, 255, 255),
-            thickness,
-            cv2.LINE_AA,
+    if lines:
+        scale = float(np.clip(float(watermark.size) / 18.0, 0.45, 2.0))
+        thickness = max(1, int(round(scale * 1.5)))
+        padding = max(10, int(round(scale * 12)))
+        line_gap = max(6, int(round(scale * 10)))
+        text_sizes = [
+            cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)[0]
+            for line in lines
+        ]
+        box_width = max(size[0] for size in text_sizes) + padding * 2
+        box_height = (
+            sum(size[1] for size in text_sizes)
+            + line_gap * (len(text_sizes) - 1)
+            + padding * 2
         )
+
+        x1 = width - box_width - margin if position.endswith("right") else margin
+        y1 = height - box_height - margin if position.startswith("bottom") else margin
+        x1 = max(margin, min(x1, max(margin, width - box_width - margin)))
+        y1 = max(margin, min(y1, max(margin, height - box_height - margin)))
+        x2 = min(width - margin, x1 + box_width)
+        y2 = min(height - margin, y1 + box_height)
+
+        alpha = float(np.clip(float(watermark.opacity), 0.0, 1.0))
+        overlay = image.copy()
+        cv2.rectangle(overlay, (x1, y1), (x2, y2), (0, 0, 0), thickness=-1)
+        image = cv2.addWeighted(overlay, alpha, image, 1.0 - alpha, 0.0)
+
+        baseline_y = y1 + padding + text_sizes[0][1]
+        for index, line in enumerate(lines):
+            if index > 0:
+                baseline_y += line_gap + text_sizes[index][1]
+            cv2.putText(
+                image,
+                line,
+                (x1 + padding, baseline_y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                scale,
+                (255, 255, 255),
+                thickness,
+                cv2.LINE_AA,
+            )
+    else:
+        # Stable anchor for logo-only placement without drawing an empty panel.
+        x1 = margin
+        y1 = margin if position.startswith("top") else height - margin
+        box_height = 0
 
     # Compose the salon's uploaded transparent logo onto every generated image.
     # The actual file path is derived from the authenticated salon id, never from
     # a client-controlled URL or path stored in the database.
-    logo_path = salon_logo_path(str(salon.id))
-    if watermark.logo_url and logo_path.is_file():
+    if logo_available and logo_path is not None:
         logo = cv2.imread(str(logo_path), cv2.IMREAD_UNCHANGED)
         if logo is not None:
             if logo.ndim == 2:

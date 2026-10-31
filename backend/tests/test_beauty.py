@@ -103,6 +103,13 @@ def test_makeup_style_presets_apply_face_guided_tints():
         source[cheek_region], targeted["blush"][cheek_region]
     )
 
+    # Skin-only deliberately leaves cosmetic overlay pixels unchanged; the
+    # independent face-smoothing stage runs before this method.
+    skin_only = BeautyProvider._apply_makeup(
+        source.copy(), landmarks, "skin_only", 1.0
+    )
+    assert np.array_equal(source, skin_only)
+
 
 def test_skin_tone_detection_uses_image_pixels():
     matcher = SkinToneMatcher()
@@ -861,4 +868,74 @@ def test_selected_photo_finish_changes_the_persisted_upload_result(
     assert not np.array_equal(after_pixels, before_pixels), (
         "The API must return pixels that reflect the selected photo finish, not just its label."
     )
+
+def test_private_media_persistence_fails_closed_in_production(monkeypatch, tmp_path):
+    monkeypatch.setattr(beauty_api.settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(beauty_api.settings, "REQUIRE_DURABLE_MEDIA", False)
+    monkeypatch.setattr(
+        beauty_api.google_drive_media, "persist_media_file", lambda *_args: False
+    )
+
+    with pytest.raises(
+        beauty_api.GoogleDriveMediaError,
+        match="Private durable media storage is required",
+    ):
+        beauty_api._persist_private_media_file(tmp_path / "after.png")
+
+
+def test_private_media_persistence_allows_local_development_mode(monkeypatch, tmp_path):
+    monkeypatch.setattr(beauty_api.settings, "ENVIRONMENT", "development")
+    monkeypatch.setattr(beauty_api.settings, "REQUIRE_DURABLE_MEDIA", False)
+    monkeypatch.setattr(
+        beauty_api.google_drive_media, "persist_media_file", lambda *_args: False
+    )
+
+    # Local development can use local storage; production and explicitly
+    # durable deployments must never silently accept this result.
+    beauty_api._persist_private_media_file(tmp_path / "after.png")
+
+
+def test_beauty_upload_does_not_commit_when_production_media_is_local_only(
+    client, monkeypatch, tmp_path
+):
+    registration = register(client, email="durable-owner@salon.com")
+    headers = auth_headers(client, "durable-owner@salon.com")
+    salon_id = registration.json()["salon"]["id"]
+    media_root = tmp_path / "media"
+    monkeypatch.setattr(beauty_api.settings, "MEDIA_ROOT", str(media_root))
+    monkeypatch.setattr(beauty_api.settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(beauty_api.settings, "REQUIRE_DURABLE_MEDIA", False)
+    monkeypatch.setattr(
+        beauty_api.google_drive_media, "persist_media_file", lambda *_args: False
+    )
+
+    def fake_process(self, image_path, options=None):
+        output = media_root / "salons" / salon_id / "outputs" / "generated.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        assert cv2.imwrite(str(output), np.full((16, 16, 3), 120, dtype=np.uint8))
+        return {
+            "identity_similarity": 0.99,
+            "skin_tone": "medium",
+            "undertone": "neutral",
+            "foundation_match": "medium-neutral",
+            "processed": True,
+            "output_path": str(output),
+        }
+
+    monkeypatch.setattr(BeautyProvider, "process", fake_process)
+
+    encoded = cv2.imencode(
+        ".png", np.full((16, 16, 3), 120, dtype=np.uint8)
+    )[1].tobytes()
+    response = client.post(
+        f"{API}/beauty/process-upload?consent_confirmed=true",
+        headers=headers,
+        files={"file": ("portrait.png", encoded, "image/png")},
+    )
+
+    assert response.status_code == 503
+    assert "Private Google Drive media storage is unavailable" in response.json()["detail"]
+    jobs = client.get(f"{API}/beauty/jobs", headers=headers)
+    assert jobs.status_code == 200
+    assert jobs.json() == []
 

@@ -92,6 +92,7 @@ def root() -> dict[str, str]:
         "status": "online",
         "health": "/health",
         "readiness": "/health/ready",
+        "media_readiness": "/health/media-ready",
         "api": settings.API_V1_STR,
     }
 
@@ -106,8 +107,47 @@ def liveness_check() -> dict[str, str]:
     return {"status": "alive"}
 
 
+@app.get("/health/media-ready", tags=["health"])
+def media_readiness_check() -> dict[str, str]:
+    """Verify that private durable storage is safe for customer photos."""
+    drive_configured = any(
+        value.strip()
+        for value in (
+            settings.GOOGLE_DRIVE_CLIENT_ID,
+            settings.GOOGLE_DRIVE_CLIENT_SECRET,
+            settings.GOOGLE_DRIVE_REFRESH_TOKEN,
+        )
+    )
+    media_required = (
+        settings.ENVIRONMENT.lower() == "production"
+        or settings.REQUIRE_DURABLE_MEDIA
+        or drive_configured
+        or google_drive_media.uses_modal_volume()
+    )
+    if not media_required:
+        return {"status": "ready", "storage": "local_only"}
+
+    try:
+        google_drive_media.verify_connection()
+    except GoogleDriveMediaError:
+        # This failure is visible through the dedicated media probe. It must
+        # not cause Render to restart the API process used for login and clients.
+        logger.exception("Google Drive media readiness check failed")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "reason": "media_storage_unavailable"},
+        )
+
+    return {"status": "ready", "storage": settings.MEDIA_STORAGE_BACKEND.lower()}
+
+
 @app.get("/health/ready", tags=["health"])
 def readiness_check() -> dict[str, str]:
+    """Check the database/API dependencies required for ordinary requests.
+
+    Durable media storage is checked separately by /health/media-ready.
+    Photo persistence continues to fail closed if Google Drive is unavailable.
+    """
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
@@ -117,26 +157,6 @@ def readiness_check() -> dict[str, str]:
             status_code=503,
             content={"status": "not_ready", "reason": "database_unavailable"},
         )
-
-    drive_configured = any(
-        value.strip()
-        for value in (
-            settings.GOOGLE_DRIVE_CLIENT_ID,
-            settings.GOOGLE_DRIVE_CLIENT_SECRET,
-            settings.GOOGLE_DRIVE_REFRESH_TOKEN,
-        )
-    )
-    # A production readiness probe must not report healthy when media is
-    # only local on an ephemeral container filesystem.
-    if settings.ENVIRONMENT.lower() == "production" or settings.REQUIRE_DURABLE_MEDIA or drive_configured:
-        try:
-            google_drive_media.verify_connection()
-        except GoogleDriveMediaError:
-            logger.exception("Google Drive readiness check failed")
-            return JSONResponse(
-                status_code=503,
-                content={"status": "not_ready", "reason": "media_storage_unavailable"},
-            )
 
     return {
         "status": "ready",
