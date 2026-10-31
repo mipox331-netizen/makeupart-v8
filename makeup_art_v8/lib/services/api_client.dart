@@ -292,11 +292,15 @@ class ApiClient {
     required bool showPhone,
     required bool showInstagram,
     required bool showTikTok,
+    required String contentMode,
+    required String watermarkText,
   }) async {
     final response = await dio.patch(
       '/watermarks/me',
       data: {
         'salon_name': true,
+        'content_mode': contentMode,
+        'watermark_text': watermarkText.trim().isEmpty ? null : watermarkText.trim(),
         'position': position,
         'opacity': opacity,
         'size': size,
