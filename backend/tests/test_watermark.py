@@ -107,6 +107,8 @@ def test_owner_can_upload_and_retrieve_salon_logo(client, tmp_path, monkeypatch)
         headers=headers,
         json={
             "salon_name": True,
+            "content_mode": "both",
+            "watermark_text": "Tony Beauty Studio",
             "position": "top-left",
             "opacity": 0.8,
             "size": 24,
@@ -116,6 +118,8 @@ def test_owner_can_upload_and_retrieve_salon_logo(client, tmp_path, monkeypatch)
         },
     )
     assert settings_response.status_code == 200
+    assert settings_response.json()["content_mode"] == "both"
+    assert settings_response.json()["watermark_text"] == "Tony Beauty Studio"
     assert settings_response.json()["position"] == "top-left"
     assert settings_response.json()["opacity"] == pytest.approx(0.8)
     assert settings_response.json()["size"] == 24
@@ -276,3 +280,75 @@ def test_logo_upload_rejects_unsupported_media_type(client):
         files={"file": ("logo.svg", b"<svg/>", "image/svg+xml")},
     )
     assert response.status_code == 415
+
+
+
+def test_custom_text_watermark_can_replace_salon_name(tmp_path):
+    path = tmp_path / "custom-text.png"
+    source = np.full((360, 520, 3), 235, dtype=np.uint8)
+    assert cv2.imwrite(str(path), source)
+    salon = Salon(name="Original Salon Name")
+    watermark = Watermark(
+        content_mode="text",
+        watermark_text="MOOG DIGITAL STUDIO",
+        logo_url=None,
+        salon_name=True,
+        phone=False,
+        instagram=False,
+        tiktok=False,
+        position="bottom-right",
+        opacity=0.65,
+        size=18,
+    )
+
+    assert apply_watermark(path, salon, watermark) is True
+    result = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    assert result is not None
+    assert not np.array_equal(source, result)
+
+
+def test_logo_only_watermark_renders_logo_without_text(tmp_path, monkeypatch):
+    salon_id = uuid.uuid4()
+    media_root = tmp_path / "media"
+    monkeypatch.setattr("app.services.watermark.settings.MEDIA_ROOT", str(media_root))
+    logo_directory = media_root / "salons" / str(salon_id) / "branding"
+    logo_directory.mkdir(parents=True)
+    logo_path = logo_directory / "logo.png"
+    Image.new("RGBA", (100, 50), (240, 30, 80, 255)).save(logo_path)
+
+    path = tmp_path / "logo-only.png"
+    source = np.full((360, 520, 3), 235, dtype=np.uint8)
+    assert cv2.imwrite(str(path), source)
+    salon = Salon(id=salon_id, name="This Text Must Not Be Rendered")
+    watermark = Watermark(
+        content_mode="logo",
+        watermark_text="This Text Must Not Be Rendered",
+        logo_url="/api/v1/watermarks/me/logo",
+        salon_name=True,
+        phone=False,
+        instagram=False,
+        tiktok=False,
+        position="bottom-left",
+        opacity=1.0,
+        size=18,
+    )
+
+    assert apply_watermark(path, salon, watermark) is True
+    result = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    assert result is not None
+    assert np.any((result[:, :, 2] > 180) & (result[:, :, 0] < 100))
+
+
+def test_logo_only_mode_requires_uploaded_logo(client):
+    registration = register(client)
+    assert registration.status_code == 201
+    headers = auth_headers(client, "owner@salon.com")
+
+    response = client.patch(
+        f"{API}/watermarks/me",
+        headers=headers,
+        json={"content_mode": "logo", "salon_name": True},
+    )
+
+    assert response.status_code == 422
+    assert "Upload a salon logo" in response.json()["detail"]
