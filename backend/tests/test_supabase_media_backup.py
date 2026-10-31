@@ -83,7 +83,7 @@ def test_backup_rejects_public_bucket(monkeypatch, tmp_path):
     def fake_request(self, method, url, headers=None, **kwargs):
         return make_response(200, payload={"id": "makeupart-media", "public": True})
 
-    monkeypatch.setattr(requests.Session, "request", fake_request)
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
 
     with pytest.raises(backup.BackupError, match="must be private"):
         backup.backup_media(destination, manifest_path)
@@ -99,7 +99,7 @@ def test_backup_refuses_empty_media_bucket(monkeypatch, tmp_path):
             return make_response(200, payload=[])
         raise AssertionError(f"Unexpected request: {method} {url}")
 
-    monkeypatch.setattr(requests.Session, "request", fake_request)
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
 
     with pytest.raises(backup.BackupError, match="bucket is empty"):
         backup.backup_media(destination, manifest_path)
