@@ -24,7 +24,6 @@ jobs:
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      SUPABASE_URL: "https://riakbjcxcaqjaqagncmu.supabase.co"
       RENDER_SERVICE_ID: "srv-dav25so473hc73d7ee0g"
       API_URL: "https://makeupart-api.onrender.com"
 
@@ -62,15 +61,32 @@ jobs:
           token = os.environ["RENDER_API_KEY"]
           database_url = os.environ["SUPABASE_DB_URL"]
           service_role = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          from urllib.parse import unquote, urlsplit
+
+          parsed_db = urlsplit(database_url)
+          hostname = (parsed_db.hostname or "").lower()
+          project_ref = ""
+          if hostname.endswith(".supabase.co"):
+              project_ref = hostname.removesuffix(".supabase.co")
+          elif parsed_db.username and "." in unquote(parsed_db.username):
+              candidate = unquote(parsed_db.username).split(".", 1)[1]
+              if candidate.replace("-", "").isalnum():
+                  project_ref = candidate
+          supabase_url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+          if not supabase_url and project_ref:
+              supabase_url = f"https://{project_ref}.supabase.co"
+          if not supabase_url.startswith("https://") or not supabase_url.endswith(".supabase.co"):
+              raise SystemExit("Could not safely derive the Supabase project URL from the configured database secret.")
+
+          # Preserve existing CORS configuration and unrelated production settings.
           values = {
               "DATABASE_URL": database_url,
-              "SUPABASE_URL": os.environ["SUPABASE_URL"],
+              "SUPABASE_URL": supabase_url,
               "SUPABASE_SERVICE_ROLE_KEY": service_role,
               "SUPABASE_MEDIA_BUCKET": "makeupart-media",
               "MEDIA_STORAGE_BACKEND": "supabase_storage",
               "REQUIRE_DURABLE_MEDIA": "true",
               "ENVIRONMENT": "production",
-              "CORS_ORIGINS": "https://riakbjcxcaqjaqagncmu.supabase.co",
           }
 
           def request(method, url, payload=None):
