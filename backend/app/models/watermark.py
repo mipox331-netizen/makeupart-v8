@@ -18,6 +18,8 @@ class Watermark(TimestampMixin, Base):
         Uuid(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False
     )
     logo_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    watermark_text: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    content_mode: Mapped[str] = mapped_column(String(10), default='both', nullable=False)
     salon_name: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     phone: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     instagram: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
