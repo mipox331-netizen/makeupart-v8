@@ -1,0 +1,244 @@
+name: MakeupArt V8 Render Supabase Recovery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-render-supabase.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: makeupart-v8-render-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      RENDER_API_KEY: \${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
+      SUPABASE_DB_URL: \${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_URL: "https://riakbjcxcaqjaqagncmu.supabase.co"
+      RENDER_SERVICE_ID: "srv-dav25so473hc73d7ee0g"
+      API_URL: "https://makeupart-api.onrender.com"
+
+    steps:
+      - name: Validate deployment credentials without displaying values
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "\${RENDER_API_KEY:-}" ]] || missing+=("RENDER_API_KEY or RENDER_API_TOKEN")
+          [[ -n "\${SUPABASE_DB_URL:-}" ]] || missing+=("SUPABASE_DB_URL or SUPABASE_DB_URL_SECRET")
+          [[ -n "\${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SECRET or SUPABASE_SERVICE_ROLE_KEY")
+          if (( \${#missing[@]} > 0 )); then
+            echo "::error::Cannot deploy Render recovery. Missing production GitHub environment secrets: \${missing[*]}."
+            exit 1
+          fi
+          echo "Render API and Supabase server credentials are present."
+
+      - name: Apply Supabase database and private storage settings to Render
+        shell: bash
+        env:
+          RENDER_API_KEY: \${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
+          SUPABASE_DB_URL: \${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+
+          service_id = os.environ["RENDER_SERVICE_ID"]
+          token = os.environ["RENDER_API_KEY"]
+          database_url = os.environ["SUPABASE_DB_URL"]
+          service_role = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          values = {
+              "DATABASE_URL": database_url,
+              "SUPABASE_URL": os.environ["SUPABASE_URL"],
+              "SUPABASE_SERVICE_ROLE_KEY": service_role,
+              "SUPABASE_MEDIA_BUCKET": "makeupart-media",
+              "MEDIA_STORAGE_BACKEND": "supabase_storage",
+              "REQUIRE_DURABLE_MEDIA": "true",
+              "ENVIRONMENT": "production",
+              "CORS_ORIGINS": "https://riakbjcxcaqjaqagncmu.supabase.co",
+          }
+
+          def request(method, url, payload=None):
+              data = json.dumps(payload).encode() if payload is not None else None
+              req = urllib.request.Request(
+                  url,
+                  data=data,
+                  method=method,
+                  headers={
+                      "Authorization": "Bearer " + token,
+                      "Accept": "application/json",
+                      "Content-Type": "application/json",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      body = response.read()
+                      return response.status, body
+              except urllib.error.HTTPError as exc:
+                  # Never print a response body; it can contain service configuration.
+                  raise RuntimeError(f"Render API returned HTTP {exc.code} for a protected configuration update.") from None
+              except urllib.error.URLError:
+                  raise RuntimeError("Could not reach the Render API.") from None
+
+          for key, value in values.items():
+              status, _ = request(
+                  "PUT",
+                  f"https://api.render.com/v1/services/{service_id}/env-vars/{key}",
+                  {"value": value},
+              )
+              if status not in (200, 201, 204):
+                  raise SystemExit(f"Render did not confirm environment variable {key} (HTTP {status}).")
+              print(f"Render environment variable configured: {key}")
+
+          # Confirm only key names, not values, through Render's service API.
+          status, body = request("GET", f"https://api.render.com/v1/services/{service_id}/env-vars")
+          if status != 200:
+              raise SystemExit("Could not verify Render environment-variable keys.")
+          try:
+              payload = json.loads(body)
+          except ValueError:
+              raise SystemExit("Render returned invalid environment-variable metadata.")
+          names = set()
+          if isinstance(payload, list):
+              for item in payload:
+                  if isinstance(item, dict):
+                      nested = item.get("envVar")
+                      names.add(str((nested or item).get("key", "")))
+          required = set(values)
+          missing = sorted(required - names)
+          if missing:
+              raise SystemExit("Render environment-variable verification failed for: " + ", ".join(missing))
+          print("All required database and private-media environment keys are present in Render.")
+
+      - name: Trigger Render deployment
+        id: deploy
+        shell: bash
+        env:
+          RENDER_API_KEY: \${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          service_id = os.environ["RENDER_SERVICE_ID"]
+          req = urllib.request.Request(
+              f"https://api.render.com/v1/services/{service_id}/deploys",
+              data=json.dumps({
+                  "clearCache": "do_not_clear",
+                  "deployMode": "build_and_deploy",
+              }).encode(),
+              method="POST",
+              headers={
+                  "Authorization": "Bearer " + os.environ["RENDER_API_KEY"],
+                  "Accept": "application/json",
+                  "Content-Type": "application/json",
+              },
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  payload = json.loads(response.read())
+          except urllib.error.HTTPError as exc:
+              raise SystemExit(f"Render rejected the production deploy request (HTTP {exc.code}).") from None
+          except (urllib.error.URLError, ValueError):
+              raise SystemExit("Could not confirm that Render accepted the production deploy request.") from None
+          deploy_id = payload.get("id")
+          if not isinstance(deploy_id, str) or not deploy_id:
+              raise SystemExit("Render did not return a deployment ID.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("deploy_id=" + deploy_id + "\n")
+          print("Render accepted deployment: " + deploy_id)
+          PY
+
+      - name: Wait for Render deployment and verify live API and private media storage
+        shell: bash
+        env:
+          RENDER_API_KEY: \${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
+          DEPLOY_ID: \${{ steps.deploy.outputs.deploy_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+
+          service_id = os.environ["RENDER_SERVICE_ID"]
+          deploy_id = os.environ["DEPLOY_ID"]
+          token = os.environ["RENDER_API_KEY"]
+
+          def render_deploy():
+              req = urllib.request.Request(
+                  f"https://api.render.com/v1/services/{service_id}/deploys/{deploy_id}",
+                  headers={"Authorization": "Bearer " + token, "Accept": "application/json"},
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as response:
+                      return json.loads(response.read())
+              except (urllib.error.URLError, urllib.error.HTTPError, ValueError):
+                  return {}
+
+          terminal_failure = {"build_failed", "update_failed", "pre_deploy_failed", "canceled", "deactivated"}
+          live = False
+          for attempt in range(90):
+              payload = render_deploy()
+              state = str(payload.get("status", "")).lower()
+              print(f"Render deployment state: {state or 'unknown'} ({attempt + 1}/90)")
+              if state == "live":
+                  live = True
+                  break
+              if state in terminal_failure:
+                  raise SystemExit("Render deployment ended unsuccessfully: " + state)
+              time.sleep(10)
+          if not live:
+              raise SystemExit("Render deployment did not reach live state within the verification window.")
+
+          endpoints = {
+              "/health/live": ("alive", None),
+              "/health/ready": ("ready", None),
+              "/health/media-ready": ("ready", "supabase_storage"),
+          }
+          for path, (expected, expected_storage) in endpoints.items():
+              last_error = "no response"
+              for attempt in range(18):
+                  req = urllib.request.Request(
+                      os.environ["API_URL"] + path,
+                      headers={"Accept": "application/json"},
+                  )
+                  try:
+                      with urllib.request.urlopen(req, timeout=45) as response:
+                          body = json.loads(response.read())
+                          if response.status == 200 and body.get("status") == expected:
+                              if expected_storage and body.get("storage") != expected_storage:
+                                  last_error = "unexpected media storage provider"
+                              else:
+                                  print(f"Production endpoint verified: {path}")
+                                  break
+                          else:
+                              last_error = "unexpected health response"
+                  except (urllib.error.URLError, urllib.error.HTTPError, ValueError, TimeoutError) as exc:
+                      last_error = type(exc).__name__
+                  if attempt < 17:
+                      time.sleep(10)
+              else:
+                  raise SystemExit(f"Production endpoint failed verification: {path} ({last_error}).")
+          print("Render API, Supabase database readiness and private media storage are live.")
+          PY
