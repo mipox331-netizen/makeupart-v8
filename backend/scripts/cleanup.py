@@ -43,7 +43,7 @@ def cleanup_media() -> int:
     # Render's local filesystem is ephemeral. Only run the DB-indexed remote
     # sweep when Drive is configured; then clear successfully expired paths so
     # each daily cleanup does not repeatedly list already-expired Drive files.
-    if google_drive_media.is_configured():
+    if google_drive_media.is_durable_storage_configured():
         with SessionLocal() as db:
             expired_jobs = db.execute(
                 select(BeautyJob).where(BeautyJob.created_at < cutoff)
