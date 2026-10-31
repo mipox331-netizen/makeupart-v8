@@ -38,6 +38,7 @@ class GoogleDriveMediaError(RuntimeError):
 
 
 def is_configured() -> bool:
+    """Whether Google Drive OAuth credentials are present (not token-validated)."""
     return all(
         value.strip()
         for value in (
@@ -48,7 +49,26 @@ def is_configured() -> bool:
     )
 
 
+def uses_modal_volume() -> bool:
+    return settings.MEDIA_STORAGE_BACKEND.strip().lower() == "modal_volume"
+
+
+def is_durable_storage_configured() -> bool:
+    """Whether the configured production media backend is durable and available."""
+    if uses_modal_volume():
+        from app.services.media_volume import is_media_volume_configured
+
+        return is_media_volume_configured()
+    return is_configured()
+
+
 def _credentials() -> tuple[str, str, str] | None:
+    if uses_modal_volume():
+        # Media is persisted by the mounted Modal Volume and committed by the API
+        # after the media + database transaction is safely staged.
+        return None
+    if settings.MEDIA_STORAGE_BACKEND.strip().lower() != "google_drive":
+        raise GoogleDriveMediaError("Unsupported private media storage backend.")
     values = (
         settings.GOOGLE_DRIVE_CLIENT_ID.strip(),
         settings.GOOGLE_DRIVE_CLIENT_SECRET.strip(),
@@ -263,7 +283,13 @@ def _escaped_query_value(value: str) -> str:
 
 
 def verify_connection() -> None:
-    """Verify OAuth access and ensure the app's private root folder is reachable."""
+    """Verify the selected durable media backend before accepting customer photos."""
+    if uses_modal_volume():
+        from app.services.media_volume import is_media_volume_configured
+
+        if not is_media_volume_configured():
+            raise GoogleDriveMediaError("The durable Modal media Volume is not mounted.")
+        return
     token = _access_token()
     _root_folder_id(token)
 
