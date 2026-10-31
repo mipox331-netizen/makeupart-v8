@@ -4,12 +4,11 @@ on:
   schedule:
     - cron: "30 2 * * *"
   workflow_dispatch:
-  push:
+  # Capture the database only after the additive Supabase migration succeeds.
+  workflow_run:
+    workflows: ["MakeupArt V8 Supabase Database Migration"]
+    types: [completed]
     branches: [main]
-    paths:
-      - ".github/workflows/production-database-backup.yml"
-      - ".github/workflows/supabase-migrate.yml"
-      - "backend/alembic/versions/**"
 
 permissions:
   contents: read
@@ -20,6 +19,7 @@ concurrency:
 
 jobs:
   backup:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
