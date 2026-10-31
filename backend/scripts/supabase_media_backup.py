@@ -127,7 +127,7 @@ def backup_media(destination: Path, manifest_path: Path) -> tuple[int, int]:
     except BackupError as exc:
         if "(HTTP 404)" not in str(exc) and "code=NoSuchBucket" not in str(exc):
             raise
-        created = _safe_request(
+        _safe_request(
             session,
             "POST",
             api + "/bucket",
@@ -145,8 +145,13 @@ def backup_media(destination: Path, manifest_path: Path) -> tuple[int, int]:
                 ],
             },
         )
+        # Creation responses may omit bucket properties. Read the persisted
+        # metadata back and verify privacy before inventorying customer files.
+        verified = _safe_request(
+            session, "GET", bucket_url, headers=headers
+        )
         try:
-            bucket_info = created.json()
+            bucket_info = verified.json()
         except ValueError as parse_error:
             raise BackupError("Supabase returned invalid private bucket metadata.") from parse_error
     else:
