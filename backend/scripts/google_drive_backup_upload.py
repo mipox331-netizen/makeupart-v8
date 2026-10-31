@@ -57,8 +57,9 @@ def main() -> None:
     archive = Path(sys.argv[1]).resolve()
     checksum_file = Path(sys.argv[2]).resolve()
     run_id = sys.argv[3]
-    if not run_id.isdigit():
-        abort("GitHub workflow run ID is invalid.")
+    import re
+    if not re.fullmatch(r"[0-9]+-a[0-9]+", run_id):
+        abort("GitHub workflow run/attempt identifier is invalid.")
     if not archive.is_file() or not checksum_file.is_file():
         abort("Encrypted backup archive or checksum sidecar is missing.")
 
