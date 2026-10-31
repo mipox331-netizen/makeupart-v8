@@ -81,7 +81,7 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
             missing = sorted(REQUIRED_MEDIA_COLUMNS - existing)
             if missing:
                 raise MediaInventoryError(
-                    "Cannot verify an empty media bucket because expected media-reference columns are missing."
+                    "Cannot verify an empty private media store because expected media-reference columns are missing."
                 )
 
             reference_count = connection.execute(text("""
@@ -111,7 +111,7 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
 
     print(
         "Verified empty-state backup: no beauty jobs, result images or salon-logo references "
-        "point to missing Supabase media. No customer image data existed in this bucket."
+        "point to missing Google Drive media. No customer image data is missing from the empty Drive store."
     )
     return 0
 
@@ -124,7 +124,7 @@ def main() -> None:
     except MediaInventoryError as exc:
         raise SystemExit(str(exc)) from None
     if count:
-        print(f"Supabase private media inventory contains {count} object(s); encrypted backup can proceed.")
+        print(f"Google Drive private media inventory contains {count} object(s); encrypted backup can proceed.")
 
 
 if __name__ == "__main__":
