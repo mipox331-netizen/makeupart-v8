@@ -107,6 +107,11 @@ def update_watermark(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.ADMIN)),
 ) -> WatermarkOut:
     watermark = get_or_create_watermark(db, current_user.salon)
+    if watermark_in.content_mode == 'logo' and not watermark.logo_url:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail='Upload a salon logo before selecting logo-only mode.',
+        )
     for field, value in watermark_in.model_dump(exclude_unset=True).items():
         # Logo uploads must use the dedicated, validated binary upload route.
         if field != "logo_url":
@@ -304,6 +309,8 @@ def delete_watermark_logo(
 
     watermark = get_or_create_watermark(db, current_user.salon)
     watermark.logo_url = None
+    if watermark.content_mode == 'logo':
+        watermark.content_mode = 'text'
     current_user.salon.logo_url = None
     db.commit()
     db.refresh(watermark)
