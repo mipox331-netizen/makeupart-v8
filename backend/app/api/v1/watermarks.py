@@ -53,7 +53,7 @@ def _rollback_failed_logo_upload(
                 except OSError:
                     logger.exception("Could not remove temporary salon-logo restoration file")
             persisted = google_drive_media.persist_media_file(target)
-            if durable_required and not persisted:
+            if durable_required and not persisted and not google_drive_media.uses_modal_volume():
                 raise GoogleDriveMediaError(
                     "Could not confirm restoration of the previous logo in private storage."
                 )
@@ -61,7 +61,7 @@ def _rollback_failed_logo_upload(
             # Keep a first-time logo on disk until remote cleanup has succeeded;
             # otherwise a failed cleanup could leave an unreferenced Drive copy.
             deleted = google_drive_media.delete_media_file(target)
-            if durable_required and not deleted:
+            if durable_required and not deleted and not google_drive_media.uses_modal_volume():
                 raise GoogleDriveMediaError(
                     "Could not confirm cleanup of the failed logo upload in private storage."
                 )
