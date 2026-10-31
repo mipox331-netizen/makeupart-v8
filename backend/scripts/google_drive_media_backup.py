@@ -58,8 +58,8 @@ try:
 except requests.RequestException:
     abort("Google Drive media-root lookup could not reach Google.")
 roots = checked_json(response, "Google Drive media-root lookup").get("files", [])
-if response.status_code != 200 or not roots:
-    abort("MakeUpArt private media folder was not found or is not accessible. No backup was uploaded.")
+if response.status_code != 200 or not isinstance(roots, list) or len(roots) != 1:
+    abort("Expected exactly one MakeUpArt private media folder. No backup was uploaded.")
 root_id = str(roots[0].get("id", ""))
 if not root_id:
     abort("Google Drive returned an invalid media-root record.")
