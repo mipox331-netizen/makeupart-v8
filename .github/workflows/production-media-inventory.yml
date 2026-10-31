@@ -68,7 +68,7 @@ jobs:
                   revision = connection.execute(
                       text("SELECT version_num FROM public.alembic_version")
                   ).scalar_one()
-                  if revision != "0013_watermark_content":
+                  if revision != "0014_beauty_media_paths":
                       raise SystemExit("Production database is not at the verified migration head.")
 
                   required = {
