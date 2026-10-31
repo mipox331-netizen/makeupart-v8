@@ -29,7 +29,10 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
     except (OSError, ValueError) as exc:
         raise MediaInventoryError("Private media backup manifest cannot be read.") from exc
 
-    if manifest.get("format") != "makeupart-supabase-storage-media-backup-v1":
+    if manifest.get("format") not in {
+        "makeupart-supabase-storage-media-backup-v1",
+        "makeupart-google-drive-media-backup-v1",
+    }:
         raise MediaInventoryError("Private media backup manifest format is not supported.")
 
     rows = manifest.get("files")
@@ -47,7 +50,7 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
     database_url = os.environ.get("DATABASE_URL", "").strip()
     if not database_url:
         raise MediaInventoryError(
-            "The Supabase database URL is required to verify an empty private media bucket."
+            "The production PostgreSQL database URL is required to verify an empty private media store."
         )
     if database_url.startswith("postgres://"):
         database_url = "postgresql+psycopg2://" + database_url[len("postgres://"):]
@@ -78,7 +81,7 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
             missing = sorted(REQUIRED_MEDIA_COLUMNS - existing)
             if missing:
                 raise MediaInventoryError(
-                    "Cannot verify an empty media bucket because expected media-reference columns are missing."
+                    "Cannot verify an empty private media store because expected media-reference columns are missing."
                 )
 
             reference_count = connection.execute(text("""
@@ -103,12 +106,12 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
 
     if int(reference_count or 0) > 0:
         raise MediaInventoryError(
-            "The Supabase media bucket is empty but the database still references customer photos or salon logos; restore the source media before accepting an empty backup."
+            "Google Drive contains no media but the database still references customer photos or salon logos; restore the source media before accepting an empty backup."
         )
 
     print(
         "Verified empty-state backup: no beauty jobs, result images or salon-logo references "
-        "point to missing Supabase media. No customer image data existed in this bucket."
+        "point to missing Google Drive media. No customer image data is missing from the empty Drive store."
     )
     return 0
 
@@ -121,7 +124,7 @@ def main() -> None:
     except MediaInventoryError as exc:
         raise SystemExit(str(exc)) from None
     if count:
-        print(f"Supabase private media inventory contains {count} object(s); encrypted backup can proceed.")
+        print(f"Google Drive private media inventory contains {count} object(s); encrypted backup can proceed.")
 
 
 if __name__ == "__main__":
