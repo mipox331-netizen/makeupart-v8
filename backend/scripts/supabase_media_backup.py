@@ -38,8 +38,30 @@ def _safe_request(
     except httpx.HTTPError as exc:
         raise BackupError("Supabase Storage request could not be completed.") from exc
     if response.status_code >= 400:
+        provider_code = "unknown"
+        provider_message = "no structured error details"
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                provider_code = str(
+                    payload.get("code") or payload.get("error") or payload.get("statusCode") or "unknown"
+                )[:80]
+                provider_message = str(payload.get("message") or payload.get("error_description") or "")[:180]
+        except ValueError:
+            pass
+        # Storage errors help distinguish invalid credentials from request
+        # shape errors. Redact anything resembling tokens, credentials, URLs or
+        # long opaque identifiers before writing diagnostics to Actions logs.
+        import re
+
+        provider_message = re.sub(r"(?i)bearer\\s+\\S+", "Bearer [REDACTED]", provider_message)
+        provider_message = re.sub(r"(?i)(sb_(?:secret|publishable)_[A-Za-z0-9_-]+)", "[REDACTED_KEY]", provider_message)
+        provider_message = re.sub(r"[A-Za-z0-9_-]{40,}", "[REDACTED_TOKEN]", provider_message)
+        provider_message = re.sub(r"https?://\\S+", "[REDACTED_URL]", provider_message)
+        provider_message = re.sub(r"[\\r\\n\\t]+", " ", provider_message).strip()
         raise BackupError(
-            f"Supabase Storage request failed (HTTP {response.status_code}); response body withheld."
+            f"Supabase Storage request failed (HTTP {response.status_code}, "
+            f"code={provider_code}); provider message: {provider_message or 'not supplied'}."
         )
     return response
 
