@@ -3,19 +3,18 @@ import json
 from pathlib import Path
 
 import pytest
-import requests
+import httpx
 
 from scripts import supabase_media_backup as backup
 
 
 def make_response(status, *, payload=None, content=b""):
-    response = requests.Response()
-    response.status_code = status
-    response._content = (
-        json.dumps(payload).encode("utf-8") if payload is not None else content
+    return httpx.Response(
+        status_code=status,
+        request=httpx.Request("GET", "https://project.supabase.co/storage/v1/test"),
+        json=payload if payload is not None else None,
+        content=content if payload is None else None,
     )
-    response.headers["Content-Type"] = "application/json" if payload is not None else "image/png"
-    return response
 
 
 def configure(monkeypatch, tmp_path):
@@ -61,7 +60,7 @@ def test_private_supabase_media_backup_walks_tenant_paths_and_verifies_checksums
             return make_response(200, content=photo)
         raise AssertionError(f"Unexpected request: {method} {url}")
 
-    monkeypatch.setattr(requests.Session, "request", fake_request)
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
 
     count, total = backup.backup_media(destination, manifest_path)
 
