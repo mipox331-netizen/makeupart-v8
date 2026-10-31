@@ -70,10 +70,12 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
       _tiktok.text = (salon['tiktok'] ?? '').toString();
       _watermarkText.text = (data['watermark_text'] ?? salon['name'] ?? '').toString();
       setState(() {
-        _hasLogo = data['logo_url'] != null;
-        _contentMode = const ['text', 'logo', 'both'].contains(data['content_mode'])
-            ? data['content_mode'] as String
-            : 'both';
+        _hasLogo = data['logo_url'] != null && logo != null;
+        _contentMode = data['content_mode'] == 'logo' && !_hasLogo
+            ? 'text'
+            : const ['text', 'logo', 'both'].contains(data['content_mode'])
+                ? data['content_mode'] as String
+                : 'both';
         _position = _positions.containsKey(data['position'])
             ? data['position'] as String
             : 'bottom-right';
