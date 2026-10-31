@@ -89,6 +89,36 @@ def test_backup_rejects_public_bucket(monkeypatch, tmp_path):
         backup.backup_media(destination, manifest_path)
 
 
+
+def test_backup_creates_missing_bucket_from_nosuchbucket_400(monkeypatch, tmp_path):
+    destination, manifest_path = configure(monkeypatch, tmp_path)
+    calls = []
+
+    def fake_request(self, method, url, headers=None, **kwargs):
+        calls.append((method, url))
+        if method == "GET":
+            return make_response(
+                400,
+                payload={"code": "NoSuchBucket", "message": "Bucket not found"},
+            )
+        if method == "POST" and url.endswith("/bucket"):
+            assert kwargs["json"]["public"] is False
+            return make_response(
+                200,
+                payload={"id": "makeupart-media", "public": False},
+            )
+        if method == "POST" and "/object/list/" in url:
+            return make_response(200, payload=[])
+        raise AssertionError(f"Unexpected request: {method} {url}")
+
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
+
+    with pytest.raises(backup.BackupError, match="bucket is empty"):
+        backup.backup_media(destination, manifest_path)
+
+    assert calls[0][0] == "GET"
+    assert any(method == "POST" and url.endswith("/bucket") for method, url in calls)
+
 def test_backup_refuses_empty_media_bucket(monkeypatch, tmp_path):
     destination, manifest_path = configure(monkeypatch, tmp_path)
 
