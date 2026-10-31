@@ -13,7 +13,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Iterator
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import httpx
 
@@ -53,12 +53,124 @@ def uses_modal_volume() -> bool:
     return settings.MEDIA_STORAGE_BACKEND.strip().lower() == "modal_volume"
 
 
+def uses_supabase_storage() -> bool:
+    return settings.MEDIA_STORAGE_BACKEND.strip().lower() == "supabase_storage"
+
+
+def _supabase_storage_credentials() -> tuple[str, str, str] | None:
+    base_url = settings.SUPABASE_URL.strip().rstrip("/")
+    service_key = settings.SUPABASE_SERVICE_ROLE_KEY.strip()
+    bucket = settings.SUPABASE_MEDIA_BUCKET.strip()
+    if not base_url and not service_key:
+        if settings.ENVIRONMENT.lower() == "production" or settings.REQUIRE_DURABLE_MEDIA:
+            raise GoogleDriveMediaError(
+                "Private Supabase Storage is required but its server credentials are not configured."
+            )
+        return None
+    if not base_url or not service_key or not bucket or "/" in bucket:
+        raise GoogleDriveMediaError("Private Supabase Storage configuration is incomplete.")
+    parsed = urlsplit(base_url)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.path not in ("", "/"):
+        raise GoogleDriveMediaError("SUPABASE_URL must be an HTTPS project URL.")
+    return base_url, service_key, bucket
+
+
+def _supabase_storage_request(
+    method: str,
+    path: str,
+    *,
+    timeout: float | httpx.Timeout = 45.0,
+    **kwargs,
+) -> httpx.Response:
+    credentials = _supabase_storage_credentials()
+    if credentials is None:
+        raise GoogleDriveMediaError("Private Supabase Storage is not configured.")
+    base_url, service_key, _bucket = credentials
+    headers = dict(kwargs.pop("headers", {}) or {})
+    headers.update({
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+    })
+    try:
+        response = httpx.request(
+            method,
+            f"{base_url}/storage/v1{path}",
+            headers=headers,
+            timeout=timeout,
+            follow_redirects=True,
+            **kwargs,
+        )
+    except httpx.HTTPError as exc:
+        raise GoogleDriveMediaError("Private Supabase Storage could not be reached.") from exc
+    if response.status_code >= 400:
+        raise GoogleDriveMediaError(
+            f"Private Supabase Storage request failed (HTTP {response.status_code})."
+        )
+    return response
+
+
+def _supabase_object_path(path: str | Path) -> str:
+    key = _relative_key(path)
+    return quote(key, safe="/")
+
+
+def _verify_supabase_bucket() -> None:
+    credentials = _supabase_storage_credentials()
+    if credentials is None:
+        raise GoogleDriveMediaError("Private Supabase Storage is not configured.")
+    _base_url, _service_key, bucket = credentials
+    encoded_bucket = quote(bucket, safe="")
+    try:
+        response = _supabase_storage_request("GET", f"/bucket/{encoded_bucket}")
+    except GoogleDriveMediaError as exc:
+        # Create the bucket only when it truly does not exist. Unauthorized,
+        # network and server errors must never be mistaken for a missing bucket.
+        if "(HTTP 404)" not in str(exc):
+            raise
+        response = _supabase_storage_request(
+            "POST",
+            "/bucket",
+            json={
+                "id": bucket,
+                "name": bucket,
+                "public": False,
+                "file_size_limit": _MAX_RESTORE_BYTES,
+                "allowed_mime_types": [
+                    "image/jpeg", "image/png", "image/webp", "application/octet-stream"
+                ],
+            },
+        )
+        try:
+            body = response.json()
+        except ValueError as parse_error:
+            raise GoogleDriveMediaError(
+                "Supabase Storage returned invalid bucket-creation data."
+            ) from parse_error
+    else:
+        try:
+            body = response.json()
+        except ValueError as parse_error:
+            raise GoogleDriveMediaError(
+                "Supabase Storage returned invalid bucket metadata."
+            ) from parse_error
+    if not isinstance(body, dict) or body.get("public") is not False:
+        raise GoogleDriveMediaError(
+            "The configured Supabase media bucket must be private."
+        )
+
+
 def is_durable_storage_configured() -> bool:
-    """Whether the configured production media backend is durable and available."""
+    """Whether the configured production media backend has its required credentials."""
     if uses_modal_volume():
         from app.services.media_volume import is_media_volume_configured
 
         return is_media_volume_configured()
+    if uses_supabase_storage():
+        return bool(
+            settings.SUPABASE_URL.strip()
+            and settings.SUPABASE_SERVICE_ROLE_KEY.strip()
+            and settings.SUPABASE_MEDIA_BUCKET.strip()
+        )
     return is_configured()
 
 
@@ -66,6 +178,8 @@ def _credentials() -> tuple[str, str, str] | None:
     if uses_modal_volume():
         # Media is persisted by the mounted Modal Volume and committed by the API
         # after the media + database transaction is safely staged.
+        return None
+    if uses_supabase_storage():
         return None
     if settings.MEDIA_STORAGE_BACKEND.strip().lower() != "google_drive":
         raise GoogleDriveMediaError("Unsupported private media storage backend.")
@@ -290,6 +404,9 @@ def verify_connection() -> None:
         if not is_media_volume_configured():
             raise GoogleDriveMediaError("The durable Modal media Volume is not mounted.")
         return
+    if uses_supabase_storage():
+        _verify_supabase_bucket()
+        return
     token = _access_token()
     _root_folder_id(token)
 
@@ -386,7 +503,37 @@ def _read_chunks(path: Path, chunk_size: int = 1024 * 1024) -> Iterator[bytes]:
 
 
 def persist_media_file(path: str | Path) -> bool:
-    """Upload or update one file in the private Drive folder. False means local-only mode."""
+    """Persist one file in the configured private cloud storage backend."""
+    if uses_supabase_storage():
+        candidate = Path(path).expanduser().resolve()
+        if not candidate.is_file():
+            raise GoogleDriveMediaError("Media file is missing before cloud persistence.")
+        key = _supabase_object_path(candidate)
+        credentials = _supabase_storage_credentials()
+        if credentials is None:
+            return False
+        _base_url, _service_key, bucket = credentials
+        media_type = mimetypes.guess_type(candidate.name)[0] or "application/octet-stream"
+        content = candidate.read_bytes()
+        if not content or len(content) > _MAX_RESTORE_BYTES:
+            raise GoogleDriveMediaError("Media object is empty or exceeds the safe storage limit.")
+        response = _supabase_storage_request(
+            "POST",
+            f"/object/{quote(bucket, safe='')}/{key}",
+            headers={"Content-Type": media_type, "x-upsert": "true"},
+            content=content,
+            timeout=httpx.Timeout(180.0, connect=20.0),
+        )
+        # Verify actual stored bytes, not merely the upload's HTTP status.
+        check = _supabase_storage_request(
+            "GET",
+            f"/object/{quote(bucket, safe='')}/{key}",
+            timeout=httpx.Timeout(120.0, connect=20.0),
+        )
+        if hashlib.sha256(check.content).digest() != hashlib.sha256(content).digest():
+            raise GoogleDriveMediaError("Supabase media upload checksum verification failed.")
+        return True
+
     credentials = _credentials()
     if credentials is None:
         return False
@@ -496,11 +643,42 @@ def persist_media_file(path: str | Path) -> bool:
 
 
 def ensure_local_file(path: str | Path) -> bool:
-    """Restore a missing authorized local file from the private Drive folder."""
+    """Restore a missing authorized local file from the configured private backend."""
     candidate = Path(path).expanduser().resolve()
     path_key = _relative_key(candidate)
     if candidate.is_file():
         return True
+
+    if uses_supabase_storage():
+        credentials = _supabase_storage_credentials()
+        if credentials is None:
+            return False
+        _base_url, _service_key, bucket = credentials
+        try:
+            response = _supabase_storage_request(
+                "GET",
+                f"/object/{quote(bucket, safe='')}/{quote(path_key, safe='/')}",
+                timeout=httpx.Timeout(120.0, connect=20.0),
+            )
+        except GoogleDriveMediaError as exc:
+            if "(HTTP 404)" in str(exc):
+                return False
+            raise
+        if not response.content or len(response.content) > _MAX_RESTORE_BYTES:
+            raise GoogleDriveMediaError("Supabase returned an empty or oversized media object.")
+        candidate.parent.mkdir(parents=True, exist_ok=True)
+        temporary = candidate.with_name(f".{candidate.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            with temporary.open("wb") as destination:
+                destination.write(response.content)
+                destination.flush()
+                os.fsync(destination.fileno())
+            os.replace(temporary, candidate)
+            return True
+        except OSError as exc:
+            raise GoogleDriveMediaError("Supabase media could not be restored locally.") from exc
+        finally:
+            temporary.unlink(missing_ok=True)
 
     credentials = _credentials()
     if credentials is None:
@@ -562,7 +740,20 @@ def ensure_local_file(path: str | Path) -> bool:
 
 
 def delete_media_file(path: str | Path) -> bool:
-    """Permanently delete matching private Drive objects; false means local-only mode."""
+    """Permanently delete matching objects from the configured private backend."""
+    if uses_supabase_storage():
+        credentials = _supabase_storage_credentials()
+        if credentials is None:
+            return False
+        _base_url, _service_key, bucket = credentials
+        key = _supabase_object_path(path)
+        _supabase_storage_request(
+            "DELETE",
+            f"/object/{quote(bucket, safe='')}",
+            json={"prefixes": [key]},
+        )
+        return True
+
     credentials = _credentials()
     if credentials is None:
         return False
