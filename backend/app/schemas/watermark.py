@@ -11,6 +11,8 @@ class WatermarkOut(BaseModel):
     id: uuid.UUID
     salon_id: uuid.UUID
     logo_url: str | None = None
+    watermark_text: str | None = None
+    content_mode: Literal['text', 'logo', 'both'] = 'both'
     salon_name: bool
     phone: bool
     instagram: bool
@@ -24,6 +26,8 @@ class WatermarkOut(BaseModel):
 
 class WatermarkUpdate(BaseModel):
     logo_url: str | None = Field(default=None, max_length=1000)
+    watermark_text: str | None = Field(default=None, max_length=80)
+    content_mode: Literal['text', 'logo', 'both'] = 'both'
     # Salon branding is required for every generated result.
     salon_name: Literal[True] = True
     phone: bool = False
