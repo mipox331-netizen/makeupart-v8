@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - "backend/scripts/supabase_media_backup.py"
+      - "backend/scripts/verify_supabase_media_empty_state.py"
       - ".github/workflows/production-media-backup.yml"
 
 permissions:
