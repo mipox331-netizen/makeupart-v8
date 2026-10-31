@@ -69,9 +69,9 @@ def _persist_private_media_file(path: Path) -> None:
         settings.REQUIRE_DURABLE_MEDIA
         or settings.ENVIRONMENT.lower() == "production"
     )
-    if durable_required and not persisted:
+    if durable_required and not persisted and not google_drive_media.uses_modal_volume():
         raise GoogleDriveMediaError(
-            "Private durable media storage is required but Google Drive is not configured."
+            "Private durable media storage is required but the configured backend did not persist the file."
         )
 
 
