@@ -85,16 +85,41 @@ jobs:
                   if missing:
                       raise SystemExit("Production media inventory cannot run; required media tables are missing.")
 
-                  media = connection.execute(text("""
-                      SELECT
-                        (SELECT count(*) FROM public.beauty_jobs) AS beauty_jobs,
-                        (SELECT count(*) FROM public.beauty_results) AS beauty_results,
-                        (SELECT count(*) FROM public.beauty_jobs WHERE input_file_path IS NOT NULL) AS job_input_references,
-                        (SELECT count(*) FROM public.beauty_jobs WHERE output_file_path IS NOT NULL) AS job_output_references,
-                        (SELECT count(*) FROM public.beauty_results WHERE before_image_url IS NOT NULL) AS result_before_references,
-                        (SELECT count(*) FROM public.beauty_results WHERE after_image_url IS NOT NULL) AS result_after_references,
-                        (SELECT count(*) FROM public.watermarks WHERE logo_url IS NOT NULL) AS salon_logo_references
-                  """)).mappings().one()
+                  media = {
+                      "beauty_jobs": connection.execute(
+                          text("SELECT count(*) FROM public.beauty_jobs")
+                      ).scalar_one(),
+                      "beauty_results": connection.execute(
+                          text("SELECT count(*) FROM public.beauty_results")
+                      ).scalar_one(),
+                  }
+                  column_rows = connection.execute(text("""
+                      SELECT table_name, column_name
+                      FROM information_schema.columns
+                      WHERE table_schema='public'
+                        AND table_name = ANY(:tables)
+                  """), {"tables": ["beauty_jobs", "beauty_results", "watermarks"]}).all()
+                  column_names = {(row[0], row[1]) for row in column_rows}
+                  reference_columns = [
+                      ("beauty_jobs", "before_image_url", "job_before_references"),
+                      ("beauty_jobs", "after_image_url", "job_after_references"),
+                      ("beauty_jobs", "input_file_path", "job_input_references"),
+                      ("beauty_jobs", "output_file_path", "job_output_references"),
+                      ("beauty_results", "before_image_url", "result_before_references"),
+                      ("beauty_results", "after_image_url", "result_after_references"),
+                      ("watermarks", "logo_url", "salon_logo_references"),
+                  ]
+                  missing_media_columns = []
+                  for table_name, column_name, metric_name in reference_columns:
+                      if (table_name, column_name) not in column_names:
+                          media[metric_name] = "column_missing"
+                          missing_media_columns.append(f"{table_name}.{column_name}")
+                          continue
+                      safe_identifier = f'"{column_name}"'
+                      metric = connection.execute(text(
+                          f"SELECT count(*) FROM public.{table_name} WHERE {safe_identifier} IS NOT NULL"
+                      )).scalar_one()
+                      media[metric_name] = metric
 
                   storage_available = bool(connection.execute(
                       text("SELECT to_regclass('storage.objects') IS NOT NULL")
@@ -123,10 +148,17 @@ jobs:
                   print(f"Supabase media objects: {objects['object_count']}")
                   print(f"Supabase media bytes: {objects['total_bytes']}")
 
-                  refs = sum(int(value or 0) for key, value in media.items() if key.endswith("_references"))
+                  if missing_media_columns:
+                      print("::warning::Database schema is missing expected media columns: " + ", ".join(missing_media_columns))
+                  numeric_refs = [
+                      int(value or 0)
+                      for key, value in media.items()
+                      if key.endswith("_references") and isinstance(value, (int, float))
+                  ]
+                  refs = sum(numeric_refs)
                   if refs > 0 and int(objects["object_count"]) == 0:
                       print("::warning::Database contains media references but the Supabase media bucket is empty; older media may still reside in another provider or may need restoration.")
-                  elif refs == 0 and int(objects["object_count"]) == 0:
+                  elif refs == 0 and not missing_media_columns and int(objects["object_count"]) == 0:
                       print("No media references or objects were found in the production database/bucket.")
                   elif int(objects["object_count"]) > 0:
                       print("Supabase bucket contains media objects; run the encrypted backup/restore workflow to verify recoverability.")
