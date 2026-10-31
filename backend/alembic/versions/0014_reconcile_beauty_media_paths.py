@@ -1,6 +1,6 @@
 """reconcile nullable beauty-job media path columns
 
-Revision ID: 0014_reconcile_beauty_media_paths
+Revision ID: 0014_beauty_media_paths
 Revises: 0013_watermark_content
 Create Date: 2026-10-31
 """
@@ -9,7 +9,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0014_reconcile_beauty_media_paths"
+revision: str = "0014_beauty_media_paths"
 down_revision: Union[str, None] = "0013_watermark_content"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
