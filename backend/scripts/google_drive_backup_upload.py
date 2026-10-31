@@ -101,9 +101,9 @@ def main() -> None:
             abort("Google Drive OAuth token refresh could not reach Google.")
         if token_response.status_code != 200:
             error_code = oauth_error_code(token_response)
-        if error_code == "invalid_grant":
-            abort("Google Drive refresh token is expired or revoked (invalid_grant). When OAuth consent is External/Testing, publish the app to In production and authorize again with offline access; then replace GOOGLE_DRIVE_REFRESH_TOKEN.")
-        abort(f"Google Drive OAuth token refresh failed (HTTP {token_response.status_code}, error={error_code}).")
+            if error_code == "invalid_grant":
+                abort("Google Drive refresh token is expired or revoked (invalid_grant). When OAuth consent is External/Testing, publish the app to In production and authorize again with offline access; then replace GOOGLE_DRIVE_REFRESH_TOKEN.")
+            abort(f"Google Drive OAuth token refresh failed (HTTP {token_response.status_code}, error={error_code}).")
         token_body = checked_json(token_response, "Google Drive OAuth token refresh")
         token = token_body.get("access_token")
         if token_response.status_code != 200 or not isinstance(token, str) or not token:
