@@ -132,7 +132,7 @@ def media_readiness_check() -> dict[str, str]:
     except GoogleDriveMediaError:
         # This failure is visible through the dedicated media probe. It must
         # not cause Render to restart the API process used for login and clients.
-        logger.exception("Google Drive media readiness check failed")
+        logger.exception("Private media storage readiness check failed")
         return JSONResponse(
             status_code=503,
             content={"status": "not_ready", "reason": "media_storage_unavailable"},
@@ -146,7 +146,7 @@ def readiness_check() -> dict[str, str]:
     """Check the database/API dependencies required for ordinary requests.
 
     Durable media storage is checked separately by /health/media-ready.
-    Photo persistence continues to fail closed if Google Drive is unavailable.
+    Photo persistence fails closed when the configured private media backend is unavailable.
     """
     try:
         with engine.connect() as connection:
