@@ -76,4 +76,37 @@ jobs:
 
           check_health "/health/live" "alive"
           check_health "/health/ready" "ready"
-          check_health "/health/media-ready" "google_drive" "storage"
+          media_body="$(mktemp)"
+          media_code="$(curl --silent --show-error --output "$media_body" --write-out '%{http_code}' --connect-timeout 10 --max-time 60 "$API_ROOT/health/media-ready" || true)"
+          media_status="$(python - "$media_body" <<'PY'
+          import json, sys
+          try:
+              with open(sys.argv[1], encoding="utf-8") as handle:
+                  print(json.load(handle).get("status", ""))
+          except Exception:
+              print("")
+          PY
+          )"
+          media_storage="$(python - "$media_body" <<'PY'
+          import json, sys
+          try:
+              with open(sys.argv[1], encoding="utf-8") as handle:
+                  print(json.load(handle).get("storage", ""))
+          except Exception:
+              print("")
+          PY
+          )"
+          rm -f "$media_body"
+          [[ "$media_code" == "200" && "$media_status" == "ready" ]] || {
+            echo "::error::Production private-media readiness failed (HTTP \${media_code:-000}, status=\${media_status:-unknown})."
+            exit 1
+          }
+          case "$media_storage" in
+            google_drive|modal_volume|supabase_storage)
+              echo "Production durable media storage: $media_storage"
+              ;;
+            *)
+              echo "::error::Production reported an unsupported or non-durable media backend."
+              exit 1
+              ;;
+          esac
