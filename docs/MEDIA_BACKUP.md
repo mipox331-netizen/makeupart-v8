@@ -29,6 +29,18 @@ The deployment and backup workflows accept either the canonical name or the lega
 
 Do not commit these values or print them in workflow logs. The OAuth refresh token must belong to the Google account that owns the MakeUpArt Drive folders and must have permission to manage the app-created Drive files.
 
+## Google OAuth refresh-token recovery
+
+The backup workflows use one private Google Drive account through OAuth. If a workflow reports `invalid_grant`, the refresh token has expired or been revoked. For an External OAuth app still in `Testing`, Google issues refresh tokens that expire after seven days for scopes beyond basic profile/email. In Google Cloud Console:
+
+1. Open **Google Auth Platform → Audience**.
+2. Change **Publishing status** from **Testing** to **In production**.
+3. Re-authorize the same Drive-owning Google account with offline access and explicit consent to receive a new refresh token.
+4. Replace the production GitHub environment secret `GOOGLE_DRIVE_REFRESH_TOKEN` (or its existing alias `GDRIVE_REFRESH_TOKEN`) with the new token.
+5. Run the media backup and database backup workflows manually once to verify both Drive uploads.
+
+Publishing the OAuth consent screen does not rent storage or create a paid database. Verification may still be required before allowing broad public users to authorize sensitive Drive scopes; this backend design only needs the owner's Drive account to grant access to the app-owned backup/media folders.
+
 ## Backup schedule and verification
 
 The media workflow runs daily at 02:45 UTC and can also be started manually. It inventories the private Drive media root, paginates the full file list, rejects duplicate/unsafe path indexes, downloads every file, and checks the stored size and MD5 before creating a SHA-256 manifest. An empty Drive inventory is accepted only after the database check confirms there are no photo/logo references pointing to missing media.
