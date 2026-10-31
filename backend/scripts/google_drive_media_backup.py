@@ -14,6 +14,22 @@ MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 3 * 1024 * 1024 * 1024
 session = requests.Session()
 
+def oauth_error_code(response):
+    try:
+        payload = response.json()
+    except ValueError:
+        return "unknown"
+    candidate = payload.get("error") if isinstance(payload, dict) else None
+    if (
+        isinstance(candidate, str)
+        and candidate.isascii()
+        and 0 < len(candidate) <= 64
+        and candidate.replace("_", "").replace("-", "").isalnum()
+    ):
+        return candidate
+    return "unknown"
+
+
 def abort(message):
     raise SystemExit(message)
 
@@ -38,6 +54,8 @@ try:
     )
 except requests.RequestException:
     abort("Google Drive OAuth token refresh could not reach Google.")
+if token_response.status_code != 200:
+    abort(f"Google Drive OAuth token refresh failed (HTTP {token_response.status_code}, error={oauth_error_code(token_response)}).")
 token_body = checked_json(token_response, "Google Drive OAuth token refresh")
 access_token = token_body.get("access_token")
 if token_response.status_code != 200 or not access_token:
