@@ -54,11 +54,11 @@ def _safe_request(
         # long opaque identifiers before writing diagnostics to Actions logs.
         import re
 
-        provider_message = re.sub(r"(?i)bearer\\s+\\S+", "Bearer [REDACTED]", provider_message)
+        provider_message = re.sub(r"(?i)bearer\s+\S+", "Bearer [REDACTED]", provider_message)
         provider_message = re.sub(r"(?i)(sb_(?:secret|publishable)_[A-Za-z0-9_-]+)", "[REDACTED_KEY]", provider_message)
         provider_message = re.sub(r"[A-Za-z0-9_-]{40,}", "[REDACTED_TOKEN]", provider_message)
-        provider_message = re.sub(r"https?://\\S+", "[REDACTED_URL]", provider_message)
-        provider_message = re.sub(r"[\\r\\n\\t]+", " ", provider_message).strip()
+        provider_message = re.sub(r"https?://\S+", "[REDACTED_URL]", provider_message)
+        provider_message = re.sub(r"[\r\n\t]+", " ", provider_message).strip()
         raise BackupError(
             f"Supabase Storage request failed (HTTP {response.status_code}, "
             f"code={provider_code}); provider message: {provider_message or 'not supplied'}."
