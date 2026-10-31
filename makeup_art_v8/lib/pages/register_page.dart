@@ -26,6 +26,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final phone = TextEditingController();
   final password = TextEditingController();
   bool loading = false;
+  bool passwordVisible = false;
   bool accountCreated = false;
   String? error;
 
@@ -136,10 +137,8 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  InputDecoration decoration(String label, IconData icon) => InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-      );
+  InputDecoration decoration(String label, IconData icon, {Widget? suffixIcon}) =>
+      InputDecoration(labelText: label, prefixIcon: Icon(icon), suffixIcon: suffixIcon);
 
   @override
   Widget build(BuildContext context) {
@@ -188,8 +187,16 @@ class _RegisterPageState extends State<RegisterPage> {
             const SizedBox(height: 14),
             TextField(
               controller: password,
-              obscureText: true,
-              decoration: decoration('Password', Icons.lock_outline),
+              obscureText: !passwordVisible,
+              decoration: decoration(
+                'Password',
+                Icons.lock_outline,
+                suffixIcon: IconButton(
+                  tooltip: passwordVisible ? 'Hide password' : 'Show password',
+                  onPressed: () => setState(() => passwordVisible = !passwordVisible),
+                  icon: Icon(passwordVisible ? Icons.visibility_off : Icons.visibility),
+                ),
+              ),
             ),
             if (error != null) ...[
               const SizedBox(height: 14),

@@ -18,6 +18,7 @@ class _LoginPageState extends State<LoginPage> {
   final email = TextEditingController();
   final password = TextEditingController();
   bool loading = false;
+  bool passwordVisible = false;
   String? error;
 
   @override
@@ -122,10 +123,15 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 14),
                   TextField(
                     controller: password,
-                    obscureText: true,
-                    decoration: const InputDecoration(
+                    obscureText: !passwordVisible,
+                    decoration: InputDecoration(
                       labelText: 'Password',
-                      prefixIcon: Icon(Icons.lock_outline),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        tooltip: passwordVisible ? 'Hide password' : 'Show password',
+                        onPressed: () => setState(() => passwordVisible = !passwordVisible),
+                        icon: Icon(passwordVisible ? Icons.visibility_off : Icons.visibility),
+                      ),
                     ),
                   ),
                   if (error != null) ...[
