@@ -122,6 +122,7 @@ def media_readiness_check() -> dict[str, str]:
         settings.ENVIRONMENT.lower() == "production"
         or settings.REQUIRE_DURABLE_MEDIA
         or drive_configured
+        or google_drive_media.uses_modal_volume()
     )
     if not media_required:
         return {"status": "ready", "storage": "local_only"}
@@ -137,7 +138,7 @@ def media_readiness_check() -> dict[str, str]:
             content={"status": "not_ready", "reason": "media_storage_unavailable"},
         )
 
-    return {"status": "ready", "storage": "google_drive"}
+    return {"status": "ready", "storage": settings.MEDIA_STORAGE_BACKEND.lower()}
 
 
 @app.get("/health/ready", tags=["health"])
