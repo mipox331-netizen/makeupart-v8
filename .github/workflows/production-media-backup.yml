@@ -25,15 +25,15 @@ jobs:
       - name: Validate Modal and encryption secrets without exposing values
         shell: bash
         env:
-          MODAL_TOKEN_ID: \${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
-          MODAL_TOKEN_SECRET: \${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
-          BACKUP_ENCRYPTION_PASSPHRASE: \${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
-          test -n "\${MODAL_TOKEN_ID:-}" || { echo "::error::Missing Modal token ID in the GitHub production environment."; exit 1; }
-          test -n "\${MODAL_TOKEN_SECRET:-}" || { echo "::error::Missing Modal token secret in the GitHub production environment."; exit 1; }
-          test -n "\${BACKUP_ENCRYPTION_PASSPHRASE:-}" || { echo "::error::Missing BACKUP_ENCRYPTION_PASSPHRASE in the GitHub production environment."; exit 1; }
-          [[ "\${#BACKUP_ENCRYPTION_PASSPHRASE}" -ge 24 ]] || { echo "::error::BACKUP_ENCRYPTION_PASSPHRASE must be at least 24 characters."; exit 1; }
+          test -n "${MODAL_TOKEN_ID:-}" || { echo "::error::Missing Modal token ID in the GitHub production environment."; exit 1; }
+          test -n "${MODAL_TOKEN_SECRET:-}" || { echo "::error::Missing Modal token secret in the GitHub production environment."; exit 1; }
+          test -n "${BACKUP_ENCRYPTION_PASSPHRASE:-}" || { echo "::error::Missing BACKUP_ENCRYPTION_PASSPHRASE in the GitHub production environment."; exit 1; }
+          [[ "${#BACKUP_ENCRYPTION_PASSPHRASE}" -ge 24 ]] || { echo "::error::BACKUP_ENCRYPTION_PASSPHRASE must be at least 24 characters."; exit 1; }
           echo "Required secrets are present; values are not printed."
 
       - name: Set up Python
@@ -46,15 +46,15 @@ jobs:
 
       - name: Validate Modal access
         env:
-          MODAL_TOKEN_ID: \${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
-          MODAL_TOKEN_SECRET: \${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: modal token info
 
       - name: Download private Modal Volume media and build integrity manifest
         shell: bash
         env:
-          MODAL_TOKEN_ID: \${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
-          MODAL_TOKEN_SECRET: \${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: |
           set -euo pipefail
           BACKUP_DIR="$RUNNER_TEMP/makeupart-media-backup"
@@ -133,7 +133,7 @@ jobs:
       - name: Encrypt archive and verify a complete isolated restore
         shell: bash
         env:
-          BACKUP_ENCRYPTION_PASSPHRASE: \${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
           BACKUP_DIR="$RUNNER_TEMP/makeupart-media-backup"
@@ -204,10 +204,10 @@ jobs:
       - name: Upload encrypted backup artifact
         uses: actions/upload-artifact@v4
         with:
-          name: makeupart-media-backup-\${{ github.run_id }}
+          name: makeupart-media-backup-${{ github.run_id }}
           path: |
-            \${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg
-            \${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg.sha256
+            ${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg
+            ${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg.sha256
           if-no-files-found: error
           retention-days: 14
 
