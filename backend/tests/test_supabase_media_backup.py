@@ -119,11 +119,14 @@ def test_backup_creates_missing_bucket_from_nosuchbucket_400(monkeypatch, tmp_pa
 
     monkeypatch.setattr(httpx.Client, "request", fake_request)
 
-    with pytest.raises(backup.BackupError, match="bucket is empty"):
-        backup.backup_media(destination, manifest_path)
+    count, total = backup.backup_media(destination, manifest_path)
 
+    assert count == 0
+    assert total == 0
     assert calls[0][0] == "GET"
     assert any(method == "POST" and url.endswith("/bucket") for method, url in calls)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["file_count"] == 0
 
 def test_backup_writes_empty_manifest_for_empty_private_bucket(monkeypatch, tmp_path):
     destination, manifest_path = configure(monkeypatch, tmp_path)
@@ -167,6 +170,11 @@ def test_backup_derives_supabase_project_url_from_pooler_username(monkeypatch, t
         raise AssertionError(f"Unexpected request: {method} {url}")
 
     monkeypatch.setattr(httpx.Client, "request", fake_request)
-    # The endpoint derivation is validated before the inventory is read.
-    with pytest.raises(backup.BackupError, match="bucket is empty"):
-        backup.backup_media(destination, manifest_path)
+    # The endpoint derivation is validated before the empty inventory is recorded.
+    count, total = backup.backup_media(destination, manifest_path)
+
+    assert count == 0
+    assert total == 0
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["file_count"] == 0
+    assert manifest["total_bytes"] == 0
