@@ -66,6 +66,7 @@ if not root_id:
 
 inventory = []
 page_token = None
+seen_page_tokens = set()
 while True:
     params = {
         "q": "'" + root_id.replace("\\", "\\\\").replace("'", "\\'") + "' in parents and trashed = false",
@@ -73,6 +74,9 @@ while True:
         "fields": "nextPageToken,files(id,mimeType,size,md5Checksum,appProperties)",
     }
     if page_token:
+        if page_token in seen_page_tokens:
+            abort("Google Drive repeated a pagination token; refusing an incomplete media backup.")
+        seen_page_tokens.add(page_token)
         params["pageToken"] = page_token
     try:
         response = session.get(API + "/files", headers=headers, params=params, timeout=(10, 45))
@@ -81,7 +85,12 @@ while True:
     page = checked_json(response, "Google Drive media inventory")
     if response.status_code != 200:
         abort("Google Drive media inventory could not be retrieved.")
-    inventory.extend(page.get("files", []))
+    batch = page.get("files", [])
+    if not isinstance(batch, list) or any(not isinstance(item, dict) for item in batch):
+        abort("Google Drive returned an invalid media inventory page.")
+    inventory.extend(batch)
+    if len(inventory) > 10000:
+        abort("Google Drive media inventory exceeds the safe 10,000-object backup limit.")
     page_token = page.get("nextPageToken")
     if not page_token:
         break
