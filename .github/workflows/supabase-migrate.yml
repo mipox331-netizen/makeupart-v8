@@ -43,17 +43,17 @@ jobs:
       - name: Validate Supabase database secret
         shell: bash
         env:
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
         run: |
           set -euo pipefail
           test -n "${DATABASE_URL:-}" || { echo "SUPABASE_DB_URL secret is missing."; exit 1; }
 
       - name: Run Alembic migrations
         env:
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
         run: alembic upgrade head
 
       - name: Confirm migration head
         env:
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
         run: alembic current
