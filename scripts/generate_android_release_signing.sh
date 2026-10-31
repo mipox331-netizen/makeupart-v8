@@ -21,7 +21,6 @@ for command in keytool openssl base64; do
   }
 done
 
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 SIGNING_DIR="${HOME}/.config/makeupart-v8/android-release"
 KEYSTORE="${SIGNING_DIR}/upload-keystore.jks"
 SECRETS_FILE="${SIGNING_DIR}/github-production-secrets.txt"
