@@ -127,5 +127,5 @@ def test_supabase_provider_fails_closed_without_server_secret(monkeypatch):
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")
     monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", True)
 
-    with pytest.raises(media.GoogleDriveMediaError, match="credentials are not configured"):
+    with pytest.raises(media.GoogleDriveMediaError, match="configuration is incomplete"):
         media.verify_connection()
