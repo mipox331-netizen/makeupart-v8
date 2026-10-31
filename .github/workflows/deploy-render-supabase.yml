@@ -21,9 +21,9 @@ jobs:
     environment: production
     timeout-minutes: 30
     env:
-      RENDER_API_KEY: \${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
-      SUPABASE_DB_URL: \${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
       SUPABASE_URL: "https://riakbjcxcaqjaqagncmu.supabase.co"
       RENDER_SERVICE_ID: "srv-dav25so473hc73d7ee0g"
       API_URL: "https://makeupart-api.onrender.com"
@@ -34,11 +34,11 @@ jobs:
         run: |
           set -euo pipefail
           missing=()
-          [[ -n "\${RENDER_API_KEY:-}" ]] || missing+=("RENDER_API_KEY or RENDER_API_TOKEN")
-          [[ -n "\${SUPABASE_DB_URL:-}" ]] || missing+=("SUPABASE_DB_URL or SUPABASE_DB_URL_SECRET")
-          [[ -n "\${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SECRET or SUPABASE_SERVICE_ROLE_KEY")
-          if (( \${#missing[@]} > 0 )); then
-            echo "::error::Cannot deploy Render recovery. Missing production GitHub environment secrets: \${missing[*]}."
+          [[ -n "${RENDER_API_KEY:-}" ]] || missing+=("RENDER_API_KEY or RENDER_API_TOKEN")
+          [[ -n "${SUPABASE_DB_URL:-}" ]] || missing+=("SUPABASE_DB_URL or SUPABASE_DB_URL_SECRET")
+          [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SECRET or SUPABASE_SERVICE_ROLE_KEY")
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Cannot deploy Render recovery. Missing production GitHub environment secrets: ${missing[*]}."
             exit 1
           fi
           echo "Render API and Supabase server credentials are present."
@@ -46,9 +46,9 @@ jobs:
       - name: Apply Supabase database and private storage settings to Render
         shell: bash
         env:
-          RENDER_API_KEY: \${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
-          SUPABASE_DB_URL: \${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -129,7 +129,7 @@ jobs:
         id: deploy
         shell: bash
         env:
-          RENDER_API_KEY: \${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -170,8 +170,8 @@ jobs:
       - name: Wait for Render deployment and verify live API and private media storage
         shell: bash
         env:
-          RENDER_API_KEY: \${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
-          DEPLOY_ID: \${{ steps.deploy.outputs.deploy_id }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
+          DEPLOY_ID: ${{ steps.deploy.outputs.deploy_id }}
         run: |
           set -euo pipefail
           python - <<'PY'
