@@ -81,6 +81,7 @@ jobs:
           # Preserve existing CORS configuration and unrelated production settings.
           values = {
               "DATABASE_URL": database_url,
+              "SUPABASE_DB_URL": database_url,
               "SUPABASE_URL": supabase_url,
               "SUPABASE_SERVICE_ROLE_KEY": service_role,
               "SUPABASE_MEDIA_BUCKET": "makeupart-media",
