@@ -57,7 +57,7 @@ void main() {
 
       expect(await store.list(), hasLength(10));
       expect(await countPngFiles(privateDirectory), 10);
-      expect(await countPngFiles(galleryDirectory), 2);
+      expect(await countPngFiles(galleryDirectory), 12);
       final archivedNames = await galleryDirectory
           .list()
           .where((entity) => entity is File)
@@ -65,7 +65,7 @@ void main() {
           .map((file) => file.uri.pathSegments.last)
           .toList();
       expect(
-        archivedNames.every((name) => name.startsWith('archive_${scope}_')),
+        archivedNames.every((name) => name.startsWith('backup_${scope}_')),
         isTrue,
       );
     } finally {
@@ -154,19 +154,25 @@ void main() {
           .cast<File>()
           .toList();
       final firstArchives = archivedFiles
-          .where((file) => file.uri.pathSegments.last.startsWith('archive_${firstScope}_'))
+          .where((file) => file.uri.pathSegments.last.startsWith('backup_${firstScope}_'))
           .toList();
       final secondArchives = archivedFiles
-          .where((file) => file.uri.pathSegments.last.startsWith('archive_${secondScope}_'))
+          .where((file) => file.uri.pathSegments.last.startsWith('backup_${secondScope}_'))
           .toList();
-      expect(firstArchives, hasLength(1));
-      expect(secondArchives, hasLength(1));
+      expect(firstArchives, hasLength(11));
+      expect(secondArchives, hasLength(11));
+      final firstOldest = firstArchives.singleWhere(
+        (file) => file.uri.pathSegments.last.endsWith('_first-0.png'),
+      );
+      final secondOldest = secondArchives.singleWhere(
+        (file) => file.uri.pathSegments.last.endsWith('_second-0.png'),
+      );
       expect(
-        await firstArchives.single.readAsBytes(),
+        await firstOldest.readAsBytes(),
         equals(List<int>.filled(16, 0)),
       );
       expect(
-        await secondArchives.single.readAsBytes(),
+        await secondOldest.readAsBytes(),
         equals(List<int>.filled(16, 100)),
       );
     } finally {
@@ -202,6 +208,49 @@ void main() {
       await expectLater(store.list(), throwsArgumentError);
     } finally {
       await root.delete(recursive: true);
+    }
+  });
+
+  test('manual backup copies all retained photos without removing private originals', () async {
+    final root = await Directory.systemTemp.createTemp('makeupart_manual_backup_');
+    final galleryRoot = await Directory.systemTemp.createTemp('makeupart_manual_gallery_');
+    final galleryDirectory = Directory(
+      '${galleryRoot.path}${Platform.pathSeparator}Pictures'
+      '${Platform.pathSeparator}MakeupArtV8',
+    );
+    final store = RecentImageStore(
+      rootOverride: root,
+      scope: 'manual-salon',
+      galleryArchiveWriter: (bytes, fileName) async {
+        await galleryDirectory.create(recursive: true);
+        await File('${galleryDirectory.path}${Platform.pathSeparator}$fileName')
+            .writeAsBytes(bytes, flush: true);
+      },
+    );
+
+    try {
+      // Create pre-backup files directly to simulate results from an older app version.
+      final privateDirectory = Directory(
+        '${root.path}${Platform.pathSeparator}recent_ai_results'
+        '${Platform.pathSeparator}manual-salon',
+      );
+      await privateDirectory.create(recursive: true);
+      for (var index = 0; index < 3; index++) {
+        await File(
+          '${privateDirectory.path}${Platform.pathSeparator}legacy_$index.png',
+        ).writeAsBytes(List<int>.filled(8, index), flush: true);
+      }
+
+      final result = await store.backupAllToGallery();
+      expect(result.total, 3);
+      expect(result.saved, 3);
+      expect(result.failed, 0);
+      expect(result.isComplete, isTrue);
+      expect(await countPngFiles(privateDirectory), 3);
+      expect(await countPngFiles(galleryDirectory), 3);
+    } finally {
+      await root.delete(recursive: true);
+      await galleryRoot.delete(recursive: true);
     }
   });
 
