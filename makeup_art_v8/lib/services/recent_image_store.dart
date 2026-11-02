@@ -6,6 +6,20 @@ import 'package:path_provider/path_provider.dart';
 
 import 'gallery_exporter.dart';
 
+class PhonePhotoBackupResult {
+  final int total;
+  final int saved;
+  final int failed;
+
+  const PhonePhotoBackupResult({
+    required this.total,
+    required this.saved,
+    required this.failed,
+  });
+
+  bool get isComplete => failed == 0;
+}
+
 class RecentImageStore {
   static const maxImages = 10;
   static const _directoryName = 'recent_ai_results';
