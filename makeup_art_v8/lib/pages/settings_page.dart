@@ -355,7 +355,7 @@ class _MakeupArtSettingsPageState extends State<MakeupArtSettingsPage> {
                             ),
                             const SizedBox(height: 8),
                             const Text(
-                              'Automatic and manual backup to your phone only. No Google Drive or cloud upload. Gallery copies remain on the device after MakeupArt is uninstalled.',
+                              'Automatic and manual backup to your phone only. MakeupArt does not upload these copies to cloud storage. Gallery/Photos apps may sync them separately if their own backup is enabled. Copies remain on this device after MakeupArt is uninstalled.',
                             ),
                             if (_photoBackupMessage != null) ...[
                               const SizedBox(height: 10),
