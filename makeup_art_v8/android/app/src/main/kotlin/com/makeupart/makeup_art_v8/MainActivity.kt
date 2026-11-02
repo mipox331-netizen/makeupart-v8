@@ -191,10 +191,11 @@ class MainActivity : FlutterActivity() {
         val selectionArgs: Array<String>
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            selection = "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?"
+            selection = "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=? AND ${MediaStore.MediaColumns.OWNER_PACKAGE_NAME}=?"
             selectionArgs = arrayOf(
                 fileName,
-                "${Environment.DIRECTORY_PICTURES}/MakeupArtV8/"
+                "${Environment.DIRECTORY_PICTURES}/MakeupArtV8/",
+                packageName
             )
         } else {
             selection = "${MediaStore.Images.Media.DATA}=?"
