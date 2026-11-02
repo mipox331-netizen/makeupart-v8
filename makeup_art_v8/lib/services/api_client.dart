@@ -408,6 +408,11 @@ class ApiClient {
     String engine = "classic",
     String generativeLook = "full_glam",
     bool externalAiConsent = false,
+    double brightness = 0.0,
+    double contrast = 1.0,
+    double saturation = 1.0,
+    double warmth = 0.0,
+    double sharpness = 0.0,
   }) async {
     final data = FormData.fromMap({
       'file': await MultipartFile.fromFile(image.path, filename: image.name),
@@ -421,6 +426,11 @@ class ApiClient {
         'engine': engine,
         'generative_look': generativeLook,
         'external_ai_consent': externalAiConsent,
+        'brightness': brightness,
+        'contrast': contrast,
+        'saturation': saturation,
+        'warmth': warmth,
+        'sharpness': sharpness,
         'consent_confirmed': consentConfirmed,
         if (customerId != null) 'customer_id': customerId,
       },
