@@ -10,7 +10,7 @@ class GalleryExporter {
     if (bytes.isEmpty) {
       throw ArgumentError.value(bytes, 'bytes', 'Image bytes cannot be empty.');
     }
-    final safeName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
+    final safeName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9_.~-]'), '_');
     final result = await _channel.invokeMethod<String>(
       'saveImage',
       {'bytes': bytes, 'fileName': safeName},
