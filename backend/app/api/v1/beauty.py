@@ -38,7 +38,7 @@ from app.services import google_drive_media
 from app.services.google_drive_media import GoogleDriveMediaError
 from app.services.generative_makeup import GenerativeMakeupProvider
 from app.services.media_volume import commit_media_volume
-from app.services.photo_finish import apply_photo_finish
+from app.services.photo_finish import apply_photo_adjustments, apply_photo_finish
 from app.services.subscription import (
     release_beauty_job_quota,
     require_beauty_feature,
@@ -205,6 +205,19 @@ def _validate_uploaded_image(path: Path) -> None:
         )
 
 
+def _apply_photo_effects(path: Path, payload: BeautyProcessRequest) -> None:
+    """Apply the selected preset and manual adjustments before watermarking."""
+    apply_photo_finish(path, payload.photo_finish)
+    apply_photo_adjustments(
+        path,
+        brightness=payload.brightness,
+        contrast=payload.contrast,
+        saturation=payload.saturation,
+        warmth=payload.warmth,
+        sharpness=payload.sharpness,
+    )
+
+
 def _process_payload(
     payload: BeautyProcessRequest,
     provider: BeautyProvider,
@@ -269,7 +282,7 @@ def _process_payload(
             )
 
         try:
-            apply_photo_finish(generated_output, payload.photo_finish)
+            _apply_photo_effects(generated_output, payload)
         except (OSError, ValueError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -288,6 +301,11 @@ def _process_payload(
             photo_finish=payload.photo_finish,
             engine="generative",
             generative_look=payload.generative_look,
+            brightness=payload.brightness,
+            contrast=payload.contrast,
+            saturation=payload.saturation,
+            warmth=payload.warmth,
+            sharpness=payload.sharpness,
         )
         return response, str(generated_output)
 
@@ -324,7 +342,7 @@ def _process_payload(
                 )
 
             try:
-                apply_photo_finish(generated_output, attempt_payload.photo_finish)
+                _apply_photo_effects(generated_output, attempt_payload)
             except (OSError, ValueError) as exc:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -340,6 +358,11 @@ def _process_payload(
                 processed=bool(base_result["processed"]),
                 makeup_style=attempt_payload.makeup_style,
                 photo_finish=attempt_payload.photo_finish,
+                brightness=attempt_payload.brightness,
+                contrast=attempt_payload.contrast,
+                saturation=attempt_payload.saturation,
+                warmth=attempt_payload.warmth,
+                sharpness=attempt_payload.sharpness,
             )
             return response, str(generated_output)
 
@@ -460,6 +483,11 @@ def process_beauty_upload(
     engine: BeautyEngine = Query(default="classic"),
     generative_look: GenerativeLook = Query(default="full_glam"),
     external_ai_consent: bool = Query(default=False),
+    brightness: float = Query(default=0.0, ge=-0.25, le=0.25),
+    contrast: float = Query(default=1.0, ge=0.5, le=1.5),
+    saturation: float = Query(default=1.0, ge=0.0, le=2.0),
+    warmth: float = Query(default=0.0, ge=-0.25, le=0.25),
+    sharpness: float = Query(default=0.0, ge=0.0, le=1.0),
     consent_confirmed: bool = Query(default=False),
     customer_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -534,6 +562,11 @@ def process_beauty_upload(
             engine=engine,
             generative_look=generative_look,
             external_ai_consent=external_ai_consent,
+            brightness=brightness,
+            contrast=contrast,
+            saturation=saturation,
+            warmth=warmth,
+            sharpness=sharpness,
         )
         response, generated_path = _process_payload(payload, BeautyProvider(), output_dir)
         generated_output = Path(generated_path).resolve()
