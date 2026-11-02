@@ -127,11 +127,11 @@ class SalonLookPreset {
       generativeLook: generativeLook,
       photoFinish: photoFinish,
       intensity: intensityValue.toDouble(),
-      brightness: (brightnessValue as num).toDouble(),
-      contrast: (contrastValue as num).toDouble(),
-      saturation: (saturationValue as num).toDouble(),
-      warmth: (warmthValue as num).toDouble(),
-      sharpness: (sharpnessValue as num).toDouble(),
+      brightness: brightnessValue.toDouble(),
+      contrast: contrastValue.toDouble(),
+      saturation: saturationValue.toDouble(),
+      warmth: warmthValue.toDouble(),
+      sharpness: sharpnessValue.toDouble(),
       updatedAt: updatedAt.toUtc(),
     );
   }
