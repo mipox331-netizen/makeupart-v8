@@ -1,8 +1,11 @@
 package com.makeupart.makeup_art_v8
 
 import android.Manifest
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.database.Cursor
+import java.io.File
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -40,7 +43,7 @@ class MainActivity : FlutterActivity() {
 
             val bytes = call.argument<ByteArray>("bytes")
             val requestedName = call.argument<String>("fileName") ?: "makeupart-result.png"
-            val safeName = requestedName.replace(Regex("[^A-Za-z0-9_.-]"), "_")
+            val safeName = requestedName.replace(Regex("[^A-Za-z0-9_.~-]"), "_")
             if (bytes == null || bytes.isEmpty()) {
                 result.error("EMPTY_IMAGE", "Image data is empty.", null)
                 return@setMethodCallHandler
@@ -102,22 +105,45 @@ class MainActivity : FlutterActivity() {
         result: MethodChannel.Result
     ) {
         var uri: android.net.Uri? = null
+        var newlyCreated = false
         try {
+            // Reuse the deterministic app-owned MediaStore item on repeated
+            // backup runs instead of creating a duplicate copy each time.
+            uri = findExistingGalleryImage(fileName)
+            if (uri != null) {
+                val output = contentResolver.openOutputStream(uri, "wt")
+                    ?: throw IllegalStateException("Unable to open existing gallery image")
+                output.use { it.write(bytes) }
+                result.success(uri.toString())
+                return
+            }
+
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
                 put(MediaStore.Images.Media.MIME_TYPE, "image/png")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     put(
                         MediaStore.Images.Media.RELATIVE_PATH,
-                        "${Environment.DIRECTORY_PICTURES}/MakeupArtV8"
+                        "${Environment.DIRECTORY_PICTURES}/MakeupArtV8/"
                     )
                     put(MediaStore.Images.Media.IS_PENDING, 1)
+                } else {
+                    val directory = galleryDirectory()
+                    if (!directory.exists() && !directory.mkdirs()) {
+                        throw IllegalStateException("Unable to create the MakeupArtV8 gallery folder")
+                    }
+                    put(
+                        MediaStore.Images.Media.DATA,
+                        File(directory, fileName).absolutePath
+                    )
                 }
             }
+
             uri = contentResolver.insert(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 values
             ) ?: throw IllegalStateException("Unable to create gallery image entry")
+            newlyCreated = true
 
             val output = contentResolver.openOutputStream(uri)
                 ?: throw IllegalStateException("Unable to open gallery image output")
@@ -134,10 +160,14 @@ class MainActivity : FlutterActivity() {
             }
             result.success(uri.toString())
         } catch (exception: Exception) {
-            try {
-                uri?.let { contentResolver.delete(it, null, null) }
-            } catch (cleanupException: Exception) {
-                Log.w("MakeupArtGallery", "Could not remove an incomplete gallery image", cleanupException)
+            // Remove only a newly-created incomplete row. An existing, valid
+            // gallery backup must never be deleted because an overwrite failed.
+            if (newlyCreated) {
+                try {
+                    uri?.let { contentResolver.delete(it, null, null) }
+                } catch (cleanupException: Exception) {
+                    Log.w("MakeupArtGallery", "Could not remove an incomplete gallery image", cleanupException)
+                }
             }
             result.error(
                 "GALLERY_SAVE_FAILED",
@@ -146,4 +176,47 @@ class MainActivity : FlutterActivity() {
             )
         }
     }
+
+    private fun galleryDirectory(): File {
+        return File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            "MakeupArtV8"
+        )
+    }
+
+    private fun findExistingGalleryImage(fileName: String): android.net.Uri? {
+        val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(MediaStore.Images.Media._ID)
+        val selection: String
+        val selectionArgs: Array<String>
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            selection = "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?"
+            selectionArgs = arrayOf(
+                fileName,
+                "${Environment.DIRECTORY_PICTURES}/MakeupArtV8/"
+            )
+        } else {
+            selection = "${MediaStore.Images.Media.DATA}=?"
+            selectionArgs = arrayOf(File(galleryDirectory(), fileName).absolutePath)
+        }
+
+        return contentResolver.query(
+            collection,
+            projection,
+            selection,
+            selectionArgs,
+            null
+        )?.use { cursor: Cursor ->
+            if (cursor.moveToFirst()) {
+                ContentUris.withAppendedId(
+                    collection,
+                    cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+                )
+            } else {
+                null
+            }
+        }
+    }
+}
 }
