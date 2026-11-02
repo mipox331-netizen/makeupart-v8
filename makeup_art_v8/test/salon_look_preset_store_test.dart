@@ -41,6 +41,49 @@ void main() {
     expect(await salonB.list(), isEmpty);
   });
 
+  test('persists manual photo adjustments and reads older presets with defaults', () async {
+    final store = SalonLookPresetStore(rootOverride: root, scope: 'salon-adjustments');
+    final saved = await store.save(
+      name: 'Studio Finish',
+      folder: 'Impression',
+      engine: 'classic',
+      makeupStyle: 'skin_only',
+      generativeLook: 'natural',
+      photoFinish: 'Golden Hour',
+      intensity: 0.72,
+      brightness: 0.10,
+      contrast: 1.18,
+      saturation: 1.25,
+      warmth: 0.16,
+      sharpness: 0.45,
+    );
+
+    final loaded = (await store.list()).single;
+    expect(loaded.id, saved.id);
+    expect(loaded.brightness, closeTo(0.10, 0.0001));
+    expect(loaded.contrast, closeTo(1.18, 0.0001));
+    expect(loaded.saturation, closeTo(1.25, 0.0001));
+    expect(loaded.warmth, closeTo(0.16, 0.0001));
+    expect(loaded.sharpness, closeTo(0.45, 0.0001));
+
+    final legacy = SalonLookPreset.fromJson({
+      'id': 'legacy',
+      'name': 'Old recipe',
+      'folder': 'Skin',
+      'engine': 'classic',
+      'makeup_style': 'skin_only',
+      'generative_look': 'natural',
+      'photo_finish': 'Natural Finish',
+      'intensity': 0.5,
+      'updated_at': DateTime.utc(2026, 1, 1).toIso8601String(),
+    });
+    expect(legacy.brightness, 0.0);
+    expect(legacy.contrast, 1.0);
+    expect(legacy.saturation, 1.0);
+    expect(legacy.warmth, 0.0);
+    expect(legacy.sharpness, 0.0);
+  });
+
   test('salon scopes cannot collide after path normalization', () async {
     final first = SalonLookPresetStore(rootOverride: root, scope: 'salon:one');
     final second = SalonLookPresetStore(rootOverride: root, scope: 'salon?one');

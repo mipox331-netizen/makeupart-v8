@@ -131,7 +131,7 @@ def media_readiness_check() -> dict[str, str]:
         google_drive_media.verify_connection()
     except GoogleDriveMediaError:
         # This failure is visible through the dedicated media probe. It must
-        # not cause Render to restart the API process used for login and clients.
+        # not restart the API process used for login and ordinary client requests.
         logger.exception("Private media storage readiness check failed")
         return JSONResponse(
             status_code=503,
@@ -160,6 +160,7 @@ def readiness_check() -> dict[str, str]:
 
     return {
         "status": "ready",
-        # Render sets this to the exact source commit running in production.
-        "deployment_commit": os.getenv("RENDER_GIT_COMMIT", ""),
+        # Deploy workflows set APP_GIT_COMMIT; retain Render's injected value
+        # as a backwards-compatible fallback for older deployments.
+        "deployment_commit": os.getenv("APP_GIT_COMMIT") or os.getenv("RENDER_GIT_COMMIT", ""),
     }

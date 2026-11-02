@@ -28,6 +28,11 @@ class SalonLookPreset {
     required this.generativeLook,
     required this.photoFinish,
     required this.intensity,
+    this.brightness = 0.0,
+    this.contrast = 1.0,
+    this.saturation = 1.0,
+    this.warmth = 0.0,
+    this.sharpness = 0.0,
     required this.updatedAt,
   });
 
@@ -39,6 +44,11 @@ class SalonLookPreset {
   final String generativeLook;
   final String photoFinish;
   final double intensity;
+  final double brightness;
+  final double contrast;
+  final double saturation;
+  final double warmth;
+  final double sharpness;
   final DateTime updatedAt;
 
   Map<String, Object> toJson() => {
@@ -50,6 +60,11 @@ class SalonLookPreset {
         'generative_look': generativeLook,
         'photo_finish': photoFinish,
         'intensity': intensity,
+        'brightness': brightness,
+        'contrast': contrast,
+        'saturation': saturation,
+        'warmth': warmth,
+        'sharpness': sharpness,
         'updated_at': updatedAt.toUtc().toIso8601String(),
       };
 
@@ -70,6 +85,11 @@ class SalonLookPreset {
     final generativeLook = requiredString('generative_look');
     final photoFinish = requiredString('photo_finish');
     final intensityValue = json['intensity'];
+    final brightnessValue = json['brightness'] ?? 0.0;
+    final contrastValue = json['contrast'] ?? 1.0;
+    final saturationValue = json['saturation'] ?? 1.0;
+    final warmthValue = json['warmth'] ?? 0.0;
+    final sharpnessValue = json['sharpness'] ?? 0.0;
     final updatedAtValue = json['updated_at'];
 
     if (name.length > SalonLookPresetStore.maxNameLength ||
@@ -79,6 +99,16 @@ class SalonLookPreset {
         !intensityValue.toDouble().isFinite ||
         intensityValue < 0 ||
         intensityValue > 1 ||
+        brightnessValue is! num || !brightnessValue.toDouble().isFinite ||
+        brightnessValue < -0.25 || brightnessValue > 0.25 ||
+        contrastValue is! num || !contrastValue.toDouble().isFinite ||
+        contrastValue < 0.5 || contrastValue > 1.5 ||
+        saturationValue is! num || !saturationValue.toDouble().isFinite ||
+        saturationValue < 0 || saturationValue > 2 ||
+        warmthValue is! num || !warmthValue.toDouble().isFinite ||
+        warmthValue < -0.25 || warmthValue > 0.25 ||
+        sharpnessValue is! num || !sharpnessValue.toDouble().isFinite ||
+        sharpnessValue < 0 || sharpnessValue > 1 ||
         updatedAtValue is! String) {
       throw const FormatException('Invalid salon look preset data');
     }
@@ -97,6 +127,11 @@ class SalonLookPreset {
       generativeLook: generativeLook,
       photoFinish: photoFinish,
       intensity: intensityValue.toDouble(),
+      brightness: brightnessValue.toDouble(),
+      contrast: contrastValue.toDouble(),
+      saturation: saturationValue.toDouble(),
+      warmth: warmthValue.toDouble(),
+      sharpness: sharpnessValue.toDouble(),
       updatedAt: updatedAt.toUtc(),
     );
   }
@@ -198,6 +233,11 @@ class SalonLookPresetStore {
     required String generativeLook,
     required String photoFinish,
     required double intensity,
+    double brightness = 0.0,
+    double contrast = 1.0,
+    double saturation = 1.0,
+    double warmth = 0.0,
+    double sharpness = 0.0,
   }) async {
     final cleanName = name.trim();
     if (cleanName.isEmpty || cleanName.length > maxNameLength) {
@@ -211,6 +251,21 @@ class SalonLookPresetStore {
     }
     if (!intensity.isFinite || intensity < 0 || intensity > 1) {
       throw ArgumentError('Intensity must be between 0 and 1.');
+    }
+    if (!brightness.isFinite || brightness < -0.25 || brightness > 0.25) {
+      throw ArgumentError('Brightness must be between -0.25 and 0.25.');
+    }
+    if (!contrast.isFinite || contrast < 0.5 || contrast > 1.5) {
+      throw ArgumentError('Contrast must be between 0.5 and 1.5.');
+    }
+    if (!saturation.isFinite || saturation < 0 || saturation > 2) {
+      throw ArgumentError('Saturation must be between 0 and 2.');
+    }
+    if (!warmth.isFinite || warmth < -0.25 || warmth > 0.25) {
+      throw ArgumentError('Warmth must be between -0.25 and 0.25.');
+    }
+    if (!sharpness.isFinite || sharpness < 0 || sharpness > 1) {
+      throw ArgumentError('Sharpness must be between 0 and 1.');
     }
     if (makeupStyle.trim().isEmpty ||
         generativeLook.trim().isEmpty ||
@@ -238,6 +293,11 @@ class SalonLookPresetStore {
       generativeLook: generativeLook,
       photoFinish: photoFinish,
       intensity: intensity,
+      brightness: brightness,
+      contrast: contrast,
+      saturation: saturation,
+      warmth: warmth,
+      sharpness: sharpness,
       updatedAt: now,
     );
     final next = <SalonLookPreset>[

@@ -128,7 +128,7 @@ def test_local_media_readiness_reports_local_only_mode(client, monkeypatch):
     assert response.json() == {"status": "ready", "storage": "local_only"}
 
 
-def test_readiness_reports_running_render_commit(client, monkeypatch):
+def test_readiness_reports_running_app_commit(client, monkeypatch):
     import app.main as main_module
     from app.core.config import settings
 
@@ -148,7 +148,8 @@ def test_readiness_reports_running_render_commit(client, monkeypatch):
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
-    monkeypatch.setenv("RENDER_GIT_COMMIT", "test-deployment-commit")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "legacy-render-commit")
+    monkeypatch.setenv("APP_GIT_COMMIT", "test-deployment-commit")
 
     response = client.get("/health/ready")
 

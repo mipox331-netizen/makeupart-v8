@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 class ApiClient {
   static const baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://makeupart-api.onrender.com/api/v1',
+    defaultValue: 'http://10.0.2.2:8000/api/v1',
   );
   static const _accessKey = 'makeupart_access_token';
   static const _refreshKey = 'makeupart_refresh_token';
@@ -24,7 +24,7 @@ class ApiClient {
     dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
-        // Render Free services can take around a minute to wake after idle.
+        // Production hosts may need extra time to start after an idle period.
         // Give the first request enough time to survive a normal cold start.
         connectTimeout: const Duration(seconds: 75),
         sendTimeout: const Duration(seconds: 90),
@@ -344,7 +344,7 @@ class ApiClient {
       final refreshDio = Dio(
         BaseOptions(
           baseUrl: baseUrl,
-          // Token refresh must tolerate the same Render cold-start delay.
+          // Session refresh must tolerate the same API startup latency.
           connectTimeout: const Duration(seconds: 75),
           sendTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(seconds: 30),
@@ -408,6 +408,11 @@ class ApiClient {
     String engine = "classic",
     String generativeLook = "full_glam",
     bool externalAiConsent = false,
+    double brightness = 0.0,
+    double contrast = 1.0,
+    double saturation = 1.0,
+    double warmth = 0.0,
+    double sharpness = 0.0,
   }) async {
     final data = FormData.fromMap({
       'file': await MultipartFile.fromFile(image.path, filename: image.name),
@@ -421,6 +426,11 @@ class ApiClient {
         'engine': engine,
         'generative_look': generativeLook,
         'external_ai_consent': externalAiConsent,
+        'brightness': brightness,
+        'contrast': contrast,
+        'saturation': saturation,
+        'warmth': warmth,
+        'sharpness': sharpness,
         'consent_confirmed': consentConfirmed,
         if (customerId != null) 'customer_id': customerId,
       },

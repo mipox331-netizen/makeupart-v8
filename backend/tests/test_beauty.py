@@ -847,13 +847,20 @@ def test_selected_photo_finish_changes_the_persisted_upload_result(
     assert ok
 
     response = client.post(
-        f"{API}/beauty/process-upload?consent_confirmed=true&photo_finish=Warm%20Glow",
+        f"{API}/beauty/process-upload?consent_confirmed=true"
+        "&photo_finish=Natural%20Finish&brightness=0.12&contrast=1.18"
+        "&saturation=1.3&warmth=0.14&sharpness=0.5",
         headers=headers,
         files={"file": ("portrait.png", encoded.tobytes(), "image/png")},
     )
     assert response.status_code == 201, response.text
     body = response.json()
-    assert body["photo_finish"] == "Warm Glow"
+    assert body["photo_finish"] == "Natural Finish"
+    assert body["brightness"] == pytest.approx(0.12)
+    assert body["contrast"] == pytest.approx(1.18)
+    assert body["saturation"] == pytest.approx(1.3)
+    assert body["warmth"] == pytest.approx(0.14)
+    assert body["sharpness"] == pytest.approx(0.5)
 
     before = client.get(body["before_image_url"], headers=headers)
     after = client.get(body["after_image_url"], headers=headers)
