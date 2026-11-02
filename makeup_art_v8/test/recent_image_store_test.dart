@@ -248,6 +248,10 @@ void main() {
       expect(result.isComplete, isTrue);
       expect(await countPngFiles(privateDirectory), 3);
       expect(await countPngFiles(galleryDirectory), 3);
+
+      final repeated = await store.backupAllToGallery();
+      expect(repeated.saved, 3);
+      expect(await countPngFiles(galleryDirectory), 3);
     } finally {
       await root.delete(recursive: true);
       await galleryRoot.delete(recursive: true);
