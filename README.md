@@ -44,6 +44,14 @@ The latest main commit observed during this review was `620593f6042da17777584cb9
 
 Current-source Android release still requires the four persistent signing secrets in the `production` GitHub environment: `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD` and `ANDROID_KEY_ALIAS`. They must all belong to the same persistent keystore used by the already-installed app. Never publish an update using an ephemeral debug key.
 
+## Editing capabilities and honest feature scope
+
+Classic mode is local MediaPipe/OpenCV processing and does not require a paid image-generation key. It includes face-mesh-guided lipstick, blush, eyeshadow and eyeliner; face-region skin polish; five photo finishes; and server-side brightness, contrast, saturation, warmth and sharpness controls. Manual adjustments are applied before the salon watermark and are included in the saved PNG. Salon look presets retain these values, while presets created by older app versions load with neutral defaults.
+
+The editor also supports camera/gallery import, interactive before/after comparison, salon watermarking, phone-gallery export, ten recent device-local results, salon-scoped client profiles and stored consent.
+
+MakeupArt is **not yet a complete FaceApp replacement**. Hairstyle generation requires an external provider and separate consent. Hair recoloring, age/gender transforms, smile editing, face reshaping, beards, glasses, live camera overlays, filter multi-select, favorites and video generation are not implemented or not release-verified. See the evidence-based [FaceApp feature parity audit](docs/FEATURE_PARITY.md) before presenting any roadmap item as available.
+
 ## Backend development stack
 The API uses FastAPI, PostgreSQL and Alembic. GitHub Actions checks migrations, backend tests, Flutter analysis/tests, the Android build and production health. See [release readiness](docs/RELEASE_READINESS.md) for live evidence and remaining blockers.
 
