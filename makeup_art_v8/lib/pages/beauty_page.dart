@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
 import '../services/beauty_error_message.dart';
-import '../services/gallery_exporter.dart';
 import '../services/photo_look_service.dart';
 import '../services/recent_image_store.dart';
 import '../services/salon_look_preset_store.dart';
@@ -801,17 +800,14 @@ class _BeautyPageState extends State<BeautyPage> {
       error = null;
     });
     try {
-      final fileName = 'makeupart_${DateTime.now().millisecondsSinceEpoch}.png';
-      await GalleryExporter.savePng(bytes: bytes, fileName: fileName);
-      try {
-        await recentImageStore.save(
-          bytes,
-          jobId: result?['job_id']?.toString(),
-        );
-        await _loadRecentImages();
-      } catch (_) {
-        // Saving to the public gallery succeeds independently of app history.
-      }
+      final localFile = await recentImageStore.save(
+        bytes,
+        jobId: result?['job_id']?.toString(),
+      );
+      // save() makes the automatic attempt; this verified retry lets the UI
+      // report a failure instead of claiming success when Gallery was full.
+      await recentImageStore.backupFileToGallery(localFile);
+      await _loadRecentImages();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
