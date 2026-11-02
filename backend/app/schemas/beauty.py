@@ -27,6 +27,11 @@ class BeautyProcessRequest(BaseModel):
     engine: BeautyEngine = "classic"
     generative_look: GenerativeLook = "full_glam"
     external_ai_consent: bool = False
+    brightness: float = Field(default=0.0, ge=-0.25, le=0.25)
+    contrast: float = Field(default=1.0, ge=0.5, le=1.5)
+    saturation: float = Field(default=1.0, ge=0.0, le=2.0)
+    warmth: float = Field(default=0.0, ge=-0.25, le=0.25)
+    sharpness: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class BeautyProcessResponse(BaseModel):
@@ -40,6 +45,11 @@ class BeautyProcessResponse(BaseModel):
     photo_finish: PhotoFinish = "Natural Finish"
     engine: BeautyEngine = "classic"
     generative_look: GenerativeLook | None = None
+    brightness: float = 0.0
+    contrast: float = 1.0
+    saturation: float = 1.0
+    warmth: float = 0.0
+    sharpness: float = 0.0
 
 
 class BeautyUploadResponse(BeautyProcessResponse):
