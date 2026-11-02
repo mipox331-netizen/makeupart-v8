@@ -260,6 +260,11 @@ class _BeautyPageState extends State<BeautyPage> {
   bool? customerConsentActive;
   bool updatingStoredConsent = false;
   double intensity = 0.7;
+  double brightness = 0.0;
+  double contrast = 1.0;
+  double saturation = 1.0;
+  double warmth = 0.0;
+  double sharpness = 0.0;
   bool loading = false;
   bool loadingCustomers = true;
   bool consentConfirmed = false;
@@ -605,6 +610,11 @@ class _BeautyPageState extends State<BeautyPage> {
         engine: selectedEngine,
         generativeLook: selectedGenerativeLook,
         externalAiConsent: externalAiConsentConfirmed,
+        brightness: brightness,
+        contrast: contrast,
+        saturation: saturation,
+        warmth: warmth,
+        sharpness: sharpness,
       );
 
       Uint8List? afterBytes;
@@ -939,6 +949,11 @@ class _BeautyPageState extends State<BeautyPage> {
         generativeLook: selectedGenerativeLook,
         photoFinish: selectedLook,
         intensity: intensity,
+        brightness: brightness,
+        contrast: contrast,
+        saturation: saturation,
+        warmth: warmth,
+        sharpness: sharpness,
       );
       await _loadSavedLookPresets();
       if (!mounted) return;
@@ -1013,6 +1028,11 @@ class _BeautyPageState extends State<BeautyPage> {
           ? preset.photoFinish
           : 'Natural Finish';
       intensity = preset.intensity.clamp(0.0, 1.0).toDouble();
+      brightness = preset.brightness;
+      contrast = preset.contrast;
+      saturation = preset.saturation;
+      warmth = preset.warmth;
+      sharpness = preset.sharpness;
       externalAiConsentConfirmed = false;
       _selectedClassicCategory = 'Looks';
       for (final entry in _classicStyleCategories.entries) {
@@ -1077,6 +1097,61 @@ class _BeautyPageState extends State<BeautyPage> {
       }
     }
     return 'Selected client';
+  }
+
+  Widget _buildPhotoAdjustmentSlider({
+    required String keyName,
+    required String label,
+    required String valueLabel,
+    required double value,
+    required double min,
+    required double max,
+    required int divisions,
+    required ValueChanged<double> update,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(label)),
+              Text(
+                valueLabel,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ],
+          ),
+          Slider(
+            key: ValueKey(keyName),
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: loading
+                ? null
+                : (next) => setState(() {
+                      update(next);
+                      _clearProcessedResult();
+                    }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _resetPhotoAdjustments() {
+    setState(() {
+      brightness = 0.0;
+      contrast = 1.0;
+      saturation = 1.0;
+      warmth = 0.0;
+      sharpness = 0.0;
+      _clearProcessedResult();
+    });
   }
 
   Widget _buildFaceEditorToolbar() {
@@ -1699,6 +1774,84 @@ class _BeautyPageState extends State<BeautyPage> {
                                   },
                           );
                         },
+                      ),
+                      const SizedBox(height: 14),
+                      Card(
+                        key: const ValueKey('manual-photo-adjustments-panel'),
+                        child: ExpansionTile(
+                          leading: const Icon(Icons.tune_rounded),
+                          title: const Text('Manual photo adjustments'),
+                          subtitle: const Text(
+                            'Fine-tune the final image before the salon watermark is applied.',
+                          ),
+                          children: [
+                            _buildPhotoAdjustmentSlider(
+                              keyName: 'photo-adjust-brightness',
+                              label: 'Brightness',
+                              valueLabel: '${(brightness * 100).round()}%',
+                              value: brightness,
+                              min: -0.25,
+                              max: 0.25,
+                              divisions: 20,
+                              update: (value) => brightness = value,
+                            ),
+                            _buildPhotoAdjustmentSlider(
+                              keyName: 'photo-adjust-contrast',
+                              label: 'Contrast',
+                              valueLabel: '${contrast.toStringAsFixed(2)}×',
+                              value: contrast,
+                              min: 0.5,
+                              max: 1.5,
+                              divisions: 20,
+                              update: (value) => contrast = value,
+                            ),
+                            _buildPhotoAdjustmentSlider(
+                              keyName: 'photo-adjust-saturation',
+                              label: 'Saturation',
+                              valueLabel: '${saturation.toStringAsFixed(2)}×',
+                              value: saturation,
+                              min: 0.0,
+                              max: 2.0,
+                              divisions: 20,
+                              update: (value) => saturation = value,
+                            ),
+                            _buildPhotoAdjustmentSlider(
+                              keyName: 'photo-adjust-warmth',
+                              label: 'Warmth',
+                              valueLabel: '${(warmth * 100).round()}%',
+                              value: warmth,
+                              min: -0.25,
+                              max: 0.25,
+                              divisions: 20,
+                              update: (value) => warmth = value,
+                            ),
+                            _buildPhotoAdjustmentSlider(
+                              keyName: 'photo-adjust-sharpness',
+                              label: 'Sharpness',
+                              valueLabel: '${(sharpness * 100).round()}%',
+                              value: sharpness,
+                              min: 0.0,
+                              max: 1.0,
+                              divisions: 20,
+                              update: (value) => sharpness = value,
+                            ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                key: const ValueKey('reset-photo-adjustments'),
+                                onPressed: loading ? null : _resetPhotoAdjustments,
+                                icon: const Icon(Icons.restart_alt_rounded),
+                                label: const Text('Reset adjustments'),
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
+                              child: Text(
+                                'All five adjustments are processed on the server and included in the downloaded, watermarked PNG. They do not require a paid AI image provider.',
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ] else if (_selectedFilterFolder == 'Skin') ...[
                       Text(
