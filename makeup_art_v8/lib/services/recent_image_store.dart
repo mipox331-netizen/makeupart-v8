@@ -173,6 +173,11 @@ class RecentImageStore {
             // Keep a duplicate if cleanup fails; never risk losing the updated result.
           }
         }
+        try {
+          await _writeGalleryBackup(existing);
+        } catch (_) {
+          // Keep the updated private image until Gallery can be written.
+        }
         await trim();
         return existing;
       }
