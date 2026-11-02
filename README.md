@@ -68,7 +68,9 @@ The checked-in Docker Compose + Caddy stack remains available as a self-hosted d
 
 ## On-device photo history
 
-The Android app keeps the ten most recent processed results in salon-scoped private app storage. When an older result is archived, it is published through Android MediaStore to the public `Pictures/MakeupArtV8` gallery with a salon-scoped filename. The private source is deleted only after Gallery confirms the save; permission or storage failures leave the original in app storage. This device archive is separate from the encrypted Google Drive production-media backup and does not replace the server-side recovery checks below.
+Every successfully processed result is automatically copied to the phone's shared Android MediaStore folder `Pictures/MakeupArtV8`, using a stable salon-scoped filename so retries update the same backup instead of creating duplicates. The ten latest images also remain in private in-app history. Older private copies are removed only after Android confirms that the Gallery copy was published; failed saves stay in app storage for retry. Settings includes **Backup Now** to copy any remaining locally retained results again without deleting the originals.
+
+These are **on-device photo copies**: MakeupArt does not upload this local backup to Google Drive or another cloud service. Android shared-media files remain on the device after MakeupArt is uninstalled. They do not protect against a lost, stolen, damaged, or factory-reset phone; keep a separate copy on another device when off-device disaster recovery is required. The phone's own Gallery/Photos app may separately sync its Pictures folders if its own backup setting is enabled. This local result archive is not proof of server-side customer-media recovery.
 
 ## Photo durability and disaster recovery
 

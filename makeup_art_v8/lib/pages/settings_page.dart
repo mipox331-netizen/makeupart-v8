@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../services/api_client.dart';
+import '../services/recent_image_store.dart';
 import '../widgets/license_page_button.dart';
 import 'branding_settings_page.dart';
 
@@ -9,11 +12,13 @@ class MakeupArtSettingsPage extends StatefulWidget {
   const MakeupArtSettingsPage({
     super.key,
     required this.api,
+    required this.salonId,
     required this.canManageBranding,
     required this.onLogout,
   });
 
   final ApiClient api;
+  final String salonId;
   final bool canManageBranding;
   final VoidCallback onLogout;
 
@@ -27,6 +32,8 @@ class _MakeupArtSettingsPageState extends State<MakeupArtSettingsPage> {
   Map<String, dynamic>? _subscription;
   PackageInfo? _packageInfo;
   bool _loading = true;
+  bool _backingUpPhotos = false;
+  String? _photoBackupMessage;
   String? _error;
 
   @override
@@ -122,6 +129,33 @@ class _MakeupArtSettingsPageState extends State<MakeupArtSettingsPage> {
         builder: (_) => BrandingSettingsPage(api: widget.api),
       ),
     );
+  }
+
+  Future<void> _backupPhotos() async {
+    if (_backingUpPhotos) return;
+    setState(() {
+      _backingUpPhotos = true;
+      _photoBackupMessage = null;
+    });
+
+    try {
+      final result = await RecentImageStore(scope: widget.salonId)
+          .backupAllToGallery();
+      if (!mounted) return;
+      setState(() {
+        _photoBackupMessage = result.failed == 0
+            ? '${result.saved} photo(s) backed up to Pictures/MakeupArtV8.'
+            : '${result.saved} of ${result.total} photo(s) backed up. ${result.failed} could not be copied; originals remain in app storage.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _photoBackupMessage =
+            'Backup could not finish. Check free phone storage and try again.';
+      });
+    } finally {
+      if (mounted) setState(() => _backingUpPhotos = false);
+    }
   }
 
   @override
@@ -281,7 +315,7 @@ class _MakeupArtSettingsPageState extends State<MakeupArtSettingsPage> {
                           leading: Icon(Icons.photo_library_outlined),
                           title: Text('Recent results'),
                           subtitle: Text(
-                            'The app keeps up to 10 latest results in its in-app history. Saved exports can also be stored in your phone Gallery.',
+                            'The ten latest edited photos stay in app history. Every processed result is also copied to this phone\'s Pictures/MakeupArtV8 folder.',
                           ),
                         ),
                         Divider(height: 1, indent: 56),
@@ -295,6 +329,69 @@ class _MakeupArtSettingsPageState extends State<MakeupArtSettingsPage> {
                       ],
                     ),
                   ),
+                  if (Platform.isAndroid) ...[
+                    const SizedBox(height: 10),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.phone_android_rounded,
+                                    color: theme.colorScheme.primary),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'ON-DEVICE PHOTO BACKUP',
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: .7,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Automatic and manual backup to your phone only. MakeupArt does not upload these copies to cloud storage. Gallery/Photos apps may sync them separately if their own backup is enabled. Copies remain on this device after MakeupArt is uninstalled.',
+                            ),
+                            if (_photoBackupMessage != null) ...[
+                              const SizedBox(height: 10),
+                              Text(
+                                _photoBackupMessage!,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                onPressed:
+                                    _backingUpPhotos ? null : _backupPhotos,
+                                icon: _backingUpPhotos
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.backup_rounded),
+                                label: Text(
+                                  _backingUpPhotos
+                                      ? 'Backing up photos…'
+                                      : 'Backup Now',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   _sectionTitle(context, 'APP'),
                   Card(

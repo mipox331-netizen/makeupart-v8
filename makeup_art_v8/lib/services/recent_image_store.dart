@@ -6,6 +6,20 @@ import 'package:path_provider/path_provider.dart';
 
 import 'gallery_exporter.dart';
 
+class PhonePhotoBackupResult {
+  final int total;
+  final int saved;
+  final int failed;
+
+  const PhonePhotoBackupResult({
+    required this.total,
+    required this.saved,
+    required this.failed,
+  });
+
+  bool get isComplete => failed == 0;
+}
+
 class RecentImageStore {
   static const maxImages = 10;
   static const _directoryName = 'recent_ai_results';
@@ -53,19 +67,43 @@ class RecentImageStore {
     return directory;
   }
 
-  String _galleryArchiveFileName(File file) {
-    // GalleryExporter permits dots in filenames but replaces tildes. Use a
-    // dot as the encoded-scope marker so the marker survives native sanitization.
-    // Dots are excluded from plain salon IDs, so encoded and literal IDs cannot
-    // collide after the filename is normalized for MediaStore.
+  String _galleryBackupFileName(File file) {
+    // Dots are excluded from plain salon IDs, so this marker keeps encoded
+    // salon scopes distinct after the name is normalized for MediaStore.
     final safeScope = _safeScope;
     final scopeToken = safeScope.startsWith('~')
         ? '.${safeScope.substring(1)}'
         : safeScope;
-    return 'archive_${scopeToken}_${file.uri.pathSegments.last}';
+    return 'backup_${scopeToken}_${file.uri.pathSegments.last}';
   }
 
-  Future<List<File>> list() async {
+  Future<void> _writeGalleryBackup(File file) async {
+    final bytes = await file.readAsBytes();
+    final writer = galleryArchiveWriter;
+    if (writer != null) {
+      await writer(bytes, _galleryBackupFileName(file));
+      return;
+    }
+    if (Platform.isAndroid) {
+      await GalleryExporter.savePng(
+        bytes: bytes,
+        fileName: _galleryBackupFileName(file),
+      );
+      return;
+    }
+    throw UnsupportedError('Phone Gallery backup is currently supported on Android.');
+  }
+
+  /// Publishes one already-saved private result and throws if Gallery did not
+  /// confirm it. The private source is never removed by this operation.
+  Future<void> backupFileToGallery(File file) async {
+    if (!await file.exists()) {
+      throw FileSystemException('The photo is no longer available.', file.path);
+    }
+    await _writeGalleryBackup(file);
+  }
+
+  Future<List<File>> listAll() async {
     final directory = await _directory();
     final files = await directory
         .list()
@@ -79,8 +117,35 @@ class RecentImageStore {
       final bModified = b.statSync().modified;
       return bModified.compareTo(aModified);
     });
+    return files;
+  }
 
+  Future<List<File>> list() async {
+    final files = await listAll();
     return files.take(maxImages).toList();
+  }
+
+  /// Copies every locally retained result to the phone's shared Pictures
+  /// collection. Existing deterministic names are overwritten by MediaStore,
+  /// so pressing Backup Now repeatedly does not create duplicate backups.
+  Future<PhonePhotoBackupResult> backupAllToGallery() async {
+    final files = await listAll();
+    var saved = 0;
+    var failed = 0;
+
+    for (final file in files) {
+      try {
+        await _writeGalleryBackup(file);
+        saved++;
+      } catch (_) {
+        failed++;
+      }
+    }
+    return PhonePhotoBackupResult(
+      total: files.length,
+      saved: saved,
+      failed: failed,
+    );
   }
 
   Future<File> save(Uint8List bytes, {String? jobId}) async {
@@ -117,6 +182,11 @@ class RecentImageStore {
             // Keep a duplicate if cleanup fails; never risk losing the updated result.
           }
         }
+        try {
+          await _writeGalleryBackup(existing);
+        } catch (_) {
+          // Keep the updated private image until Gallery can be written.
+        }
         await trim();
         return existing;
       }
@@ -128,6 +198,15 @@ class RecentImageStore {
     final file = File('${directory.path}${Platform.pathSeparator}$filename');
 
     await file.writeAsBytes(bytes, flush: true);
+
+    // Back up each processed result immediately. If Gallery is unavailable
+    // (for example, storage is full), keep the private source untouched.
+    try {
+      await _writeGalleryBackup(file);
+    } catch (_) {
+      // The private copy is the fallback until a later backup succeeds.
+    }
+
     await trim();
     return file;
   }
@@ -151,26 +230,9 @@ class RecentImageStore {
 
     for (final file in overflow) {
       try {
-        final archiveWriter = galleryArchiveWriter;
-        if (archiveWriter != null) {
-          // An injected writer keeps public-gallery behavior deterministic in tests.
-          await archiveWriter(
-            await file.readAsBytes(),
-            _galleryArchiveFileName(file),
-          );
-        } else if (Platform.isAndroid) {
-          // Public MediaStore storage survives app removal and is visible in
-          // Gallery/Photos. Keep the private source until publication succeeds.
-          await GalleryExporter.savePng(
-            bytes: await file.readAsBytes(),
-            fileName: _galleryArchiveFileName(file),
-          );
-        } else {
-          // On platforms without a public gallery archive writer, retain the
-          // overflow in app storage rather than deleting the only copy.
-          continue;
-        }
-
+        // Keep at most ten private recent results. The older source is removed
+        // only after its stable Gallery backup is confirmed.
+        await _writeGalleryBackup(file);
         await file.delete();
       } catch (_) {
         // Gallery permission, MediaStore or filesystem failures must never
