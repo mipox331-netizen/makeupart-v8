@@ -94,6 +94,15 @@ class RecentImageStore {
     throw UnsupportedError('Phone Gallery backup is currently supported on Android.');
   }
 
+  /// Publishes one already-saved private result and throws if Gallery did not
+  /// confirm it. The private source is never removed by this operation.
+  Future<void> backupFileToGallery(File file) async {
+    if (!await file.exists()) {
+      throw FileSystemException('The photo is no longer available.', file.path);
+    }
+    await _writeGalleryBackup(file);
+  }
+
   Future<List<File>> listAll() async {
     final directory = await _directory();
     final files = await directory
