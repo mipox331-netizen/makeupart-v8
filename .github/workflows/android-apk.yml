@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 # A public APK is published only after the same main-branch commit passes full CI.
-# The production gate below then verifies whether Render has deployed that commit.
+# The production gate below verifies the configured API is running that commit.
 on:
   workflow_run:
     workflows: ["MakeupArt V8 CI"]
@@ -20,7 +20,7 @@ on:
 
 jobs:
   # Always build from the current source, but only after the same backend revision
-  # is visible on the live Render API. A green workflow must not hide a skipped APK.
+  # is visible on the configured production API. A green workflow must not hide a skipped APK.
   classify-push:
     # Do not release from a failed or cancelled CI run.
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
@@ -122,7 +122,7 @@ jobs:
           echo "release_required=$release_required" >> "$GITHUB_OUTPUT"
           echo "Source commit that passed CI: $source_sha"
           if [[ "$backend_changed" == "true" ]]; then
-            echo "Backend/runtime changed; the APK job will require this exact commit on the live Render API."
+            echo "Backend/runtime changed; the APK job will require this exact commit on the configured production API."
           else
             echo "Backend/runtime unchanged; the APK job will require a healthy API but will not demand a backend redeploy."
           fi
@@ -135,7 +135,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      PRODUCTION_API_BASE_URL: https://makeupart-api.onrender.com/api/v1
+      PRODUCTION_API_BASE_URL: ${{ vars.API_BASE_URL }}
       EXPECTED_BACKEND_SHA: ${{ needs.classify-push.outputs.expected_backend_sha }}
       SOURCE_SHA: ${{ needs.classify-push.outputs.source_sha }}
     defaults:
@@ -265,6 +265,15 @@ jobs:
       - name: Run Flutter tests
         run: flutter test
 
+      - name: Validate configured production API URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${PRODUCTION_API_BASE_URL:-}" =~ ^https:\/\/[^[:space:]]+\/api\/v1\/?$ ]]; then
+            echo "::error::Set the repository Actions variable API_BASE_URL to the deployed HTTPS API URL ending in /api/v1."
+            exit 1
+          fi
+
       - name: Verify backend revision, API readiness and durable media readiness
         env:
           EXPECTED_BACKEND_SHA: ${{ needs.classify-push.outputs.expected_backend_sha }}
@@ -304,7 +313,7 @@ jobs:
           media_status=""
           media_storage=""
           deployed_sha=""
-          # Render Free may need a cold start. Keep waiting, but fail closed if
+          # The configured host may be starting. Keep waiting, but fail closed if
           # the API, exact backend revision or private photo storage is not ready.
           for attempt in $(seq 1 18); do
             live_code="$(curl --silent --show-error --output "$live_body" --write-out '%{http_code}' --connect-timeout 10 --max-time 45 "$API_ROOT/health/live" || true)"
