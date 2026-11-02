@@ -21,13 +21,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      API_BASE_URL: https://makeupart-api.onrender.com
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
     steps:
       - name: Check production liveness, API readiness and media storage
         shell: bash
         run: |
           set -euo pipefail
-          API_ROOT="${API_BASE_URL%/}"
+          API_BASE_URL="${API_BASE_URL:-}"
+          if [[ ! "$API_BASE_URL" =~ ^https:\/\/[^[:space:]]+\/api\/v1\/?$ ]]; then
+            echo "::error::Set the repository Actions variable API_BASE_URL to the deployed HTTPS API URL ending in /api/v1."
+            exit 1
+          fi
+          API_ROOT="${API_BASE_URL%/api/v1}"
+          API_ROOT="${API_ROOT%/}"
 
           check_health() {
             local endpoint="$1"
@@ -42,7 +48,7 @@ jobs:
               if [[ "$http_code" == "000" || "$http_code" == "502" || "$http_code" == "503" || "$http_code" == "504" ]]; then
                 if [[ "$attempt" -lt 3 ]]; then
                   delay=$((attempt * 5))
-                  echo "::warning::Production endpoint $endpoint returned HTTP ${http_code:-000}; retrying in ${delay}s (attempt $attempt/3) for a possible Render free-tier cold start."
+                  echo "::warning::Production endpoint $endpoint returned HTTP ${http_code:-000}; retrying in ${delay}s (attempt $attempt/3) for a possible service startup or transient gateway/network issue."
                   sleep "$delay"
                   continue
                 fi
