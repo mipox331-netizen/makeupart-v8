@@ -1,35 +1,37 @@
 # MakeupArt V8 — Current Engineering Status
 
-Status checked: 28 October 2026. This report distinguishes merged source fixes, verified CI, live service evidence, and production gates that remain open.
+Status checked: 2 November 2026. This report is based on the public repository source and GitHub Actions evidence visible during this review. It does not imply access to production secrets or an Android device.
 
-## Verified source and automated checks
+## Source reviewed
 
-- Current main merge commit: [`460b923`](https://github.com/mipox331-netizen/makeupart-v8/commit/460b923cc62a3b87d4d30a8b6d769826f5879eb0).
-- [PR #40](https://github.com/mipox331-netizen/makeupart-v8/pull/40) merged release hardening: stale-source guards, same-commit security/license gates and Java 17 CI.
-- [PR #41](https://github.com/mipox331-netizen/makeupart-v8/pull/41) fixed concurrent first-time subscription creation by locking the parent salon row and rechecking, with PostgreSQL concurrency regression coverage.
-- [PR #43](https://github.com/mipox331-netizen/makeupart-v8/pull/43) aligned Flutter version metadata to [`8.0.202+202`], changed release numbering to derive the next unused version from published tags, added release-selector shell validation to CI, and corrected the iOS compile-check API target to Render.
-- Main CI [#705](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738076624) passed on merge commit [`460b923`](https://github.com/mipox331-netizen/makeupart-v8/commit/460b923cc62a3b87d4d30a8b6d769826f5879eb0). Backend build/migrations/tests including PostgreSQL concurrency regression, Flutter analysis/tests, and Android debug APK build/artifact upload all passed.
-- Python dependency audit [#222](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738076774) and third-party license inventory [#241](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738076643) passed for the exact same main commit.
-- Render backend deployment [`dep-dbh2mdq9lscs73806vlg`](https://dashboard.render.com/web/srv-dav25so473hc73d7ee0g) is live on backend commit [`c3b7532`](https://github.com/mipox331-netizen/makeupart-v8/commit/c3b7532f3786dde98e4a2209480adfaf56d77dfa). Its configured [`/health/ready`](https://makeupart-api.onrender.com/health/ready) check passed. PR #43 changed the Flutter version and workflows, not the backend service code.
+- Main branch at review start: [`620593f6042da17777584cb97bc1f917202da08d`](https://github.com/mipox331-netizen/makeupart-v8/commit/620593f6042da17777584cb97bc1f917202da08d).
+- A focused fix branch is being prepared: `fix/production-api-config-and-storage-gates`.
+- Existing open feature PR [#18](https://github.com/mipox331-netizen/makeupart-v8/pull/18) is not safe to merge as-is. Its `0010_payment_ledger.py` migration competes with a different `0010` migration on main; rebase and reconcile the Alembic graph before considering it.
 
-## Current debug APK
+## Production failures observed on 2 November
 
-- The main-CI build artifact is available from [CI #705](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738076624).
-- The extracted APK was inspected as an Android package and passed ZIP integrity checking. SHA-256: [`5f2b0cb7c04e528f615b76c5200072c84b3659142746361de155572b5914582e`].
-- This is a **debug-signed APK**, for controlled testing only. It is not a current-source release APK or a Play Store package.
-- The latest public release remains [v8.0.201](https://github.com/mipox331-netizen/makeupart-v8/releases/tag/v8.0.201), from an older source commit and signed by Android Debug.
+- Production monitor [run #41411853250](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/41411853250) failed because requests to the hardcoded Render URL timed out with HTTP 000 and no response.
+- Encrypted database backup [run #41422955166](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/41422955166) created the PostgreSQL dump, encrypted it, decrypted it and validated the archive. The subsequent Google Drive upload failed because the refresh token returned `invalid_grant`; the off-site backup step did not complete.
+- Encrypted media backup [run #41424743670](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/41424743670) failed at Google Drive OAuth refresh before media inventory/download. Encryption and restore steps were skipped. Customer photo/logo recovery is not verified.
 
-## Blockers and residual risks
+## Fixes prepared on the fix branch
 
-- **Release signing is blocked.** Current-source Android release run [#215](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40738596006) failed at the mandatory signing-secret guard: [`ANDROID_KEYSTORE_BASE64`] is missing. The workflow correctly refused to build or publish using an ephemeral debug key. Configure all four persistent signing secrets from the same keystore as the installed app; do not invent a replacement key.
-- **Customer media recovery is not proven.** Google Drive media backup [#53](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40442965971) was rerun on 28 October and failed with [`0 files / 0 bytes`]; restore drill [#55](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40732934379) was skipped. An authorized test upload, Render restart, checksum-verified retrieval, non-empty encrypted backup and isolated restore are still required.
-- **Database source agreement is unverified.** Encrypted database backup [#48](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441672336) and isolated restore [#58](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/40441747764) passed on 27 October, but the live Render [`DATABASE_URL`] was not independently matched to the GitHub backup URL.
-- **Real-device smoke test remains open.** No evidence yet confirms registration/login, consent reset, camera/gallery, processing, salon logo/watermark, before/after, gallery export, logout/re-login, and update compatibility on a physical Android device.
-- **Repository protection is unresolved.** The accessible rulesets endpoint returned an empty list; branch protection could not be read by this integration. An administrator must require CI/security/license checks and restrict direct pushes in GitHub settings.
-- **Dependency audit has a documented high-severity exception.** The Python audit ignores [`PYSEC-2026-1805`] due the pinned MediaPipe/protobuf compatibility constraint and the documented unused JSON parser path. This is a residual risk, not a zero-vulnerability claim; test a vision-stack upgrade separately.
-- **Generative AI and store release are not verified.** Classic MediaPipe/OpenCV runs without a paid provider key. Generative editing needs server credentials and explicit external-processing consent. Google Play rollout and signed iOS/App Store distribution are not verified.
-- **Stale feature PR #18 is not safe to merge as-is.** It has a competing Alembic [`0010`] migration head and requires a separate rebase, migration reconciliation, and review.
+- Removed the retired Render URL from the Flutter API client and made the local Android-emulator default explicit.
+- Made CI, production monitor, Android release, iOS compile and Google Play workflows consume the same repository variable, `API_BASE_URL`. Production workflows now fail clearly unless it is an HTTPS API URL ending in `/api/v1`.
+- Made `/health/ready` report provider-neutral `APP_GIT_COMMIT`, retaining `RENDER_GIT_COMMIT` only as a backwards-compatible fallback. The Modal deploy workflow now injects the exact workflow commit into its production secret.
+- Updated backend regression coverage to ensure the provider-neutral commit value takes precedence.
+- CI and device/build verification are still pending for the proposed branch; no successful test/build is claimed here.
+
+## External configuration and release blockers
+
+1. Set the repository-level GitHub Actions variable `API_BASE_URL` to the actual deployed HTTPS API URL ending in `/api/v1`. Do not set it to a guessed host. The production monitor and release gate must verify `/health/live`, `/health/ready`, and `/health/media-ready` against that same host.
+2. Reauthorize Google Drive OAuth and replace the production secret `GOOGLE_DRIVE_REFRESH_TOKEN`. The current token returns `invalid_grant`; code changes cannot mint a replacement refresh token.
+3. Align the active media backend with the backup source. `modal_app.py` currently forces `modal_volume`; the scheduled GitHub media workflow backs up Google Drive. A Drive archive does not contain Modal Volume files.
+4. Confirm the four Android signing secrets use the persistent keystore of the installed app. Their current values were not inspected in this review.
+5. Complete a physical Android smoke test: registration/login, consent, camera/gallery, classic processing, salon logo/watermark, before/after, export, logout/re-login and update compatibility.
+6. Resolve PR #18's competing migration head and review the schema/feature changes before merge.
+7. Keep the documented Python dependency audit exception visible; do not describe the project as having zero vulnerabilities.
 
 ## Release decision
 
-**Not fully production-ready for public customer launch.** The live backend, subscription concurrency fix, current-source CI and debug build are verified. Persistent signing, real photo durability/recovery, live-vs-backup database agreement, and physical-device verification remain open. Keep these gates visible and do not mark them green without evidence.
+**Not production-ready for public customer launch based on current evidence.** Main source can be tested in CI, but the API host is not currently verified, Google Drive OAuth backups are failing, media-store/backup alignment is unresolved, and device/release-signing verification remains open. Do not mark these gates green without fresh evidence.
