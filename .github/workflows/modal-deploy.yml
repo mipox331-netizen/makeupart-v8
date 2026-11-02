@@ -1,7 +1,7 @@
 name: MakeupArt V8 Modal Production Deploy
 # Retry after refreshed Supabase database credentials
 # Trigger production validation
-# Manual-only fallback. Production currently uses Render Free because Modal's free credits are exhausted.
+# Manual production deployment. Set the repository API_BASE_URL variable to this deployment's verified HTTPS URL after a successful deploy.
 
 on:
   workflow_dispatch:
