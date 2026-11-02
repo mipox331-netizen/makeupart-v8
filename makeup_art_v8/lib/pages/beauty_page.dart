@@ -1273,6 +1273,7 @@ class _BeautyPageState extends State<BeautyPage> {
                       MaterialPageRoute<void>(
                         builder: (_) => MakeupArtSettingsPage(
                           api: widget.api,
+                          salonId: widget.salonId,
                           canManageBranding: widget.canManageBranding,
                           onLogout: widget.onLogout,
                         ),
