@@ -1,5 +1,11 @@
 # MakeupArt V8 — Google Drive media storage and encrypted backups
 
+## Device-only edited-photo backup
+
+The Flutter Android client also copies every processed output to the phone's shared MediaStore folder `Pictures/MakeupArtV8`. The latest ten images remain in salon-scoped private app history, and older private images are removed only after Gallery confirms publication. A manual **Backup Now** action retries the locally retained images. These copies stay on the phone after app removal, but cannot recover a lost or factory-reset device. This client-side feature does not use Google Drive and does not replace the separate server-side media backup and restore workflow documented below.
+
+The phone's Gallery/Photos app may independently sync its own folders according to the user's device settings; MakeupArt itself does not send these local backup copies to a cloud provider.
+
 ## Chosen storage layout
 
 Google Drive is the primary private storage for salon photos, before/after images and salon logos. The backend is configured with `MEDIA_STORAGE_BACKEND=google_drive` and `REQUIRE_DURABLE_MEDIA=true`; it refuses to silently save customer media only on Render's temporary disk when Drive credentials are missing.
