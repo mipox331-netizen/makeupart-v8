@@ -147,6 +147,11 @@ class _InMemorySalonLookPresetStore extends SalonLookPresetStore {
     required String generativeLook,
     required String photoFinish,
     required double intensity,
+    double brightness = 0.0,
+    double contrast = 1.0,
+    double saturation = 1.0,
+    double warmth = 0.0,
+    double sharpness = 0.0,
   }) async {
     final cleanName = name.trim();
     final existingIndex = _items.indexWhere(
@@ -165,6 +170,11 @@ class _InMemorySalonLookPresetStore extends SalonLookPresetStore {
       generativeLook: generativeLook,
       photoFinish: photoFinish,
       intensity: intensity,
+      brightness: brightness,
+      contrast: contrast,
+      saturation: saturation,
+      warmth: warmth,
+      sharpness: sharpness,
       updatedAt: DateTime.now().toUtc(),
     );
     if (existingIndex < 0) {
@@ -257,8 +267,9 @@ Future<void> _pumpUntilFound(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
-  test('API client tolerates Render free-tier service cold starts', () {
+  test('API client has an explicit emulator default and cold-start timeouts', () {
     final api = ApiClient();
+    expect(api.dio.options.baseUrl, contains('10.0.2.2:8000/api/v1'));
     expect(api.dio.options.connectTimeout, const Duration(seconds: 75));
     expect(api.dio.options.sendTimeout, const Duration(seconds: 90));
     api.dio.close(force: true);
@@ -479,6 +490,75 @@ void main() {
     expect(find.text('Back to sign in'), findsWidgets);
     expect(didAuthenticate, isFalse);
   });
+  testWidgets('manual photo adjustments expose working sliders and reset to defaults', (tester) async {
+    _useTallViewport(tester);
+    tester.view.physicalSize = const Size(800, 3200);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BeautyPage(
+          api: _ConsentTestApi(),
+          onLogout: () {},
+          salonId: 'photo-adjustment-test',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final impressionFolder = find.byKey(
+      const ValueKey('filter-folder-Impression'),
+    );
+    await tester.ensureVisible(impressionFolder);
+    await tester.tap(impressionFolder);
+    await tester.pumpAndSettle();
+
+    final panel = find.byKey(
+      const ValueKey('manual-photo-adjustments-panel'),
+    );
+    await tester.ensureVisible(panel);
+    await tester.tap(find.text('Manual photo adjustments'));
+    await tester.pumpAndSettle();
+
+    final brightnessSlider = find.byKey(
+      const ValueKey('photo-adjust-brightness'),
+    );
+    final contrastSlider = find.byKey(
+      const ValueKey('photo-adjust-contrast'),
+    );
+    final saturationSlider = find.byKey(
+      const ValueKey('photo-adjust-saturation'),
+    );
+    final warmthSlider = find.byKey(
+      const ValueKey('photo-adjust-warmth'),
+    );
+    final sharpnessSlider = find.byKey(
+      const ValueKey('photo-adjust-sharpness'),
+    );
+
+    expect(brightnessSlider, findsOneWidget);
+    expect(contrastSlider, findsOneWidget);
+    expect(saturationSlider, findsOneWidget);
+    expect(warmthSlider, findsOneWidget);
+    expect(sharpnessSlider, findsOneWidget);
+    expect(tester.widget<Slider>(contrastSlider).value, 1.0);
+    expect(tester.widget<Slider>(saturationSlider).value, 1.0);
+
+    await tester.ensureVisible(brightnessSlider);
+    await tester.drag(brightnessSlider, const Offset(55, 0));
+    await tester.pump();
+    expect(tester.widget<Slider>(brightnessSlider).value, greaterThan(0));
+
+    final reset = find.byKey(const ValueKey('reset-photo-adjustments'));
+    await tester.ensureVisible(reset);
+    await tester.tap(reset);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Slider>(brightnessSlider).value, 0.0);
+    expect(tester.widget<Slider>(contrastSlider).value, 1.0);
+    expect(tester.widget<Slider>(saturationSlider).value, 1.0);
+    expect(tester.widget<Slider>(warmthSlider).value, 0.0);
+    expect(tester.widget<Slider>(sharpnessSlider).value, 0.0);
+  });
+
   testWidgets('switching clients clears the previous consent confirmation', (tester) async {
     _useTallViewport(tester);
     // The redesigned studio adds a hero and history area before the controls.
