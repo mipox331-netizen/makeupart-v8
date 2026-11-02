@@ -189,8 +189,9 @@ jobs:
       run:
         working-directory: makeup_art_v8
     env:
-      # Render Free hosts the FastAPI API; Supabase remains the production database.
-      PRODUCTION_API_BASE_URL: ${{ inputs.api_base_url || 'https://makeupart-api.onrender.com/api/v1' }}
+      # Use the shared repository API URL for hosted tests/builds. Without it,
+      # the debug APK targets the standard Android Emulator localhost bridge.
+      PRODUCTION_API_BASE_URL: ${{ inputs.api_base_url || vars.API_BASE_URL || 'http://10.0.2.2:8000/api/v1' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -233,10 +234,14 @@ jobs:
         # free production host waking up or on an external database's availability.
         # Modal deploy and the gated APK workflow perform production checks after deployment.
         # A main push runs CI and deploy concurrently, so checking here creates a race/false failure.
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.api_base_url != '' || vars.API_BASE_URL != '') }}
         shell: bash
         run: |
           set -euo pipefail
+          [[ "$PRODUCTION_API_BASE_URL" =~ ^https:\/\/[^[:space:]]+\/api\/v1\/?$ ]] || {
+            echo "::error::The API URL must be an HTTPS URL ending in /api/v1."
+            exit 1
+          }
           curl --fail --silent --show-error --retry 2 --retry-delay 3 --connect-timeout 10 --max-time 20 "${PRODUCTION_API_BASE_URL%/api/v1}/health/ready"
           echo
 
