@@ -21,8 +21,7 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     env:
-      # Match the active production backend hosted on Render.
-      PRODUCTION_API_BASE_URL: https://makeupart-api.onrender.com/api/v1
+            PRODUCTION_API_BASE_URL: ${{ vars.API_BASE_URL }}
 
     steps:
       - name: Checkout
@@ -61,6 +60,15 @@ jobs:
       - name: Test
         working-directory: makeup_art_v8
         run: flutter test
+
+      - name: Validate configured production API URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${PRODUCTION_API_BASE_URL:-}" =~ ^https:\/\/[^[:space:]]+\/api\/v1\/?$ ]]; then
+            echo "::error::Set the repository Actions variable API_BASE_URL to the deployed HTTPS API URL ending in /api/v1."
+            exit 1
+          fi
 
       - name: Validate release secrets
         env:
