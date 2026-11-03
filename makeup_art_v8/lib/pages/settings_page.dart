@@ -315,7 +315,7 @@ class _MakeupArtSettingsPageState extends State<MakeupArtSettingsPage> {
                           leading: Icon(Icons.photo_library_outlined),
                           title: Text('Recent results'),
                           subtitle: Text(
-                            'The ten latest edited photos stay in app history. Every processed result is also copied to this phone\'s Pictures/MakeupArtV8 folder.',
+                            'The ten latest edited photos stay in app history. Every processed result is copied to this phone\'s Pictures/MakeupArtV8 folder, and pending copies are quietly retried when the salon workspace opens or returns to the foreground.',
                           ),
                         ),
                         Divider(height: 1, indent: 56),

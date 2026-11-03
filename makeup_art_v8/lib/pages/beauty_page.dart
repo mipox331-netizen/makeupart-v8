@@ -34,7 +34,7 @@ class BeautyPage extends StatefulWidget {
   State<BeautyPage> createState() => _BeautyPageState();
 }
 
-class _BeautyPageState extends State<BeautyPage> {
+class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
   final picker = ImagePicker();
   final ScrollController _editorScrollController = ScrollController();
 
@@ -272,9 +272,11 @@ class _BeautyPageState extends State<BeautyPage> {
   List<SalonLookPreset> savedLookPresets = [];
   bool loadingSavedLookPresets = true;
   bool savingLookPreset = false;
+  bool _phoneBackupInProgress = false;
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _editorScrollController.dispose();
     super.dispose();
   }
@@ -282,11 +284,40 @@ class _BeautyPageState extends State<BeautyPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadCustomers();
     _loadRecentImages();
     _loadSavedLookPresets();
     _loadCapabilities();
     _loadSubscription();
+    // Retry phone-gallery copies without blocking the editor or showing a
+    // backup banner. This recovers results whose previous MediaStore write
+    // failed (for example, when the phone was temporarily out of storage).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _retryPhonePhotoBackupSilently();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _retryPhonePhotoBackupSilently();
+    }
+  }
+
+  Future<void> _retryPhonePhotoBackupSilently() async {
+    if (!Platform.isAndroid || _phoneBackupInProgress) return;
+    _phoneBackupInProgress = true;
+    try {
+      // GalleryExporter uses deterministic salon-scoped filenames, so this
+      // safely updates existing copies instead of creating duplicates.
+      await recentImageStore.backupAllToGallery();
+    } catch (_) {
+      // Never interrupt the editing experience. The private app copy remains
+      // available and the next app open/resume retries the Gallery write.
+    } finally {
+      _phoneBackupInProgress = false;
+    }
   }
 
   bool get generativeAvailable =>

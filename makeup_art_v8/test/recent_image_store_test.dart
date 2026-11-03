@@ -289,6 +289,57 @@ void main() {
     }
   });
 
+
+  test('retries a retained photo to Gallery after a previous backup failure', () async {
+    final root = await Directory.systemTemp.createTemp('makeupart_startup_retry_');
+    final galleryRoot = await Directory.systemTemp.createTemp('makeupart_startup_retry_gallery_');
+    final galleryDirectory = Directory(
+      '${galleryRoot.path}${Platform.pathSeparator}Pictures'
+      '${Platform.pathSeparator}MakeupArtV8',
+    );
+    var galleryAvailable = false;
+    final store = RecentImageStore(
+      rootOverride: root,
+      scope: 'startup-salon',
+      galleryArchiveWriter: (bytes, fileName) async {
+        if (!galleryAvailable) {
+          throw StateError('simulated temporary MediaStore failure');
+        }
+        await galleryDirectory.create(recursive: true);
+        await File('${galleryDirectory.path}${Platform.pathSeparator}$fileName')
+            .writeAsBytes(bytes, flush: true);
+      },
+    );
+
+    try {
+      final saved = await store.save(
+        Uint8List.fromList([4, 5, 6, 7]),
+        jobId: 'retry-on-open',
+      );
+      expect(await saved.exists(), isTrue);
+      expect(await countPngFiles(galleryDirectory), 0);
+
+      // On the next app open/resume, the silent retry uses the same operation.
+      galleryAvailable = true;
+      final result = await store.backupAllToGallery();
+
+      expect(result.total, 1);
+      expect(result.saved, 1);
+      expect(result.failed, 0);
+      expect(await countPngFiles(galleryDirectory), 1);
+      expect(await saved.exists(), isTrue);
+      final archived = await galleryDirectory
+          .list()
+          .where((entity) => entity is File)
+          .cast<File>()
+          .single;
+      expect(await archived.readAsBytes(), equals([4, 5, 6, 7]));
+    } finally {
+      await root.delete(recursive: true);
+      await galleryRoot.delete(recursive: true);
+    }
+  });
+
   test('preserves overflow when external phone storage is unavailable', () async {
     final root = await Directory.systemTemp.createTemp('makeupart_recent_fallback_');
     final store = RecentImageStore(rootOverride: root);
