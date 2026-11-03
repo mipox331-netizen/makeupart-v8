@@ -220,7 +220,7 @@ def main() -> None:
                 abort("Google Drive encrypted backup size or checksum verification failed.")
             print(f"Encrypted backup stored and checksum-verified in private Google Drive: {source.name} ({size} bytes).")
 
-    print("Encrypted media backup copy is present in Google Drive. No plaintext customer media was uploaded.")
+    print("Encrypted backup archive and checksum are stored and size/MD5-verified in private Google Drive. No plaintext archive contents were uploaded.")
 
 
 if __name__ == "__main__":
