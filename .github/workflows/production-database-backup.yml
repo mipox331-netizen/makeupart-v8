@@ -63,6 +63,7 @@ jobs:
           PY
 
       - name: Dump, encrypt and validate backup archive
+        id: encrypted_dump
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
@@ -163,6 +164,7 @@ jobs:
           python backend/scripts/google_drive_backup_upload.py "${ARCHIVES[0]}" "${ARCHIVES[0]}.sha256" "$GITHUB_RUN_ID-a$GITHUB_RUN_ATTEMPT"
 
       - name: Upload encrypted backup artifact
+        if: ${{ always() && steps.encrypted_dump.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: makeupart-db-backup-${{ github.run_id }}
