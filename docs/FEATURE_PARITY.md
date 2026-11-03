@@ -30,7 +30,7 @@ References:
 | Before/after comparison | Implemented | Interactive comparison divider. |
 | Salon watermark/logo | Implemented | Server-side salon watermark settings are applied to the saved output. |
 | Export to phone gallery | Implemented | Saves the processed PNG to the device gallery. |
-| Recent results and phone backup | Implemented | Ten most recent local results remain in salon-scoped app history; every processed output is also copied to the Android `Pictures/MakeupArtV8` MediaStore folder. Settings provides a manual retry for locally retained images. This is on-device storage, not off-device disaster recovery. |
+| Recent results and phone backup | Implemented | Ten most recent local results remain in salon-scoped app history; every processed output is also copied to the Android `Pictures/MakeupArtV8` MediaStore folder. When the salon workspace opens or resumes, the app silently retries any pending Gallery copies; Settings also provides a manual retry for locally retained images. This is on-device storage, not off-device disaster recovery. |
 | Reusable salon look presets | Implemented | Up to 24 device-local recipes; this branch also stores the five manual adjustment values and reads old presets with safe defaults. |
 | Client profiles and consent | Implemented | Per-salon client profiles and stored consent; processing requires fresh operator confirmation for the selected photo. |
 | Hairstyle try-on | Conditional / not release-verified | Requires a configured external generative-image provider, an eligible plan and separate external-processing consent. It is not available as an offline Classic feature. |
