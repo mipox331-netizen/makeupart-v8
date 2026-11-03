@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   restore-drill:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure' }}
     name: Restore encrypted backup into isolated temporary PostgreSQL
     runs-on: ubuntu-latest
     environment: production
@@ -78,7 +78,12 @@ jobs:
           for run_id in $candidates; do
             run_status="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.conclusion // empty' 2>/dev/null || true)"
             run_path="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.path // empty' 2>/dev/null || true)"
-            [[ "$run_status" == "success" && ( "$run_path" == ".github/workflows/production-database-backup.yml" || "$run_path" == .github/workflows/production-database-backup.yml@* ) ]] || continue
+            if [[ -n "$EVENT_RUN_ID" ]]; then
+              [[ "$run_status" == "success" || "$run_status" == "failure" ]] || continue
+            else
+              [[ "$run_status" == "success" ]] || continue
+            fi
+            [[ "$run_path" == ".github/workflows/production-database-backup.yml" || "$run_path" == .github/workflows/production-database-backup.yml@* ]] || continue
             artifact_count="$(gh api "repos/$repo/actions/runs/$run_id/artifacts" --jq "[.artifacts[] | select(.name == \"makeupart-db-backup-$run_id\" and .expired == false)] | length" 2>/dev/null || echo 0)"
             if [[ "$artifact_count" =~ ^[0-9]+$ ]] && (( artifact_count > 0 )); then
               selected="$run_id"
@@ -87,11 +92,11 @@ jobs:
           done
 
           [[ -n "$selected" ]] || {
-            echo "::error::No successful backup run with an unexpired expected artifact was found."
+            echo "::error::No encrypted database artifact with an unexpired retention period was found for the selected backup run."
             exit 1
           }
           echo "run_id=$selected" >> "$GITHUB_OUTPUT"
-          echo "Selected a successful encrypted backup artifact. Database contents are not exposed."
+          echo "Selected an encrypted database artifact for isolated restore validation. Database contents are not exposed."
 
       - name: Validate inputs and encryption secret
         shell: bash
