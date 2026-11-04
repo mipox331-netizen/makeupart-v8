@@ -10,6 +10,73 @@ import 'services/api_client.dart';
 import 'services/update_service.dart';
 import 'widgets/developer_branding.dart';
 
+ThemeData _makeupArtTheme() {
+  const background = Color(0xFF0B0910);
+  const surface = Color(0xFF17131D);
+  const inputSurface = Color(0xFF211B28);
+  const accent = Color(0xFFD99AB3);
+
+  final scheme = ColorScheme.fromSeed(
+    seedColor: accent,
+    brightness: Brightness.dark,
+  ).copyWith(
+    surface: surface,
+    surfaceContainerLow: const Color(0xFF1D1823),
+    surfaceContainerHighest: const Color(0xFF2A2331),
+  );
+
+  return ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: background,
+    appBarTheme: const AppBarTheme(
+      backgroundColor: background,
+      foregroundColor: Color(0xFFF8F2F6),
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      filled: true,
+      fillColor: inputSurface,
+      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+        borderSide: BorderSide(color: Color(0x22FFFFFF)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+        borderSide: BorderSide(color: accent, width: 1.4),
+      ),
+    ),
+    sliderTheme: const SliderThemeData(
+      trackHeight: 3,
+      thumbShape: RoundSliderThumbShape(enabledThumbRadius: 7),
+    ),
+    dividerTheme: const DividerThemeData(
+      color: Color(0x24FFFFFF),
+      thickness: 1,
+    ),
+    snackBarTheme: const SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 48),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    ),
+  );
+}
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MakeupArtApp());
@@ -145,12 +212,7 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'MakeupArt V8',
-        theme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-          colorSchemeSeed: const Color(0xFFB66DFF),
-          scaffoldBackgroundColor: const Color(0xFF090B12),
-        ),
+        theme: _makeupArtTheme(),
         home: const Scaffold(
           body: Center(
             child: Column(
@@ -181,12 +243,7 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
       navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'MakeupArt V8',
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorSchemeSeed: const Color(0xFFB66DFF),
-        scaffoldBackgroundColor: const Color(0xFF090B12),
-      ),
+      theme: _makeupArtTheme(),
       home: authenticated
           ? SessionGate(api: api, onLogout: _logout)
           : LoginPage(
