@@ -60,7 +60,7 @@ def write_manifest(tmp_path: Path, *, count=0, total=0, files=None):
     path = tmp_path / "manifest.json"
     path.write_text(
         json.dumps({
-            "format": "makeupart-supabase-storage-media-backup-v1",
+            "format": "makeupart-modal-volume-media-backup-v1",
             "file_count": count,
             "total_bytes": total,
             "files": files or [],
