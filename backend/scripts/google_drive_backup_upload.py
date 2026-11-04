@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
-import requests
 
 API = "https://www.googleapis.com/drive/v3"
 UPLOAD_API = "https://www.googleapis.com/upload/drive/v3"
@@ -71,7 +70,7 @@ def checksum(path: Path) -> tuple[int, str]:
 
 
 def verify_drive_file_bytes(
-    session: requests.Session,
+    session,
     headers: dict[str, str],
     file_id: str,
     expected_size: int,
@@ -86,7 +85,7 @@ def verify_drive_file_bytes(
             stream=True,
             timeout=(10, 120),
         )
-    except requests.RequestException:
+    except Exception:
         abort("Google Drive backup read-back verification could not reach the stored object.")
 
     digest = hashlib.md5(usedforsecurity=False)
@@ -104,7 +103,7 @@ def verify_drive_file_bytes(
             if actual_size > expected_size:
                 abort("Google Drive backup read-back size exceeds the local archive.")
             digest.update(block)
-    except requests.RequestException:
+    except Exception:
         abort("Google Drive backup read-back download was interrupted.")
     finally:
         response.close()
@@ -128,6 +127,8 @@ def main() -> None:
     client_id = required_env("GOOGLE_DRIVE_CLIENT_ID", "GDRIVE_CLIENT_ID")
     client_secret = required_env("GOOGLE_DRIVE_CLIENT_SECRET", "GDRIVE_CLIENT_SECRET")
     refresh_token = required_env("GOOGLE_DRIVE_REFRESH_TOKEN", "GDRIVE_REFRESH_TOKEN")
+
+    import requests
 
     with requests.Session() as session:
         try:
