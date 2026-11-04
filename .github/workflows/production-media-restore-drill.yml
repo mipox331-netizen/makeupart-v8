@@ -2,7 +2,7 @@ name: MakeupArt V8 Encrypted Media Restore Drill
 
 on:
   workflow_run:
-    workflows: ["MakeupArt V8 Encrypted Production Media Backup"]
+    workflows: ["MakeupArt V8 Encrypted Google Drive Media Backup"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   restore-drill:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
@@ -53,7 +53,7 @@ jobs:
             run_status="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.conclusion // empty' 2>/dev/null || true)"
             run_path="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.path // empty' 2>/dev/null || true)"
             if [[ -n "$EVENT_RUN_ID" ]]; then
-              [[ "$run_status" == "success" || "$run_status" == "failure" ]] || continue
+              [[ "$run_status" == "success" ]] || continue
             else
               [[ "$run_status" == "success" ]] || continue
             fi
