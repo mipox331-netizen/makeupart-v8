@@ -10,7 +10,6 @@ on:
       - "backend/scripts/modal_volume_media_manifest.py"
       - "backend/scripts/verify_supabase_media_empty_state.py"
       - "backend/scripts/google_drive_backup_upload.py"
-      - "backend/scripts/verify_supabase_media_empty_state.py"
       - ".github/workflows/production-media-backup.yml"
       - ".github/workflows/production-media-restore-drill.yml"
 
