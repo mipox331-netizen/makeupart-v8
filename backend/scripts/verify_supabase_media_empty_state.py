@@ -32,6 +32,7 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
     if manifest.get("format") not in {
         "makeupart-supabase-storage-media-backup-v1",
         "makeupart-google-drive-media-backup-v1",
+        "makeupart-modal-volume-media-backup-v1",
     }:
         raise MediaInventoryError("Private media backup manifest format is not supported.")
 
@@ -106,12 +107,12 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
 
     if int(reference_count or 0) > 0:
         raise MediaInventoryError(
-            "Google Drive contains no media but the database still references customer photos or salon logos; restore the source media before accepting an empty backup."
+            "The selected private media store is empty but the database still references customer photos or salon logos; restore the source media before accepting an empty backup."
         )
 
     print(
         "Verified empty-state backup: no beauty jobs, result images or salon-logo references "
-        "point to missing Google Drive media. No customer image data is missing from the empty Drive store."
+        "point to missing private media. No customer image data is missing from the verified empty store."
     )
     return 0
 
