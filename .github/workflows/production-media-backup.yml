@@ -88,9 +88,13 @@ jobs:
           set -euo pipefail
           BACKUP_DIR="$RUNNER_TEMP/makeupart-media-backup"
           STAGE="$BACKUP_DIR/stage"
-          mkdir -p "$STAGE/media"
-          chmod 700 "$BACKUP_DIR" "$STAGE" "$STAGE/media"
+          mkdir -p "$BACKUP_DIR" "$STAGE"
+          chmod 700 "$BACKUP_DIR" "$STAGE"
           modal volume get -e main makeupart-v8-media / "$STAGE/media"
+          # The remote Volume may legitimately be empty; create the destination
+          # only after the download so the CLI receives a fresh target path.
+          mkdir -p "$STAGE/media"
+          chmod 700 "$STAGE/media"
           python backend/scripts/modal_volume_media_manifest.py "$STAGE/media" "$STAGE/manifest.json"
 
       - name: Verify an empty Modal Volume inventory against live database references
