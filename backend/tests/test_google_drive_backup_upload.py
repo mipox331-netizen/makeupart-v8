@@ -54,7 +54,7 @@ def test_drive_read_back_verifies_actual_bytes_and_closes_response():
 
 
 def test_drive_read_back_rejects_checksum_mismatch():
-    response = FakeResponse(chunks=[b"wrong backup bytes"])
+    response = FakeResponse(chunks=[b"bad data"])
     session = FakeSession(response=response)
 
     with pytest.raises(SystemExit, match="content checksum verification failed"):
