@@ -7,7 +7,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "backend/scripts/google_drive_media_backup.py"
+      - "backend/scripts/modal_volume_media_manifest.py"
+      - "backend/scripts/verify_supabase_media_empty_state.py"
       - "backend/scripts/google_drive_backup_upload.py"
       - "backend/scripts/verify_supabase_media_empty_state.py"
       - ".github/workflows/production-media-backup.yml"
@@ -24,13 +25,15 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID || secrets.GDRIVE_CLIENT_ID }}
       GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET || secrets.GDRIVE_CLIENT_SECRET }}
       GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN || secrets.GDRIVE_REFRESH_TOKEN }}
       DATABASE_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
     steps:
       - name: Validate Google Drive and encryption secrets without exposing values
         shell: bash
@@ -42,6 +45,8 @@ jobs:
           [[ -n "${GOOGLE_DRIVE_REFRESH_TOKEN:-}" ]] || missing+=("GOOGLE_DRIVE_REFRESH_TOKEN or GDRIVE_REFRESH_TOKEN")
           [[ -n "${DATABASE_URL:-}" ]] || missing+=("SUPABASE_DB_URL or DATABASE_URL for empty-inventory safety check")
           [[ -n "${BACKUP_ENCRYPTION_PASSPHRASE:-}" ]] || missing+=("BACKUP_ENCRYPTION_PASSPHRASE")
+          [[ -n "${MODAL_TOKEN_ID:-}" ]] || missing+=("MODAL_TOKEN_ID or TOKENID")
+          [[ -n "${MODAL_TOKEN_SECRET:-}" ]] || missing+=("MODAL_TOKEN_SECRET or TOKEN_SECRET/TOKENI_SECRET")
           if (( ${#missing[@]} > 0 )); then
             echo "::error::Missing production GitHub environment secrets: ${missing[*]}"
             exit 1
@@ -50,7 +55,7 @@ jobs:
             echo "::error::BACKUP_ENCRYPTION_PASSPHRASE must be at least 24 characters."
             exit 1
           }
-          echo "Google Drive OAuth, database reference check and encryption credentials are present."
+          echo "Modal Volume access, Google Drive OAuth, database reference check and encryption credentials are present."
 
       - name: Checkout application backup code
         uses: actions/checkout@v4
@@ -60,20 +65,36 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install backup and database verification dependencies
-        run: python -m pip install --disable-pip-version-check --no-input requests "SQLAlchemy==2.0.54" "psycopg2-binary==2.9.13"
+      - name: Install backup, database and Modal CLI dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --no-input modal requests "SQLAlchemy==2.0.54" "psycopg2-binary==2.9.13"
 
-      - name: Download private Google Drive media and verify integrity
+      - name: Authenticate Modal and verify production media Volume access
         shell: bash
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
+        run: |
+          set -euo pipefail
+          modal token info
+          modal volume ls -e main makeupart-v8-media >/dev/null
+          echo "Production Modal media Volume is accessible."
+
+      - name: Download actual production Modal media Volume and verify integrity
+        shell: bash
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || secrets.TOKENID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || secrets.TOKEN_SECRET || secrets.TOKENI_SECRET }}
         run: |
           set -euo pipefail
           BACKUP_DIR="$RUNNER_TEMP/makeupart-media-backup"
           STAGE="$BACKUP_DIR/stage"
           mkdir -p "$STAGE/media"
           chmod 700 "$BACKUP_DIR" "$STAGE" "$STAGE/media"
-          python backend/scripts/google_drive_media_backup.py "$STAGE/media" "$STAGE/manifest.json"
+          modal volume get -e main makeupart-v8-media / "$STAGE/media"
+          python backend/scripts/modal_volume_media_manifest.py "$STAGE/media" "$STAGE/manifest.json"
 
-      - name: Verify an empty Drive inventory against live database references
+      - name: Verify an empty Modal Volume inventory against live database references
         shell: bash
         run: |
           set -euo pipefail
@@ -107,8 +128,11 @@ jobs:
 
           root = Path(sys.argv[1]).resolve()
           manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-          if manifest.get("format") != "makeupart-google-drive-media-backup-v1":
-              raise SystemExit("Unknown Google Drive media backup manifest format.")
+          if manifest.get("format") not in {
+              "makeupart-google-drive-media-backup-v1",
+              "makeupart-modal-volume-media-backup-v1",
+          }:
+              raise SystemExit("Unknown private media backup manifest format.")
           rows = manifest.get("files", [])
           expected = {row["path"]: row for row in rows}
           if len(expected) != len(rows):
@@ -136,13 +160,13 @@ jobs:
           total = sum(row["size"] for row in actual.values())
           if len(actual) != manifest.get("file_count") or total != manifest.get("total_bytes"):
               raise SystemExit("Media restore verification failed: manifest totals differ.")
-          print(f"Encrypted Google Drive media archive restored in isolation: files={len(actual)}, bytes={total}.")
+          print(f"Encrypted production media archive restored in isolation: files={len(actual)}, bytes={total}.")
           if not actual:
-              print("No media files currently exist in the private Drive root; database references were checked separately.")
+              print("The Modal Volume contains no media files; the live database reference check confirmed the empty state.")
           PY
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 
-      - name: Store encrypted media backup in private Google Drive
+      - name: Store encrypted production Modal media snapshot in private Google Drive
         shell: bash
         run: |
           set -euo pipefail
