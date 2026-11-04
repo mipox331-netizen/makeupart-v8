@@ -60,7 +60,7 @@ def write_manifest(tmp_path: Path, *, count=0, total=0, files=None):
     path = tmp_path / "manifest.json"
     path.write_text(
         json.dumps({
-            "format": "makeupart-supabase-storage-media-backup-v1",
+            "format": "makeupart-modal-volume-media-backup-v1",
             "file_count": count,
             "total_bytes": total,
             "files": files or [],
@@ -124,6 +124,22 @@ def test_empty_media_manifest_fails_when_migration_head_is_stale(
     monkeypatch.setattr(verifier, "create_engine", lambda *args, **kwargs: engine)
 
     with pytest.raises(verifier.MediaInventoryError, match="migration head"):
+        verifier.verify_empty_media_inventory(manifest)
+
+    assert engine.disposed is True
+
+
+def test_empty_media_manifest_fails_when_salon_logo_column_is_missing(
+    monkeypatch, tmp_path
+):
+    manifest = write_manifest(tmp_path)
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg2://test@localhost/database")
+    engine = FakeEngine(
+        FakeConnection(missing_columns={("salons", "logo_url")})
+    )
+    monkeypatch.setattr(verifier, "create_engine", lambda *args, **kwargs: engine)
+
+    with pytest.raises(verifier.MediaInventoryError, match="columns are missing"):
         verifier.verify_empty_media_inventory(manifest)
 
     assert engine.disposed is True

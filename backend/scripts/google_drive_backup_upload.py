@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
-import requests
 
 API = "https://www.googleapis.com/drive/v3"
 UPLOAD_API = "https://www.googleapis.com/upload/drive/v3"
@@ -69,6 +68,50 @@ def checksum(path: Path) -> tuple[int, str]:
     return size, digest.hexdigest()
 
 
+
+def verify_drive_file_bytes(
+    session,
+    headers: dict[str, str],
+    file_id: str,
+    expected_size: int,
+    expected_md5: str,
+) -> None:
+    """Download the private Drive object and verify its actual bytes, not only metadata."""
+    try:
+        response = session.get(
+            API + "/files/" + quote(file_id, safe=""),
+            headers=headers,
+            params={"alt": "media"},
+            stream=True,
+            timeout=(10, 120),
+        )
+    except Exception:
+        abort("Google Drive backup read-back verification could not reach the stored object.")
+
+    digest = hashlib.md5(usedforsecurity=False)
+    actual_size = 0
+    try:
+        if response.status_code != 200:
+            abort(
+                "Google Drive backup read-back verification failed "
+                f"(HTTP {response.status_code}); object contents withheld."
+            )
+        for block in response.iter_content(chunk_size=1024 * 1024):
+            if not block:
+                continue
+            actual_size += len(block)
+            if actual_size > expected_size:
+                abort("Google Drive backup read-back size exceeds the local archive.")
+            digest.update(block)
+    except Exception:
+        abort("Google Drive backup read-back download was interrupted.")
+    finally:
+        response.close()
+
+    if actual_size != expected_size or digest.hexdigest().lower() != expected_md5.lower():
+        abort("Google Drive backup read-back content checksum verification failed.")
+
+
 def main() -> None:
     if len(sys.argv) != 4:
         abort("Usage: google_drive_backup_upload.py ARCHIVE CHECKSUM_FILE RUN_ID")
@@ -84,6 +127,8 @@ def main() -> None:
     client_id = required_env("GOOGLE_DRIVE_CLIENT_ID", "GDRIVE_CLIENT_ID")
     client_secret = required_env("GOOGLE_DRIVE_CLIENT_SECRET", "GDRIVE_CLIENT_SECRET")
     refresh_token = required_env("GOOGLE_DRIVE_REFRESH_TOKEN", "GDRIVE_REFRESH_TOKEN")
+
+    import requests
 
     with requests.Session() as session:
         try:
@@ -169,7 +214,11 @@ def main() -> None:
             if existing:
                 if int(existing[0].get("size") or -1) != size or str(existing[0].get("md5Checksum") or "").lower() != md5:
                     abort("A different backup object already exists for this workflow run; refusing overwrite.")
-                print(f"Encrypted backup already exists in private Google Drive: {source.name}.")
+                existing_id = str(existing[0].get("id") or "")
+                if not existing_id:
+                    abort("Google Drive returned an existing backup object without an ID.")
+                verify_drive_file_bytes(session, headers, existing_id, size, md5)
+                print(f"Existing encrypted Google Drive backup read back and checksum-verified: {source.name}.")
                 continue
 
             mime_type = "application/octet-stream"
@@ -218,9 +267,13 @@ def main() -> None:
                 abort("Google Drive did not confirm the encrypted backup upload.")
             if int(uploaded.get("size") or -1) != size or str(uploaded.get("md5Checksum") or "").lower() != md5:
                 abort("Google Drive encrypted backup size or checksum verification failed.")
-            print(f"Encrypted backup stored and checksum-verified in private Google Drive: {source.name} ({size} bytes).")
+            uploaded_id = str(uploaded.get("id") or "")
+            if not uploaded_id:
+                abort("Google Drive did not return an uploaded backup object ID.")
+            verify_drive_file_bytes(session, headers, uploaded_id, size, md5)
+            print(f"Encrypted backup uploaded, read back and checksum-verified in private Google Drive: {source.name} ({size} bytes).")
 
-    print("Encrypted backup archive and checksum are stored and size/MD5-verified in private Google Drive. No plaintext archive contents were uploaded.")
+    print("Encrypted backup archive and checksum were uploaded, read back from private Google Drive and byte-for-byte checksum-verified. No plaintext archive contents were uploaded.")
 
 
 if __name__ == "__main__":

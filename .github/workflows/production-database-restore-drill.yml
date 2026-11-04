@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   restore-drill:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     name: Restore encrypted backup into isolated temporary PostgreSQL
     runs-on: ubuntu-latest
     environment: production
@@ -79,7 +79,7 @@ jobs:
             run_status="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.conclusion // empty' 2>/dev/null || true)"
             run_path="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.path // empty' 2>/dev/null || true)"
             if [[ -n "$EVENT_RUN_ID" ]]; then
-              [[ "$run_status" == "success" || "$run_status" == "failure" ]] || continue
+              [[ "$run_status" == "success" ]] || continue
             else
               [[ "$run_status" == "success" ]] || continue
             fi
