@@ -1,7 +1,6 @@
 import hashlib
 
 import pytest
-import requests
 
 from scripts import google_drive_backup_upload as uploader
 
@@ -102,7 +101,7 @@ def test_drive_read_back_rejects_http_errors():
 
 
 def test_drive_read_back_reports_network_errors_without_exposing_ids():
-    session = FakeSession(error=requests.ConnectionError("private file identifier"))
+    session = FakeSession(error=OSError("private file identifier"))
 
     with pytest.raises(SystemExit, match="could not reach the stored object") as error:
         uploader.verify_drive_file_bytes(
