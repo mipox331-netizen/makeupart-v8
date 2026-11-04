@@ -2670,7 +2670,7 @@ class _FaceEditorToolItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return SizedBox(
-      width: 76,
+      width: 70,
       child: Semantics(
         button: true,
         selected: selected,
