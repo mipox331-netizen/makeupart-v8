@@ -703,6 +703,14 @@ void main() {
     final foldersToolbar = find.byKey(const ValueKey('face-filter-folders-grid'));
     expect(foldersToolbar, findsOneWidget);
 
+    // Keep the editor portrait-first: the photo canvas and capture actions are
+    // visible before the client, preset and filter controls.
+    expect(find.byKey(const ValueKey('portrait-editor-canvas')), findsOneWidget);
+    expect(find.text('PORTRAIT PREVIEW'), findsOneWidget);
+    expect(find.text('Your portrait goes here'), findsOneWidget);
+    expect(find.text('Gallery'), findsOneWidget);
+    expect(find.text('Camera'), findsOneWidget);
+
     expect(find.byKey(const ValueKey('saved-salon-looks-panel')), findsOneWidget);
     expect(find.text('Editing tools'), findsOneWidget);
     expect(find.text('Ready to use'), findsNothing);
