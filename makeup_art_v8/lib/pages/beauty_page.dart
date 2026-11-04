@@ -1196,7 +1196,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
           height: 82,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             itemCount: _faceEditorFolderOrder.length,
             separatorBuilder: (_, __) => const SizedBox(width: 3),
             itemBuilder: (context, index) {
@@ -1227,8 +1227,8 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final portraitHeight = (MediaQuery.sizeOf(context).height * 0.42)
-        .clamp(260.0, 420.0)
+    final portraitHeight = (MediaQuery.sizeOf(context).height * 0.48)
+        .clamp(300.0, 500.0)
         .toDouble();
     final availableMakeupStyles = _availableOptions(
       'available_makeup_styles',
@@ -1284,7 +1284,47 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Editor'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.auto_awesome_rounded,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                size: 21,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'MakeupArt',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                      ),
+                ),
+                Text(
+                  'BEAUTY STUDIO',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontSize: 8,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.w800,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                ),
+              ],
+            ),
+          ],
+        ),
         actions: [
           if (displayedAfterBytes != null)
             IconButton(
@@ -1327,78 +1367,308 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _EditorSectionHeading(
-                  step: '01',
-                  title: 'Choose a portrait',
-                  subtitle: 'Start with a clear, front-facing client photo.',
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'PORTRAIT PREVIEW',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    letterSpacing: 1.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              selected == null
+                                  ? 'Start with a photo'
+                                  : result == null
+                                      ? 'Your portrait is ready'
+                                      : 'Before & after',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.35,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (selected != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 13,
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                'READY',
+                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.6,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 14),
                   Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                  ),
-                  child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                  if (selected != null)
-                  ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.file(
-                  File(selected!.path),
-                  height: portraitHeight,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox(
-                  height: 120,
-                  child: Center(
-                  child: Icon(Icons.image_outlined, size: 56),
-                  ),
-                  ),
-                  ),
-                  )
-                  else
-                  Container(
-                  height: portraitHeight,
-                  decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                  color: Theme.of(context).colorScheme.outline,
-                  ),
-                  ),
-                  child: const Center(
-                  child: Icon(Icons.face_retouching_natural, size: 64),
-                  ),
+                    height: portraitHeight,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF08070D),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (selected != null && afterImageFuture != null)
+                          FutureBuilder<Uint8List>(
+                            future: afterImageFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
+                              if (snapshot.hasError ||
+                                  snapshot.data == null ||
+                                  snapshot.data!.isEmpty) {
+                                return Image.file(
+                                  File(selected!.path),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Center(
+                                    child: Icon(
+                                      Icons.broken_image_outlined,
+                                      size: 48,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return BeforeAfterComparison(
+                                key: ValueKey(
+                                  result?['job_id']?.toString() ?? selected!.path,
+                                ),
+                                height: portraitHeight,
+                                before: Image.file(
+                                  File(selected!.path),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.broken_image_outlined,
+                                    size: 48,
+                                  ),
+                                ),
+                                after: Image.memory(
+                                  snapshot.data!,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.broken_image_outlined,
+                                    size: 48,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        else if (selected != null)
+                          Image.file(
+                            File(selected!.path),
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(
+                                Icons.broken_image_outlined,
+                                size: 52,
+                              ),
+                            ),
+                          )
+                        else
+                          Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              const DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Color(0xFF342438),
+                                      Color(0xFF171523),
+                                      Color(0xFF10131B),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: -42,
+                                right: -30,
+                                child: Container(
+                                  width: 170,
+                                  height: 170,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFFD99AB3).withValues(alpha: 0.12),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                bottom: -55,
+                                left: -25,
+                                child: Container(
+                                  width: 180,
+                                  height: 180,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFF8E75C5).withValues(alpha: 0.13),
+                                  ),
+                                ),
+                              ),
+                              Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 76,
+                                        height: 76,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.08),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white.withValues(alpha: 0.13),
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.face_retouching_natural_rounded,
+                                          size: 38,
+                                          color: Color(0xFFF2D6E2),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        'Your portrait goes here',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Choose a clear, front-facing photo to explore your salon looks.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          height: 1.4,
+                                          color: Colors.white.withValues(alpha: 0.72),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                left: 14,
+                                top: 14,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.36),
+                                    borderRadius: BorderRadius.circular(99),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.14),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'MAKEUPART STUDIO',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        if (selected != null && afterImageFuture == null)
+                          Positioned(
+                            left: 12,
+                            top: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.62),
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: const Text(
+                                'ORIGINAL',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 14),
                   Row(
-                  children: [
-                  Expanded(
-                  child: OutlinedButton.icon(
-                  onPressed:
-                  loading ? null : () => pick(ImageSource.gallery),
-                  icon: const Icon(Icons.photo_library_outlined),
-                  label: const Text('Gallery'),
+                    children: [
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          onPressed: loading ? null : () => pick(ImageSource.gallery),
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: const Text('Gallery'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 52),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: loading ? null : () => pick(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: const Text('Camera'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 52),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                  child: OutlinedButton.icon(
-                  onPressed:
-                  loading ? null : () => pick(ImageSource.camera),
-                  icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text('Camera'),
-                  ),
-                  ),
-                  ],
-                  ),
-                  ],
-                  ),
-                  ),
-                  
                 ],
               ),
             ),
@@ -2187,7 +2457,13 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                     FilledButton.icon(
                       onPressed: canProcess ? process : null,
                       icon: const Icon(Icons.auto_awesome),
-                      label: Text(loading ? 'Processing...' : 'Process with AI'),
+                      label: Text(
+                        loading
+                            ? 'Processing...'
+                            : selectedEngine == 'generative'
+                                ? 'Generate look'
+                                : 'Apply look',
+                      ),
                     ),
                     if (error != null) ...[
                       const SizedBox(height: 12),
@@ -2233,57 +2509,6 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                     Text('Undertone: ${result!['undertone']}'),
                     Text('Foundation match estimate: ${result!['foundation_match']}'),
                     const SizedBox(height: 14),
-                    if (afterImageFuture != null && selected != null) ...[
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Drag the divider to compare the original photo with the finished result.',
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 10),
-                      FutureBuilder<Uint8List>(
-                        future: afterImageFuture,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const SizedBox(
-                              height: 220,
-                              child: Center(child: CircularProgressIndicator()),
-                            );
-                          }
-                          if (snapshot.hasError ||
-                              snapshot.data == null ||
-                              snapshot.data!.isEmpty) {
-                            return const SizedBox(
-                              height: 120,
-                              child: Center(
-                                child: Icon(Icons.broken_image_outlined, size: 56),
-                              ),
-                            );
-                          }
-                          return BeforeAfterComparison(
-                            key: ValueKey(
-                              result?['job_id']?.toString() ?? selected!.path,
-                            ),
-                            height: 360,
-                            before: Image.file(
-                              File(selected!.path),
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.broken_image_outlined,
-                                size: 48,
-                              ),
-                            ),
-                            after: Image.memory(
-                              snapshot.data!,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.broken_image_outlined,
-                                size: 48,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
                     if (displayedAfterBytes != null) ...[
                       const SizedBox(height: 16),
                       FilledButton.icon(
@@ -2445,7 +2670,7 @@ class _FaceEditorToolItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return SizedBox(
-      width: 70,
+      width: 76,
       child: Semantics(
         button: true,
         selected: selected,
@@ -2463,8 +2688,8 @@ class _FaceEditorToolItem extends StatelessWidget {
                 children: [
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 160),
-                    width: 37,
-                    height: 37,
+                    width: 41,
+                    height: 41,
                     decoration: BoxDecoration(
                       color: selected
                           ? colors.primaryContainer
@@ -2490,7 +2715,7 @@ class _FaceEditorToolItem extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 9.5,
+                      fontSize: 10,
                       fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                       color: selected ? colors.primary : colors.onSurface,
                     ),
