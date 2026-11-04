@@ -1185,15 +1185,15 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
     return Container(
       key: const ValueKey('face-filter-folders-grid'),
       decoration: const BoxDecoration(
-        color: Color(0xFF10121B),
+        color: Color(0xFF17131D),
         border: Border(
-          top: BorderSide(color: Color(0x22FFFFFF)),
+          top: BorderSide(color: Color(0x24FFFFFF)),
         ),
       ),
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 82,
+          height: 92,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
