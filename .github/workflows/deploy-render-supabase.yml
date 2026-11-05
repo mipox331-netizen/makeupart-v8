@@ -46,6 +46,38 @@ jobs:
           fi
           echo "Render API, PostgreSQL and Google Drive OAuth credentials are present."
 
+      - name: Validate Supabase PostgreSQL connectivity before changing Render
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet 'psycopg2-binary==2.9.9'
+          python - <<'PY'
+          import os
+          import psycopg2
+
+          database_url = os.environ.get("SUPABASE_DB_URL", "").strip()
+          if not database_url:
+              raise SystemExit("Supabase PostgreSQL URL is missing.")
+
+          try:
+              connection = psycopg2.connect(database_url, connect_timeout=10)
+              try:
+                  with connection.cursor() as cursor:
+                      cursor.execute("SELECT 1")
+                      if cursor.fetchone() != (1,):
+                          raise RuntimeError("Unexpected PostgreSQL validation result.")
+              finally:
+                  connection.close()
+          except Exception as exc:
+              # Keep host-level context only; never print the DSN or credentials.
+              print(f"Supabase PostgreSQL preflight failed ({type(exc).__name__}).")
+              raise SystemExit(1) from None
+
+          print("Supabase PostgreSQL connectivity verified; Render settings were not changed before this check.")
+          PY
+
       - name: Apply PostgreSQL and private Google Drive settings to Render
         shell: bash
         env:
