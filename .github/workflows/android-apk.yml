@@ -73,11 +73,11 @@ jobs:
           backend_changed=false
           release_required=false
           expected_backend_sha=""
-          if grep -Eq '^(backend/|modal_app\.py$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(backend/|modal_app\.py$|\.github/workflows/modal-deploy\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             backend_changed=true
             expected_backend_sha="$source_sha"
           fi
-          if grep -Eq '^(makeup_art_v8/|backend/|modal_app\.py$|\.github/workflows/android-apk\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(makeup_art_v8/|backend/|modal_app\.py$|\.github/workflows/android-apk\.yml$|\.github/workflows/modal-deploy\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             release_required=true
           fi
 
@@ -114,6 +114,9 @@ jobs:
           if [[ "$release_required" == "true" ]]; then
             wait_for_gate "python-security-audit.yml" "Python Dependency Security Audit"
             wait_for_gate "third-party-license-inventory.yml" "Third-party License Inventory"
+          fi
+          if [[ "$backend_changed" == "true" ]]; then
+            wait_for_gate "modal-deploy.yml" "MakeupArt V8 Modal Production Deploy"
           fi
 
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
