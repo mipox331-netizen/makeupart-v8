@@ -77,7 +77,7 @@ jobs:
             backend_changed=true
             expected_backend_sha="$source_sha"
           fi
-          if grep -Eq '^(makeup_art_v8/|backend/|modal_app\.py$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(makeup_art_v8/|backend/|modal_app\.py$|\.github/workflows/android-apk\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             release_required=true
           fi
 
