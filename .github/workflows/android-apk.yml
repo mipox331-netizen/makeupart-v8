@@ -135,7 +135,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      PRODUCTION_API_BASE_URL: ${{ vars.API_BASE_URL }}
+      PRODUCTION_API_BASE_URL: ${{ vars.API_BASE_URL || 'https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1' }}
       EXPECTED_BACKEND_SHA: ${{ needs.classify-push.outputs.expected_backend_sha }}
       SOURCE_SHA: ${{ needs.classify-push.outputs.source_sha }}
     defaults:
