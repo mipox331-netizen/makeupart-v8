@@ -138,6 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
+      # API_BASE_URL may override the host; Render is the verified production service fallback.
       PRODUCTION_API_BASE_URL: ${{ vars.API_BASE_URL || 'https://makeupart-api.onrender.com/api/v1' }}
       EXPECTED_BACKEND_SHA: ${{ needs.classify-push.outputs.expected_backend_sha }}
       SOURCE_SHA: ${{ needs.classify-push.outputs.source_sha }}
