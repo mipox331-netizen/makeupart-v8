@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 # A public APK is published only after the same main-branch commit passes full CI.
-# The production gate below verifies the configured API is running that commit.
+# The production gate below verifies the active Render API is running that commit.
 on:
   workflow_run:
     workflows: ["MakeupArt V8 CI"]
@@ -73,11 +73,11 @@ jobs:
           backend_changed=false
           release_required=false
           expected_backend_sha=""
-          if grep -Eq '^(backend/|modal_app\.py$|\.github/workflows/modal-deploy\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(backend/)' "$RUNNER_TEMP/changed-files.txt"; then
             backend_changed=true
             expected_backend_sha="$source_sha"
           fi
-          if grep -Eq '^(makeup_art_v8/|backend/|modal_app\.py$|\.github/workflows/android-apk\.yml$|\.github/workflows/modal-deploy\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(makeup_art_v8/|backend/|\.github/workflows/android-apk\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             release_required=true
           fi
 
@@ -116,7 +116,7 @@ jobs:
             wait_for_gate "third-party-license-inventory.yml" "Third-party License Inventory"
           fi
           if [[ "$backend_changed" == "true" ]]; then
-            wait_for_gate "modal-deploy.yml" "MakeupArt V8 Modal Production Deploy"
+            wait_for_gate "deploy-render-supabase.yml" "MakeupArt V8 Render Production Deploy"
           fi
 
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
@@ -138,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      PRODUCTION_API_BASE_URL: ${{ vars.API_BASE_URL || 'https://mipox331-netizen--makeupart-v8-api-fastapi-app.modal.run/api/v1' }}
+      PRODUCTION_API_BASE_URL: ${{ vars.API_BASE_URL || 'https://makeupart-api.onrender.com/api/v1' }}
       EXPECTED_BACKEND_SHA: ${{ needs.classify-push.outputs.expected_backend_sha }}
       SOURCE_SHA: ${{ needs.classify-push.outputs.source_sha }}
     defaults:
