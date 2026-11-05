@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      API_BASE_URL: ${{ vars.API_BASE_URL }}
+      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://makeupart-api.onrender.com/api/v1' }}
     steps:
       - name: Check production liveness, API readiness and media storage
         shell: bash
