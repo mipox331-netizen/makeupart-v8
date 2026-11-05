@@ -4,6 +4,12 @@ name: MakeupArt V8 Modal Production Deploy
 # Manual production deployment. Set the repository API_BASE_URL variable to this deployment's verified HTTPS URL after a successful deploy.
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "modal_app.py"
+      - ".github/workflows/modal-deploy.yml"
   workflow_dispatch:
     inputs:
       secret_environment:
