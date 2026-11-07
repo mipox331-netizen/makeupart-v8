@@ -24,6 +24,16 @@ router = APIRouter(prefix="/watermarks", tags=["watermarks"])
 logger = logging.getLogger("makeupart.watermarks")
 
 
+def _durable_media_required() -> bool:
+    return (
+        not google_drive_media.uses_local_only()
+        and (
+            settings.REQUIRE_DURABLE_MEDIA
+            or settings.ENVIRONMENT.lower() == "production"
+        )
+    )
+
+
 def _rollback_failed_logo_upload(
     target: Path,
     backup: Path,
@@ -35,10 +45,7 @@ def _rollback_failed_logo_upload(
     if not target_replaced:
         return True
 
-    durable_required = (
-        settings.REQUIRE_DURABLE_MEDIA
-        or settings.ENVIRONMENT.lower() == "production"
-    )
+    durable_required = _durable_media_required()
     try:
         if had_previous:
             if not backup.is_file():
@@ -108,6 +115,11 @@ def update_watermark(
 ) -> WatermarkOut:
     watermark = get_or_create_watermark(db, current_user.salon)
     if watermark_in.content_mode == 'logo':
+        if google_drive_media.uses_local_only():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Logo-only watermark requires server-side persistent media storage. Choose text or both mode.",
+            )
         if not watermark.logo_url:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -206,10 +218,7 @@ async def upload_watermark_logo(
         target_replaced = True
 
         persisted = google_drive_media.persist_media_file(target)
-        durable_required = (
-            settings.REQUIRE_DURABLE_MEDIA
-            or settings.ENVIRONMENT.lower() == "production"
-        )
+        durable_required = _durable_media_required()
         if durable_required and not persisted and not google_drive_media.uses_modal_volume():
             raise GoogleDriveMediaError(
                 "Private media storage did not confirm that the salon logo was saved."

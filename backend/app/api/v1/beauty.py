@@ -63,7 +63,13 @@ def _media_dirs(salon_id: uuid.UUID) -> tuple[Path, Path]:
 
 
 def _persist_private_media_file(path: Path) -> None:
-    """Persist media before committing a customer job; production must be durable."""
+    """Persist remotely unless the explicitly selected mode is phone-only."""
+    if not path.is_file():
+        raise GoogleDriveMediaError("Media file is missing before persistence.")
+    if google_drive_media.uses_local_only():
+        # Flutter downloads the processed image and archives it in app storage
+        # and Android Gallery. Render's copy is temporary request-time media.
+        return
     persisted = google_drive_media.persist_media_file(path)
     durable_required = (
         settings.REQUIRE_DURABLE_MEDIA
@@ -588,20 +594,30 @@ def process_beauty_upload(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Salon logo storage path failed tenant-isolation validation.",
             ) from exc
+        content_mode = getattr(watermark, "content_mode", None) or "both"
         if watermark.logo_url and not logo_path.is_file():
-            try:
-                restored = google_drive_media.ensure_local_file(logo_path)
-            except GoogleDriveMediaError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Salon logo storage is temporarily unavailable. The photo was not saved.",
-                ) from exc
-            if not restored or not logo_path.is_file():
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="The saved salon logo could not be restored. The photo was not saved.",
-                )
-            commit_media_volume()
+            if google_drive_media.uses_local_only():
+                if content_mode == "logo":
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="Logo-only watermark needs server-side persistent storage. Use text or both mode with local-only storage.",
+                    )
+                # In "both" mode apply_watermark uses salon text when the
+                # uploaded logo is no longer present on this temporary server.
+            else:
+                try:
+                    restored = google_drive_media.ensure_local_file(logo_path)
+                except GoogleDriveMediaError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Salon logo storage is temporarily unavailable. The photo was not saved.",
+                    ) from exc
+                if not restored or not logo_path.is_file():
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="The saved salon logo could not be restored. The photo was not saved.",
+                    )
+                commit_media_volume()
         try:
             watermark_applied = apply_watermark(generated_output, salon, watermark)
         except (OSError, ValueError) as exc:
@@ -618,7 +634,7 @@ def process_beauty_upload(
         except GoogleDriveMediaError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Private Google Drive media storage is unavailable. The photo was not saved.",
+                detail="The configured private media storage could not save the photo.",
             ) from exc
 
         job = BeautyJob(

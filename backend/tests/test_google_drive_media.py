@@ -381,3 +381,38 @@ def test_oauth_refresh_failure_reports_safe_provider_error_code(monkeypatch, tmp
     assert "test-client-secret" not in str(error.value)
     assert "test-refresh-token" not in str(error.value)
 
+
+def test_local_only_production_mode_never_calls_google_drive(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path / "media"))
+    monkeypatch.setattr(settings, "MEDIA_STORAGE_BACKEND", "local_only")
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
+
+    path = settings.media_root_path / "salons" / "salon-123" / "outputs" / "after.png"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"processed-result")
+
+    def unexpected_drive_call(*_args, **_kwargs):
+        pytest.fail("Google Drive must not be contacted while MEDIA_STORAGE_BACKEND=local_only")
+
+    monkeypatch.setattr(drive, "_access_token", unexpected_drive_call)
+    monkeypatch.setattr(drive, "_request", unexpected_drive_call)
+
+    assert drive.verify_connection() is None
+    assert drive.is_durable_storage_configured() is False
+    assert drive.persist_media_file(path) is False
+    assert drive.ensure_local_file(path) is True
+    assert drive.ensure_local_file(path.parent / "missing.png") is False
+    assert drive.delete_media_file(path) is False
+
+
+def test_local_only_persistence_rejects_a_missing_processing_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path / "media"))
+    monkeypatch.setattr(settings, "MEDIA_STORAGE_BACKEND", "local_only")
+
+    with pytest.raises(drive.GoogleDriveMediaError, match="missing before local-only persistence"):
+        drive.persist_media_file(settings.media_root_path / "missing.png")
+

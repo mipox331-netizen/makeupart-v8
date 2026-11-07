@@ -20,7 +20,7 @@ The API runs on port 8000. Health endpoints are:
 - `/health/ready` — database/API readiness for the deployed hosting provider. A temporary third-party storage outage does not restart the API process.
 - `/health/media-ready` — private customer-photo storage readiness for the selected durable backend.
 
-Media uploads fail closed when durable storage is unavailable. Production APK publication requires `/health/media-ready` to return a supported durable backend (`google_drive`, `modal_volume` or `supabase_storage`); API/login readiness alone is not a customer-photo release gate.
+Production can use `MEDIA_STORAGE_BACKEND=local_only` for the $0 phone-archive mode. The API processes each upload using temporary server files; the Flutter app downloads the result and saves it to app history and Android Gallery. In this mode there is no server-side customer-photo backup or restore. Select `google_drive`, `modal_volume` or private `supabase_storage` only when off-device media durability is required. APK publication checks that the configured mode is explicitly reported by `/health/media-ready`.
 
 ## Flutter development
 From `makeup_art_v8/`:
@@ -74,11 +74,11 @@ These are **on-device photo copies**: MakeupArt does not upload this local backu
 
 ## Photo durability and disaster recovery
 
-The repository contains private Google Drive media storage and encrypted database/media backup workflows. The latest observed database backup [#41422955166](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/41422955166) successfully created and validated its encrypted PostgreSQL dump, but the Google Drive upload failed because OAuth returned `invalid_grant`. The latest media backup [#41424743670](https://github.com/mipox331-netizen/makeupart-v8/actions/runs/41424743670) failed at token refresh before it could inventory or download media. No successful customer-media backup or restore is proven by those runs.
+The selected production mode is `MEDIA_STORAGE_BACKEND=local_only`. Processed photos are returned to the Android client, which keeps the latest ten results in private app history and copies results to `Pictures/MakeupArtV8` in the phone Gallery. Google Drive OAuth credentials are not needed for ordinary app photo processing and are deliberately not changed by the local-only deployment.
 
-To restore Google Drive backup access, publish the Google OAuth consent app as **In production**, authorize the Drive client again with offline access, and replace the GitHub `production` environment secret `GOOGLE_DRIVE_REFRESH_TOKEN` with the newly issued refresh token. Keep all OAuth values private. Re-run database and media backups only after the credential has been refreshed; a successful database dump alone is not a backup until the encrypted archive is stored in the configured off-site destination.
+This is **device-local photo protection, not off-device disaster recovery**. A lost, stolen, damaged or factory-reset phone can still take the Gallery copies with it. The server uses temporary working files for the synchronous upload/process/download request; server-side job image URLs are not a permanent archive and may stop resolving after a Render restart or deploy. Customer-facing photo history must therefore use the app's local archive in this mode.
 
-**Storage/backup alignment is still a release blocker.** The Modal API entrypoint currently forces `MEDIA_STORAGE_BACKEND=modal_volume` and mounts the `makeupart-v8-media` Volume, while the scheduled GitHub media-backup workflow inventories Google Drive. A Google Drive backup does not back up a Modal Volume. The deployed service and backup workflow must target the same durable store before customer-photo recovery can be claimed. Verify a real salon image/logo upload, persistence across restart, checksum-matched retrieval, non-empty encrypted backup and isolated restore.
+The encrypted PostgreSQL backup workflow remains separate from photo storage. Its Google Drive off-site upload can still fail with `invalid_grant`; a successful dump or restore drill does not prove that customer photos are backed up. The local-only choice intentionally does not claim a server-side customer-media backup or restore.
 
 ## Licensing and AI capabilities
 

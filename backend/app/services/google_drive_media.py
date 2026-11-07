@@ -57,6 +57,11 @@ def uses_supabase_storage() -> bool:
     return settings.MEDIA_STORAGE_BACKEND.strip().lower() == "supabase_storage"
 
 
+def uses_local_only() -> bool:
+    """True when customer-photo copies belong on the Android device only."""
+    return settings.MEDIA_STORAGE_BACKEND.strip().lower() == "local_only"
+
+
 def _supabase_storage_credentials() -> tuple[str, str, str] | None:
     base_url = settings.SUPABASE_URL.strip().rstrip("/")
     service_key = settings.SUPABASE_SERVICE_ROLE_KEY.strip()
@@ -172,7 +177,9 @@ def _verify_supabase_bucket() -> None:
 
 
 def is_durable_storage_configured() -> bool:
-    """Whether the configured production media backend has its required credentials."""
+    """Whether the selected backend retains customer media off the API host."""
+    if uses_local_only():
+        return False
     if uses_modal_volume():
         from app.services.media_volume import is_media_volume_configured
 
@@ -409,7 +416,10 @@ def _escaped_query_value(value: str) -> str:
 
 
 def verify_connection() -> None:
-    """Verify the selected durable media backend before accepting customer photos."""
+    """Verify the selected media mode before accepting customer-photo processing."""
+    if uses_local_only():
+        # No cloud provider is configured in phone-only mode.
+        return
     if uses_modal_volume():
         from app.services.media_volume import is_media_volume_configured
 
@@ -515,7 +525,13 @@ def _read_chunks(path: Path, chunk_size: int = 1024 * 1024) -> Iterator[bytes]:
 
 
 def persist_media_file(path: str | Path) -> bool:
-    """Persist one file in the configured private cloud storage backend."""
+    """Persist to the selected private backend; False means no remote copy exists."""
+    if uses_local_only():
+        candidate = Path(path).expanduser().resolve()
+        if not candidate.is_file():
+            raise GoogleDriveMediaError("Media file is missing before local-only persistence.")
+        # Render's file is a temporary processing copy, not a photo backup.
+        return False
     if uses_supabase_storage():
         candidate = Path(path).expanduser().resolve()
         if not candidate.is_file():
@@ -655,11 +671,14 @@ def persist_media_file(path: str | Path) -> bool:
 
 
 def ensure_local_file(path: str | Path) -> bool:
-    """Restore a missing authorized local file from the configured private backend."""
+    """Restore a missing file only when the selected backend has a remote copy."""
     candidate = Path(path).expanduser().resolve()
-    path_key = _relative_key(candidate)
     if candidate.is_file():
         return True
+    if uses_local_only():
+        # A phone-only archive cannot restore a file onto the API host.
+        return False
+    path_key = _relative_key(candidate)
 
     if uses_supabase_storage():
         credentials = _supabase_storage_credentials()
@@ -752,7 +771,9 @@ def ensure_local_file(path: str | Path) -> bool:
 
 
 def delete_media_file(path: str | Path) -> bool:
-    """Permanently delete matching objects from the configured private backend."""
+    """Delete a remote copy from the selected backend, if one exists."""
+    if uses_local_only():
+        return False
     if uses_supabase_storage():
         credentials = _supabase_storage_credentials()
         if credentials is None:
