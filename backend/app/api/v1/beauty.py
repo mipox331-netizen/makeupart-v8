@@ -64,8 +64,6 @@ def _media_dirs(salon_id: uuid.UUID) -> tuple[Path, Path]:
 
 def _persist_private_media_file(path: Path) -> None:
     """Persist remotely unless the explicitly selected mode is phone-only."""
-    if not path.is_file():
-        raise GoogleDriveMediaError("Media file is missing before persistence.")
     if google_drive_media.uses_local_only():
         # Flutter downloads the processed image and archives it in app storage
         # and Android Gallery. Render's copy is temporary request-time media.
@@ -634,7 +632,7 @@ def process_beauty_upload(
         except GoogleDriveMediaError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="The configured private media storage could not save the photo.",
+                detail="Private Google Drive media storage is unavailable. The photo was not saved.",
             ) from exc
 
         job = BeautyJob(

@@ -946,3 +946,23 @@ def test_beauty_upload_does_not_commit_when_production_media_is_local_only(
     assert jobs.status_code == 200
     assert jobs.json() == []
 
+
+def test_private_media_persistence_skips_remote_storage_in_production_local_only(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(beauty_api.settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(beauty_api.settings, "MEDIA_STORAGE_BACKEND", "local_only")
+    monkeypatch.setattr(beauty_api.settings, "REQUIRE_DURABLE_MEDIA", False)
+
+    image_path = tmp_path / "after.png"
+    image_path.write_bytes(b"temporary-render-image")
+
+    def unexpected_remote_write(*_args, **_kwargs):
+        pytest.fail("local_only must never call the remote media persistence adapter")
+
+    monkeypatch.setattr(
+        beauty_api.google_drive_media, "persist_media_file", unexpected_remote_write
+    )
+
+    assert beauty_api._persist_private_media_file(image_path) is None
+
