@@ -117,11 +117,14 @@ jobs:
             exit 1
           }
           case "$media_storage" in
-            google_drive|modal_volume|supabase_storage)
-              echo "Production durable media storage: $media_storage"
+            google_drive|modal_volume|supabase_storage|local_only)
+              echo "Production media storage: $media_storage"
+              if [[ "$media_storage" == "local_only" ]]; then
+                echo "::notice::local_only mode active ($0 phone Gallery backup). No server-side customer photo store."
+              fi
               ;;
             *)
-              echo "::error::Production reported an unsupported or non-durable media backend."
+              echo "::error::Production reported an unsupported media backend: ${media_storage:-empty}"
               exit 1
               ;;
           esac
