@@ -1,4 +1,4 @@
-name: MakeupArt V8 Render PostgreSQL and Google Drive Recovery
+name: MakeupArt V8 Render PostgreSQL and Local-only Photo Mode
 
 on:
   push:
@@ -77,7 +77,7 @@ jobs:
           print("Supabase PostgreSQL connectivity verified; Render settings were not changed before this check.")
           PY
 
-      - name: Apply PostgreSQL and private Google Drive settings to Render
+      - name: Apply PostgreSQL and local-only photo mode to Render
         shell: bash
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
@@ -156,54 +156,13 @@ jobs:
           if missing:
               raise SystemExit("Render environment-variable verification failed for: " + ", ".join(missing))
           print("All required database and private-media environment keys are present in Render.")
-
-      - name: Trigger Render deployment
-        id: deploy
-        shell: bash
-        env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json
-          import os
-          import urllib.error
-          import urllib.request
-
-          service_id = os.environ["RENDER_SERVICE_ID"]
-          req = urllib.request.Request(
-              f"https://api.render.com/v1/services/{service_id}/deploys",
-              data=json.dumps({
-                  "clearCache": "do_not_clear",
-                  "deployMode": "build_and_deploy",
-              }).encode(),
-              method="POST",
-              headers={
-                  "Authorization": "Bearer " + os.environ["RENDER_API_KEY"],
-                  "Accept": "application/json",
-                  "Content-Type": "application/json",
-              },
-          )
-          try:
-              with urllib.request.urlopen(req, timeout=30) as response:
-                  payload = json.loads(response.read())
-          except urllib.error.HTTPError as exc:
-              raise SystemExit(f"Render rejected the production deploy request (HTTP {exc.code}).") from None
-          except (urllib.error.URLError, ValueError):
-              raise SystemExit("Could not confirm that Render accepted the production deploy request.") from None
-          deploy_id = payload.get("id")
-          if not isinstance(deploy_id, str) or not deploy_id:
-              raise SystemExit("Render did not return a deployment ID.")
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write("deploy_id=" + deploy_id + "\n")
-          print("Render accepted deployment: " + deploy_id)
           PY
 
-      - name: Wait for Render deployment and verify live API and private media storage
+      - name: Wait for Render auto-deploy and verify live API and phone-only photo mode
         shell: bash
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
-          DEPLOY_ID: ${{ steps.deploy.outputs.deploy_id }}
+          EXPECTED_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -214,26 +173,49 @@ jobs:
           import urllib.request
 
           service_id = os.environ["RENDER_SERVICE_ID"]
-          deploy_id = os.environ["DEPLOY_ID"]
+          expected_commit = os.environ["EXPECTED_COMMIT"]
           token = os.environ["RENDER_API_KEY"]
 
-          def render_deploy():
+          def render_deploys():
               req = urllib.request.Request(
-                  f"https://api.render.com/v1/services/{service_id}/deploys/{deploy_id}",
+                  f"https://api.render.com/v1/services/{service_id}/deploys?limit=20",
                   headers={"Authorization": "Bearer " + token, "Accept": "application/json"},
               )
-              try:
-                  with urllib.request.urlopen(req, timeout=20) as response:
-                      return json.loads(response.read())
-              except (urllib.error.URLError, urllib.error.HTTPError, ValueError):
-                  return {}
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  payload = json.loads(response.read())
+              if isinstance(payload, list):
+                  items = payload
+              elif isinstance(payload, dict):
+                  items = payload.get("deploys") or payload.get("data") or []
+              else:
+                  items = []
+              normalized = []
+              for item in items:
+                  if isinstance(item, dict):
+                      normalized.append(item.get("deploy") if isinstance(item.get("deploy"), dict) else item)
+              return [
+                  item for item in normalized
+                  if isinstance(item, dict)
+                  and isinstance(item.get("commit"), dict)
+                  and item["commit"].get("id") == expected_commit
+              ]
 
           terminal_failure = {"build_failed", "update_failed", "pre_deploy_failed", "canceled", "deactivated"}
           live = False
           for attempt in range(90):
-              payload = render_deploy()
-              state = str(payload.get("status", "")).lower()
-              print(f"Render deployment state: {state or 'unknown'} ({attempt + 1}/90)")
+              try:
+                  matching = render_deploys()
+              except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
+                  matching = []
+                  print(f"Could not query Render deploy state ({type(exc).__name__}); retrying.")
+              if matching:
+                  deploy = max(matching, key=lambda item: str(item.get("createdAt", "")))
+                  state = str(deploy.get("status", "")).lower()
+                  deploy_id = str(deploy.get("id", "unknown"))
+              else:
+                  state = "waiting_for_commit"
+                  deploy_id = "not_created"
+              print(f"Render auto-deploy {deploy_id}: {state} ({attempt + 1}/90)")
               if state == "live":
                   live = True
                   break
@@ -241,7 +223,7 @@ jobs:
                   raise SystemExit("Render deployment ended unsuccessfully: " + state)
               time.sleep(10)
           if not live:
-              raise SystemExit("Render deployment did not reach live state within the verification window.")
+              raise SystemExit("Render auto-deploy did not reach live state for the expected commit within the verification window.")
 
           endpoints = {
               "/health/live": ("alive", None),
