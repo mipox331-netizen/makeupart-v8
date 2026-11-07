@@ -102,9 +102,18 @@ jobs:
               print("")
           PY
           )"
+          media_reason="$(python - "$media_body" <<'PY'
+          import json, sys
+          try:
+              with open(sys.argv[1], encoding="utf-8") as handle:
+                  print(json.load(handle).get("reason", ""))
+          except Exception:
+              print("")
+          PY
+          )"
           rm -f "$media_body"
           [[ "$media_code" == "200" && "$media_status" == "ready" ]] || {
-            echo "::error::Production private-media readiness failed (HTTP \${media_code:-000}, status=\${media_status:-unknown})."
+            echo "::error::Production private-media readiness failed (HTTP ${media_code:-000}, status=${media_status:-unknown}, reason=${media_reason:-not_reported})."
             exit 1
           }
           case "$media_storage" in
