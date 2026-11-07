@@ -109,7 +109,16 @@ def liveness_check() -> dict[str, str]:
 
 @app.get("/health/media-ready", tags=["health"])
 def media_readiness_check() -> dict[str, str]:
-    """Verify that private durable storage is safe for customer photos."""
+    """Verify that private durable storage is safe for customer photos.
+
+    local_only ($0 mode): phone Gallery is the backup. No server-side media store.
+    """
+    backend = settings.MEDIA_STORAGE_BACKEND.lower()
+
+    # Explicit $0 phone-backup mode — always ready, no cloud required.
+    if backend == "local_only":
+        return {"status": "ready", "storage": "local_only"}
+
     drive_configured = any(
         value.strip()
         for value in (
@@ -138,7 +147,7 @@ def media_readiness_check() -> dict[str, str]:
             content={"status": "not_ready", "reason": "media_storage_unavailable"},
         )
 
-    return {"status": "ready", "storage": settings.MEDIA_STORAGE_BACKEND.lower()}
+    return {"status": "ready", "storage": backend}
 
 
 @app.get("/health/ready", tags=["health"])

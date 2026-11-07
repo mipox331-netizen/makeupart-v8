@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     SUPABASE_DB_URL: str = ""
     CORS_ORIGINS: str = ""
     MEDIA_ROOT: str = "./media"
-    # Select private media storage. Google Drive is the default durable backend;
-    # Modal Volume and private Supabase Storage remain optional alternatives.
+    # Select private media storage.
+    # local_only = $0 phone Gallery backup (no cloud). Customer photos stay on device.
+    # google_drive / modal_volume / supabase_storage = durable server-side backends.
     MEDIA_STORAGE_BACKEND: str = "google_drive"
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
@@ -80,9 +81,10 @@ class Settings(BaseSettings):
     def validate_runtime(self) -> None:
         if not self.DATABASE_URL.strip():
             raise RuntimeError("DATABASE_URL or SUPABASE_DB_URL must be configured")
-        if self.MEDIA_STORAGE_BACKEND.lower() not in {"google_drive", "modal_volume", "supabase_storage"}:
+        allowed_backends = {"google_drive", "modal_volume", "supabase_storage", "local_only"}
+        if self.MEDIA_STORAGE_BACKEND.lower() not in allowed_backends:
             raise RuntimeError(
-                "MEDIA_STORAGE_BACKEND must be google_drive, modal_volume or supabase_storage"
+                "MEDIA_STORAGE_BACKEND must be google_drive, modal_volume, supabase_storage or local_only"
             )
         if self.ENVIRONMENT.lower() == "production":
             if len(self.SECRET_KEY) < 32:

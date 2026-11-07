@@ -82,6 +82,7 @@ def test_production_media_readiness_fails_closed_without_drive_oauth(client, mon
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "MEDIA_STORAGE_BACKEND", "google_drive")
     monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
@@ -101,6 +102,7 @@ def test_media_readiness_requires_successful_drive_verification(client, monkeypa
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "MEDIA_STORAGE_BACKEND", "google_drive")
     monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", True)
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "client-id")
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "client-secret")
@@ -117,6 +119,24 @@ def test_local_media_readiness_reports_local_only_mode(client, monkeypatch):
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    monkeypatch.setattr(settings, "MEDIA_STORAGE_BACKEND", "local_only")
+    monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_DRIVE_REFRESH_TOKEN", "")
+
+    response = client.get("/health/media-ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "storage": "local_only"}
+
+
+def test_production_local_only_media_readiness(client, monkeypatch):
+    """$0 phone-backup mode must be ready even in production."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "MEDIA_STORAGE_BACKEND", "local_only")
     monkeypatch.setattr(settings, "REQUIRE_DURABLE_MEDIA", False)
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_ID", "")
     monkeypatch.setattr(settings, "GOOGLE_DRIVE_CLIENT_SECRET", "")
@@ -158,7 +178,6 @@ def test_readiness_reports_running_app_commit(client, monkeypatch):
         "status": "ready",
         "deployment_commit": "test-deployment-commit",
     }
-
 
 
 def test_supabase_storage_media_readiness(client, monkeypatch):
