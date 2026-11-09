@@ -16,6 +16,7 @@ REQUIRED_MEDIA_COLUMNS = {
     ("beauty_results", "before_image_url"),
     ("beauty_results", "after_image_url"),
     ("watermarks", "logo_url"),
+    ("salons", "logo_url"),
 }
 
 
@@ -32,6 +33,7 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
     if manifest.get("format") not in {
         "makeupart-supabase-storage-media-backup-v1",
         "makeupart-google-drive-media-backup-v1",
+        "makeupart-modal-volume-media-backup-v1",
     }:
         raise MediaInventoryError("Private media backup manifest format is not supported.")
 
@@ -76,7 +78,7 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
                 FROM information_schema.columns
                 WHERE table_schema='public'
                   AND table_name = ANY(:tables)
-            """), {"tables": ["beauty_jobs", "beauty_results", "watermarks"]}).all()
+            """), {"tables": ["beauty_jobs", "beauty_results", "watermarks", "salons"]}).all()
             existing = {(row[0], row[1]) for row in columns}
             missing = sorted(REQUIRED_MEDIA_COLUMNS - existing)
             if missing:
@@ -93,6 +95,7 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
                 + (SELECT count(*) FROM public.beauty_results WHERE before_image_url IS NOT NULL)
                 + (SELECT count(*) FROM public.beauty_results WHERE after_image_url IS NOT NULL)
                 + (SELECT count(*) FROM public.watermarks WHERE logo_url IS NOT NULL)
+                + (SELECT count(*) FROM public.salons WHERE logo_url IS NOT NULL)
             """)).scalar_one()
     except MediaInventoryError:
         raise
@@ -106,12 +109,12 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
 
     if int(reference_count or 0) > 0:
         raise MediaInventoryError(
-            "Google Drive contains no media but the database still references customer photos or salon logos; restore the source media before accepting an empty backup."
+            "The selected private media store is empty but the database still references customer photos or salon logos; restore the source media before accepting an empty backup."
         )
 
     print(
         "Verified empty-state backup: no beauty jobs, result images or salon-logo references "
-        "point to missing Google Drive media. No customer image data is missing from the empty Drive store."
+        "point to missing private media. No customer image data is missing from the verified empty store."
     )
     return 0
 

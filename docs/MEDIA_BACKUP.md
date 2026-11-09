@@ -1,65 +1,72 @@
-# MakeupArt V8 — Google Drive media storage and encrypted backups
+# MakeupArt V8 — Phone copies and encrypted Google Drive backups
 
-## Device-only edited-photo backup
+## Phone photo copies
 
-The Flutter Android client also copies every processed output to the phone's shared MediaStore folder `Pictures/MakeupArtV8`. The latest ten images remain in salon-scoped private app history, and older private images are removed only after Gallery confirms publication. A manual **Backup Now** action retries the locally retained images. These copies stay on the phone after app removal, but cannot recover a lost or factory-reset device. This client-side feature does not use Google Drive and does not replace the separate server-side media backup and restore workflow documented below.
+The Android client copies every processed output to the phone's shared MediaStore folder `Pictures/MakeupArtV8`. The latest ten images remain in salon-scoped private app history; older private images are removed only after Gallery confirms publication. The manual **Backup Now** action retries locally retained images.
 
-The phone's Gallery/Photos app may independently sync its own folders according to the user's device settings; MakeupArt itself does not send these local backup copies to a cloud provider.
+These are device copies. They remain on the phone after app removal, but cannot recover a lost or factory-reset device. MakeupArt does not upload this MediaStore copy to Google Drive. The phone's Gallery/Photos app may independently sync its own folders according to the device owner's settings.
 
-## Chosen storage layout
+## Actual production media architecture
 
-Google Drive is the primary private storage for salon photos, before/after images and salon logos. The backend is configured with `MEDIA_STORAGE_BACKEND=google_drive` and `REQUIRE_DURABLE_MEDIA=true`; it refuses to silently save customer media only on Render's temporary disk when Drive credentials are missing.
+The production Modal deployment mounts the persistent Modal Volume `makeupart-v8-media` at `/app/media`. The Modal entrypoint explicitly selects `MEDIA_STORAGE_BACKEND=modal_volume`; customer source photos, processed images and salon logos are written there and committed to that Volume.
 
-PostgreSQL remains the live relational database for accounts, salons, subscriptions, jobs and payments. Google Drive is file storage, not a SQL database, so it cannot replace the live PostgreSQL connection. The current deployment workflow can keep the existing PostgreSQL URL while setting media storage to Google Drive; it does not configure Supabase Storage or send a Supabase service-role key to the app.
+**Google Drive is the off-site encrypted backup destination, not the live media filesystem used by the current Modal deployment.** The production media backup must therefore read from the Modal Volume. Reading the Google Drive app-media folder alone is not a valid backup of current production media.
 
-## What is stored in Drive
+PostgreSQL remains the live relational database for accounts, salons, subscriptions, jobs and payments. Its encrypted database dump is uploaded to the same private Google Drive backup folder by the separate database-backup workflow.
 
-- The app stores private media beneath the app-owned folder marked `makeupart_root=v1`.
-- Encrypted media snapshots are saved in `MakeUpArt V8 Encrypted Backups`.
-- Encrypted PostgreSQL custom-format dumps are saved in the same backup folder.
-- Backup objects are encrypted with GPG symmetric AES-256 before upload. Only encrypted archives and SHA-256 sidecars are sent to Drive.
-- GitHub Actions also keeps a temporary copy for the automatic isolated restore drill (14 days); the Drive copy is the longer-lived backup.
+## Daily media backup flow
 
-The Google Drive free account quota is finite and shared with other Google services. This design avoids a hosted media-storage trial expiring, but it does not make storage unlimited. Keep an eye on Drive quota, and keep the encryption passphrase safely offline.
+The GitHub Actions workflow `MakeupArt V8 Encrypted Google Drive Media Backup` runs daily at 02:45 UTC and can be started manually. It:
+
+1. Authenticates to the Modal `main` environment and downloads the complete `makeupart-v8-media` Volume.
+2. Rejects unsafe filesystem entries, oversized or empty objects, and files that change while checksums are being calculated.
+3. Writes a manifest with every relative media path, byte size and SHA-256 checksum.
+4. If the Volume is empty, checks the live PostgreSQL media-reference columns before accepting that empty state.
+5. Creates a GPG symmetric AES-256 encrypted archive, decrypts it in an isolated temporary directory and verifies the restored file set and SHA-256 checksums.
+6. Uploads the encrypted archive and SHA-256 sidecar to the private Google Drive folder `MakeUpArt V8 Encrypted Backups`. The uploader checks Google Drive's returned size and MD5 metadata.
+7. Keeps a temporary encrypted GitHub Actions artifact for 14 days. The paired restore-drill workflow decrypts that artifact and verifies its contents without modifying production storage.
+
+The archive is created from the actual mounted Volume. It does not depend on the legacy Google Drive app-media folder or Supabase Storage.
+
+The separate database workflow runs daily at 02:30 UTC. It creates a PostgreSQL custom-format dump, encrypts it, verifies that it can be decrypted and parsed by `pg_restore`, then uploads it to the same Drive backup folder.
 
 ## Required GitHub production environment secrets
 
-The deployment and backup workflows accept either the canonical name or the legacy alias:
+The media backup workflow needs:
 
+- `MODAL_TOKEN_ID` or `TOKENID`
+- `MODAL_TOKEN_SECRET`, `TOKEN_SECRET` or `TOKENI_SECRET`
 - `GOOGLE_DRIVE_CLIENT_ID` or `GDRIVE_CLIENT_ID`
 - `GOOGLE_DRIVE_CLIENT_SECRET` or `GDRIVE_CLIENT_SECRET`
 - `GOOGLE_DRIVE_REFRESH_TOKEN` or `GDRIVE_REFRESH_TOKEN`
-- `BACKUP_ENCRYPTION_PASSPHRASE` — at least 24 characters; keep a separate offline recovery copy.
-- `SUPABASE_DB_URL`, `SUPABASE_DB_URL_SECRET` or `DATABASE_URL` — only for the live PostgreSQL database and the empty-media safety check.
-- `RENDER_API_KEY` or `RENDER_API_TOKEN` — needed for the GitHub deployment workflow to update the Render service and trigger a deployment.
+- `BACKUP_ENCRYPTION_PASSPHRASE` — at least 24 characters; keep a separate offline recovery copy
+- `SUPABASE_DB_URL`, `SUPABASE_DB_URL_SECRET` or `DATABASE_URL` — only for the live PostgreSQL empty-media safety check
 
-Do not commit these values or print them in workflow logs. The OAuth refresh token must belong to the Google account that owns the MakeUpArt Drive folders and must have permission to manage the app-created Drive files.
+The Modal token must have access to the `main` environment and the named production Volume. Do not commit these values or print them in workflow logs. Google Drive OAuth must belong to the account that owns the private MakeUpArt backup folder.
 
 ## Google OAuth refresh-token recovery
 
-The backup workflows use one private Google Drive account through OAuth. If a workflow reports `invalid_grant`, the refresh token has expired or been revoked. For an External OAuth app still in `Testing`, Google issues refresh tokens that expire after seven days for scopes beyond basic profile/email. In Google Cloud Console:
+The backup workflows use a private Google Drive account through OAuth. If a workflow reports `invalid_grant`, Google has rejected the stored refresh token because it expired or was revoked. For an External OAuth app still in **Testing**, refresh tokens for scopes beyond basic profile/email expire after seven days.
+
+In Google Cloud Console:
 
 1. Open **Google Auth Platform → Audience**.
 2. Change **Publishing status** from **Testing** to **In production**.
-3. Re-authorize the same Drive-owning Google account with offline access and explicit consent to receive a new refresh token.
-4. Replace the production GitHub environment secret `GOOGLE_DRIVE_REFRESH_TOKEN` (or its existing alias `GDRIVE_REFRESH_TOKEN`) with the new token.
-5. Run the media backup and database backup workflows manually once to verify both Drive uploads.
+3. Re-authorize the same Google account that owns the MakeUpArt Drive backups, requesting offline access and explicit consent.
+4. Replace the production GitHub environment secret `GOOGLE_DRIVE_REFRESH_TOKEN` (or its existing alias `GDRIVE_REFRESH_TOKEN`) with the newly issued refresh token.
+5. Run both media and database backup workflows manually. Confirm each upload step succeeds.
 
-Publishing the OAuth consent screen does not rent storage or create a paid database. Verification may still be required before allowing broad public users to authorize sensitive Drive scopes; this backend design only needs the owner's Drive account to grant access to the app-owned backup/media folders.
+Publishing the OAuth consent screen does not rent storage or create a paid database. Google may still require verification before an app can request sensitive Drive scopes from broad public users; this backup design only needs the owner's account to authorize the app.
 
-## Backup schedule and verification
+## What counts as a real backup
 
-The media workflow runs daily at 02:45 UTC and can also be started manually. It inventories the private Drive media root, paginates the full file list, rejects duplicate/unsafe path indexes, downloads every file, and checks the stored size and MD5 before creating a SHA-256 manifest. An empty Drive inventory is accepted only after the database check confirms there are no photo/logo references pointing to missing media.
+A configured workflow is not proof of a working backup. Production proof requires:
 
-The database workflow runs daily at 02:30 UTC and after a successful database migration. It creates a PostgreSQL custom-format dump, encrypts it, verifies that it can be decrypted and parsed by `pg_restore`, then uploads it to Drive.
+1. A successful Modal Volume download that reports the actual file count and total bytes.
+2. Successful encryption, isolated decryption and SHA-256 verification.
+3. A successful Google Drive upload with matching size and checksum metadata.
+4. A successful paired restore drill.
 
-The media and database restore-drill workflows independently decrypt GitHub's temporary artifact and verify that the media archive can be unpacked or the SQL dump can be restored into an isolated disposable PostgreSQL instance. These drills never write to the production database or production Drive.
+An empty media inventory is accepted only after the live database check confirms that no photo/logo references point to missing files. A green restore drill based only on a GitHub artifact does not by itself prove that the Google Drive upload succeeded; the Drive upload step must also be green.
 
-## Production proof still required
-
-A configured workflow is not proof that Google OAuth currently works in production. The first successful run must confirm all three:
-1. Media objects are actually present in the private Drive root and have non-zero bytes.
-2. Encrypted media and database archives are uploaded to the private Drive backup folder and their checksum verification passes.
-3. The paired isolated restore drills pass.
-
-A green empty-media check only proves that no existing database row points to missing media; it does not prove the app has completed a real salon-photo upload. Use an authorized test portrait and logo before using real customer data.
+Keep the encryption passphrase safely offline. Google Drive quota is finite and shared with the owner's other Google services.
