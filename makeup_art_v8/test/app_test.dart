@@ -702,6 +702,13 @@ void main() {
 
     final foldersToolbar = find.byKey(const ValueKey('face-filter-folders-grid'));
     expect(foldersToolbar, findsOneWidget);
+    expect(
+      find.descendant(
+        of: foldersToolbar,
+        matching: find.byType(FaceSampleArtwork),
+      ),
+      findsAtLeastNWidgets(1),
+    );
 
     // Keep the editor portrait-first: the photo canvas and capture actions are
     // visible before the client, preset and filter controls.
@@ -755,7 +762,13 @@ void main() {
     await tester.tap(impressionFolder);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('photo-finishes-grid')), findsOneWidget);
-    expect(find.byType(FaceSampleArtwork), findsNWidgets(5));
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('photo-finishes-grid')),
+        matching: find.byType(FaceSampleArtwork),
+      ),
+      findsNWidgets(5),
+    );
     expect(find.byKey(const ValueKey('photo-finish-0')), findsOneWidget);
     expect(find.textContaining('Skin polish strength'), findsOneWidget);
 
