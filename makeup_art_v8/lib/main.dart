@@ -400,6 +400,7 @@ class _SessionGateState extends State<SessionGate> {
       onLogout: widget.onLogout,
       salonId: salonId,
       canManageBranding: canManageBranding,
+      onAdminPortalAuthenticated: _load,
     );
   }
 }

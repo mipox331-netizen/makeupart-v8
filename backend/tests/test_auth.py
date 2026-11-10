@@ -100,6 +100,99 @@ def test_register_rejects_password_over_bcrypt_utf8_byte_limit(client):
     assert response.status_code == 422
 
 
+def test_admin_portal_login_issues_admin_session_for_single_allowlisted_admin(client, monkeypatch):
+    from pydantic import SecretStr
+    from app.core.config import settings
+
+    assert register(client, email="owner@salon.com").status_code == 201
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
+    monkeypatch.setattr(
+        settings,
+        "ADMIN_PORTAL_PASSPHRASE",
+        SecretStr("test-only-admin-portal-passphrase"),
+    )
+
+    response = client.post(
+        f"{API}/auth/admin-portal/login",
+        json={"passphrase": "test-only-admin-portal-passphrase"},
+    )
+
+    assert response.status_code == 200
+    tokens = response.json()
+    assert tokens["access_token"]
+    current_user = client.get(
+        f"{API}/auth/me",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert current_user.status_code == 200
+    assert current_user.json()["is_platform_admin"] is True
+
+
+def test_admin_portal_login_rejects_wrong_passphrase_and_locks_portal(client, monkeypatch):
+    from pydantic import SecretStr
+    from app.core.config import settings
+
+    assert register(client, email="owner@salon.com").status_code == 201
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
+    monkeypatch.setattr(settings, "ADMIN_PORTAL_PASSPHRASE", SecretStr("test-only-admin-portal-passphrase"))
+
+    for _ in range(5):
+        response = client.post(
+            f"{API}/auth/admin-portal/login",
+            json={"passphrase": "incorrect-test-passphrase"},
+        )
+        assert response.status_code == 401
+
+    locked = client.post(
+        f"{API}/auth/admin-portal/login",
+        json={"passphrase": "test-only-admin-portal-passphrase"},
+    )
+    assert locked.status_code == 429
+    assert locked.headers["Retry-After"] == "900"
+
+
+def test_admin_portal_login_is_disabled_without_server_secret(client, monkeypatch):
+    from pydantic import SecretStr
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ADMIN_PORTAL_PASSPHRASE", SecretStr(""))
+    response = client.post(
+        f"{API}/auth/admin-portal/login",
+        json={"passphrase": "test-only-admin-portal-passphrase"},
+    )
+    assert response.status_code == 503
+
+
+def test_admin_portal_login_rejects_a_short_server_passphrase(client, monkeypatch):
+    from pydantic import SecretStr
+    from app.core.config import settings
+
+    assert register(client, email="owner@salon.com").status_code == 201
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
+    monkeypatch.setattr(settings, "ADMIN_PORTAL_PASSPHRASE", SecretStr("short-value"))
+
+    response = client.post(
+        f"{API}/auth/admin-portal/login",
+        json={"passphrase": "short-value"},
+    )
+    assert response.status_code == 503
+
+
+def test_admin_portal_login_never_promotes_a_regular_salon_user(client, monkeypatch):
+    from pydantic import SecretStr
+    from app.core.config import settings
+
+    assert register(client, email="owner@salon.com").status_code == 201
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "somebody-else@salon.com")
+    monkeypatch.setattr(settings, "ADMIN_PORTAL_PASSPHRASE", SecretStr("test-only-admin-portal-passphrase"))
+
+    response = client.post(
+        f"{API}/auth/admin-portal/login",
+        json={"passphrase": "test-only-admin-portal-passphrase"},
+    )
+    assert response.status_code == 503
+
+
 def test_login_success(client):
     register(client)
     response = login(client, "owner@salon.com")

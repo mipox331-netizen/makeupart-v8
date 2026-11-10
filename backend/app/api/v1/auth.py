@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -16,7 +17,13 @@ from app.crud.user import authenticate_user, create_owner_user, get_user, get_us
 from app.db.session import get_db
 from app.models.refresh_session import RefreshSession
 from app.models.user import User
-from app.schemas.auth import RefreshRequest, RegisterRequest, RegisterResponse, Token
+from app.schemas.auth import (
+    AdminPortalLoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    RegisterResponse,
+    Token,
+)
 from app.schemas.salon import SalonCreate, SalonOut
 from app.schemas.user import UserOut
 from app.services.login_rate_limit import clear_login_failures, is_login_locked, record_login_failure
@@ -108,6 +115,69 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
     clear_login_failures(db, normalized_email)
     tokens = _issue_tokens(user, db)
+    db.commit()
+    return tokens
+
+
+@router.post("/admin-portal/login", response_model=Token)
+def admin_portal_login(
+    login_in: AdminPortalLoginRequest,
+    db: Session = Depends(get_db),
+) -> Token:
+    """Issue an admin session only for the single configured platform-admin account.
+
+    The shared passphrase is read only from the server environment. A regular
+    salon user can never receive admin privileges through this endpoint.
+    """
+    expected_passphrase = settings.ADMIN_PORTAL_PASSPHRASE.get_secret_value()
+    if not expected_passphrase or len(expected_passphrase.encode('utf-8')) < 12:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The secure admin portal needs a passphrase of at least 12 characters.",
+        )
+
+    lockout_key = "__makeupart_moog_admin_portal__"
+    if is_login_locked(db, lockout_key):
+        retry_after = settings.LOGIN_LOCKOUT_MINUTES * 60
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed portal attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    if not hmac.compare_digest(
+        login_in.passphrase.encode("utf-8"),
+        expected_passphrase.encode("utf-8"),
+    ):
+        record_login_failure(db, lockout_key)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="The admin passphrase is incorrect.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    admin_emails = settings.platform_admin_emails
+    if not admin_emails:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No platform-admin account is configured.",
+        )
+
+    configured_admins = db.execute(
+        select(User).where(User.email.in_(admin_emails))
+    ).scalars().all()
+    active_admins = [
+        user for user in configured_admins
+        if user.is_active and is_platform_admin(user)
+    ]
+    if len(active_admins) != 1:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The secure portal requires exactly one active platform-admin account.",
+        )
+
+    clear_login_failures(db, lockout_key)
+    tokens = _issue_tokens(active_admins[0], db)
     db.commit()
     return tokens
 

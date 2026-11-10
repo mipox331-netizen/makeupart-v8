@@ -47,6 +47,7 @@ class ApiClient {
           final isUnauthorized = error.response?.statusCode == 401;
           final alreadyRetried = request.extra['authRetried'] == true;
           final isAuthEndpoint = request.path.contains('/auth/login') ||
+              request.path.contains('/auth/admin-portal/login') ||
               request.path.contains('/auth/refresh') ||
               request.path.contains('/auth/logout');
 
@@ -374,6 +375,22 @@ class ApiClient {
 
     _refreshInFlight = future;
     return future.whenComplete(() => _refreshInFlight = null);
+  }
+
+  Future<void> adminPortalLogin(String passphrase) async {
+    final response = await dio.post(
+      '/auth/admin-portal/login',
+      data: {'passphrase': passphrase},
+    );
+    final data = Map<String, dynamic>.from(response.data as Map);
+    final accessToken = data['access_token'] as String?;
+    final refreshToken = data['refresh_token'] as String?;
+    if (accessToken == null || accessToken.isEmpty ||
+        refreshToken == null || refreshToken.isEmpty) {
+      throw const FormatException('The admin portal returned an invalid session.');
+    }
+    await storage.write(key: _accessKey, value: accessToken);
+    await storage.write(key: _refreshKey, value: refreshToken);
   }
 
   Future<void> logout() async {

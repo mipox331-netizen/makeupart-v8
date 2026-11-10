@@ -7,10 +7,12 @@ class DeveloperBranding extends StatelessWidget {
     super.key,
     this.compact = false,
     this.centered = false,
+    this.onTap,
   });
 
   final bool compact;
   final bool centered;
+  final VoidCallback? onTap;
 
   static const _logoUrl =
       'https://www.google.com/s2/favicons?domain=moog-digital.blogspot.com&sz=128';
@@ -74,6 +76,22 @@ class DeveloperBranding extends StatelessWidget {
         ),
       ],
     );
-    return centered ? Center(child: row) : row;
+    final content = onTap == null
+        ? row
+        : Tooltip(
+            message: 'MR AI secure dashboard',
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                  child: row,
+                ),
+              ),
+            ),
+          );
+    return centered ? Center(child: content) : content;
   }
 }

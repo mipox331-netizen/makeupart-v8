@@ -4,12 +4,14 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:makeup_art_v8/main.dart';
+import 'package:makeup_art_v8/pages/admin_portal_login_page.dart';
 import 'package:makeup_art_v8/pages/beauty_page.dart';
 import 'package:makeup_art_v8/pages/login_page.dart';
 import 'package:makeup_art_v8/pages/register_page.dart';
 import 'package:makeup_art_v8/pages/subscription_page.dart';
 import 'package:makeup_art_v8/services/api_client.dart';
 import 'package:makeup_art_v8/services/salon_look_preset_store.dart';
+import 'package:makeup_art_v8/widgets/developer_branding.dart';
 import 'package:makeup_art_v8/widgets/face_sample_artwork.dart';
 
 class _FakeRegistrationApi extends ApiClient {
@@ -84,6 +86,19 @@ class _TransientSessionApi extends ApiClient {
         'plan': 'free',
         'status': 'inactive',
       };
+}
+
+class _FakeAdminPortalApi extends ApiClient {
+  _FakeAdminPortalApi({this.failure});
+
+  final Object? failure;
+  String? submittedPassphrase;
+
+  @override
+  Future<void> adminPortalLogin(String passphrase) async {
+    submittedPassphrase = passphrase;
+    if (failure != null) throw failure!;
+  }
 }
 
 class _FakeLoginApi extends ApiClient {
@@ -380,6 +395,112 @@ void main() {
     await tester.tap(toggle);
     await tester.pump();
     expect(tester.widget<TextField>(passwordField).obscureText, isTrue);
+  });
+
+  testWidgets('MR AI portal has one password field with a working eye toggle', (tester) async {
+    _useTallViewport(tester);
+    final api = _FakeAdminPortalApi();
+    var didLogin = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdminPortalLoginPage(
+          api: api,
+          onLoggedIn: () => didLogin = true,
+        ),
+      ),
+    );
+
+    final passwordField = find.byKey(
+      const ValueKey('admin-portal-passphrase-input'),
+    );
+    final visibilityToggle = find.byKey(
+      const ValueKey('admin-portal-password-visibility-toggle'),
+    );
+    expect(find.byType(TextField), findsOneWidget);
+    expect(tester.widget<TextField>(passwordField).obscureText, isTrue);
+
+    await tester.enterText(passwordField, 'portal-test-passphrase');
+    await tester.tap(visibilityToggle);
+    await tester.pump();
+    expect(tester.widget<TextField>(passwordField).obscureText, isFalse);
+
+    await tester.tap(visibilityToggle);
+    await tester.pump();
+    expect(tester.widget<TextField>(passwordField).obscureText, isTrue);
+
+    await tester.tap(find.text('Ingia dashboard'));
+    await tester.pumpAndSettle();
+    expect(api.submittedPassphrase, 'portal-test-passphrase');
+    expect(didLogin, isTrue);
+    expect(find.text('Neno la siri si sahihi.'), findsNothing);
+  });
+
+  testWidgets('MR AI portal reports a wrong passphrase without opening dashboard', (tester) async {
+    _useTallViewport(tester);
+    final api = _FakeAdminPortalApi(
+      failure: DioException(
+        requestOptions: RequestOptions(path: '/auth/admin-portal/login'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/auth/admin-portal/login'),
+          statusCode: 401,
+          data: {'detail': 'The admin passphrase is incorrect.'},
+        ),
+      ),
+    );
+    var didLogin = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdminPortalLoginPage(
+          api: api,
+          onLoggedIn: () => didLogin = true,
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('admin-portal-passphrase-input')),
+      'wrong-test-passphrase',
+    );
+    await tester.tap(find.text('Ingia dashboard'));
+    await tester.pumpAndSettle();
+
+    expect(didLogin, isFalse);
+    expect(find.text('Neno la siri si sahihi.'), findsOneWidget);
+  });
+
+  testWidgets('MOOG branding opens the hidden MR AI dashboard route', (tester) async {
+    _useTallViewport(tester);
+    final api = _FakeAdminPortalApi();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => Center(
+              child: DeveloperBranding(
+                centered: true,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => AdminPortalLoginPage(
+                        api: api,
+                        onLoggedIn: () {},
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('MOOG 343'));
+    await tester.pumpAndSettle();
+    expect(find.text('MR AI · Secure Dashboard'), findsOneWidget);
+    expect(find.byKey(const ValueKey('admin-portal-passphrase-input')), findsOneWidget);
   });
 
   testWidgets('subscription offers Vodacom, Tigo and Airtel mobile money choices', (tester) async {
