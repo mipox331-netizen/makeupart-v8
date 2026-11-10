@@ -31,17 +31,52 @@ jobs:
 
     steps:
       - name: Validate deployment credentials without displaying values
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_MEDIA_BUCKET: ${{ secrets.SUPABASE_MEDIA_BUCKET || 'makeupart-media' }}
         shell: bash
         run: |
           set -euo pipefail
           missing=()
           [[ -n "${RENDER_API_KEY:-}" ]] || missing+=("RENDER_API_KEY or RENDER_API_TOKEN")
           [[ -n "${SUPABASE_DB_URL:-}" ]] || missing+=("SUPABASE_DB_URL or SUPABASE_DB_URL_SECRET")
+          [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SERVICE_ROLE_KEY")
           if (( ${#missing[@]} > 0 )); then
-            echo "::error::Cannot deploy Render recovery. Missing production GitHub environment secrets: ${missing[*]}."
+            echo "::error::Cannot deploy private Supabase Storage. Missing production GitHub environment secrets: ${missing[*]}."
             exit 1
           fi
-          echo "Render API and Supabase PostgreSQL deployment credentials are present."
+          python - <<'PY' >> "$GITHUB_ENV"
+          import os
+          from urllib.parse import unquote, urlsplit
+          database = urlsplit(os.environ["SUPABASE_DB_URL"].strip())
+          project_url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+          if not project_url:
+              host = (database.hostname or "").lower()
+              project_ref = ""
+              if host.endswith(".supabase.co"):
+                  project_ref = host.removesuffix(".supabase.co")
+              elif host.endswith(".pooler.supabase.com") and database.username:
+                  username = unquote(database.username)
+                  if "." in username:
+                      candidate = username.split(".", 1)[1]
+                      if candidate.replace("-", "").isalnum():
+                          project_ref = candidate
+              if not project_ref:
+                  raise SystemExit("Set SUPABASE_URL; its project reference could not be safely derived from SUPABASE_DB_URL.")
+              project_url = f"https://{project_ref}.supabase.co"
+          parsed = urlsplit(project_url)
+          if parsed.scheme != "https" or not parsed.hostname or not parsed.hostname.endswith(".supabase.co") or parsed.path:
+              raise SystemExit("SUPABASE_URL must be an HTTPS Supabase project URL.")
+          bucket = os.environ.get("SUPABASE_MEDIA_BUCKET", "makeupart-media").strip()
+          if not bucket or "/" in bucket:
+              raise SystemExit("SUPABASE_MEDIA_BUCKET is invalid.")
+          print("SUPABASE_URL=" + project_url)
+          print("SUPABASE_MEDIA_BUCKET=" + bucket)
+          PY
+          echo "Render, Supabase PostgreSQL and private-storage credentials are present; values were not printed."
 
       - name: Set up Python 3.12 for database connectivity validation
         uses: actions/setup-python@v5
