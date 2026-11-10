@@ -336,6 +336,24 @@ class ApiClient {
     await storage.write(key: _refreshKey, value: data['refresh_token'] as String);
   }
 
+  Future<void> loginAsPlatformAdmin({
+    required String username,
+    required String password,
+  }) async {
+    final response = await dio.post(
+      '/auth/admin-login',
+      data: {'username': username, 'password': password},
+    );
+    final data = Map<String, dynamic>.from(response.data as Map);
+    final accessToken = data['access_token'] as String?;
+    final refreshToken = data['refresh_token'] as String?;
+    if (accessToken == null || refreshToken == null) {
+      throw const FormatException('Admin login returned an incomplete token response.');
+    }
+    await storage.write(key: _accessKey, value: accessToken);
+    await storage.write(key: _refreshKey, value: refreshToken);
+  }
+
   Future<String?> _refreshAccessToken(String refreshToken) {
     final running = _refreshInFlight;
     if (running != null) return running;
