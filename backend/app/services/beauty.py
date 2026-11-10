@@ -462,6 +462,10 @@ class BeautyProvider:
             str(payload.get("face_edit", "none")),
             intensity,
         )
+        if face_edit != "none":
+            # Deliberate local edits should report their real post-edit structure
+            # score. Measuring the untouched source here would falsely return 1.0.
+            similarity = IdentityGuard.measure_similarity(image, processed, landmarks[0])
 
         output_dir = payload.get("output_dir")
         if output_dir:
