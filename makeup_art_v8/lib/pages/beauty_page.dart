@@ -243,6 +243,8 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
   Future<Uint8List>? afterImageFuture;
   Uint8List? rawAfterBytes;
   Uint8List? displayedAfterBytes;
+  Uint8List? faceAppComparisonBytes;
+  bool loadingFaceAppComparison = false;
   String selectedLook = 'Natural Finish';
   String selectedMakeupStyle = 'natural';
   String? _selectedFilterFolder;
@@ -584,6 +586,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
         afterImageFuture = null;
         rawAfterBytes = null;
         displayedAfterBytes = null;
+        faceAppComparisonBytes = null;
         error = null;
       });
     } catch (_) {
@@ -607,6 +610,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
         afterImageFuture = null;
         rawAfterBytes = null;
         displayedAfterBytes = null;
+        faceAppComparisonBytes = null;
         error = null;
       });
     } catch (_) {
@@ -692,6 +696,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
     afterImageFuture = null;
     rawAfterBytes = null;
     displayedAfterBytes = null;
+    faceAppComparisonBytes = null;
     error = null;
   }
 
@@ -821,8 +826,37 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       afterImageFuture = null;
       rawAfterBytes = null;
       displayedAfterBytes = null;
+      faceAppComparisonBytes = null;
       error = null;
     });
+  }
+
+  Future<void> _chooseFaceAppComparison() async {
+    if (displayedAfterBytes == null || loadingFaceAppComparison) return;
+    setState(() => loadingFaceAppComparison = true);
+    try {
+      final image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 95,
+      );
+      if (image == null) return;
+      final bytes = await image.readAsBytes();
+      if (bytes.isEmpty) {
+        throw const FormatException('Selected comparison photo is empty.');
+      }
+      if (!mounted) return;
+      setState(() => faceAppComparisonBytes = bytes);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Haikuweza kusoma picha ya FaceApp kutoka Gallery.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => loadingFaceAppComparison = false);
+    }
   }
 
   Future<void> _saveResultToGallery() async {
