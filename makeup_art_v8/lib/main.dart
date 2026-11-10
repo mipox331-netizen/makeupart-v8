@@ -94,6 +94,7 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool ready = false;
   bool authenticated = false;
+  int _sessionRevision = 0;
   bool _updateCheckStarted = false;
 
   @override
@@ -107,6 +108,14 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
   void _onSessionExpired() {
     if (!mounted || !authenticated) return;
     setState(() => authenticated = false);
+  }
+
+  void _onLoginSuccess() {
+    if (!mounted) return;
+    setState(() {
+      authenticated = true;
+      _sessionRevision++;
+    });
   }
 
   Future<void> _restoreSession() async {
@@ -245,20 +254,31 @@ class _MakeupArtAppState extends State<MakeupArtApp> {
       title: 'MakeupArt V8',
       theme: _makeupArtTheme(),
       home: authenticated
-          ? SessionGate(api: api, onLogout: _logout)
+          ? SessionGate(
+              key: ValueKey(_sessionRevision),
+              api: api,
+              onLogout: _logout,
+              onAdminLogin: _onLoginSuccess,
+            )
           : LoginPage(
               api: api,
-              onLoggedIn: () => setState(() => authenticated = true),
+              onLoggedIn: _onLoginSuccess,
             ),
     );
   }
 }
 
 class SessionGate extends StatefulWidget {
-  const SessionGate({super.key, required this.api, required this.onLogout});
+  const SessionGate({
+    super.key,
+    required this.api,
+    required this.onLogout,
+    this.onAdminLogin,
+  });
 
   final ApiClient api;
   final VoidCallback onLogout;
+  final VoidCallback? onAdminLogin;
 
   @override
   State<SessionGate> createState() => _SessionGateState();
@@ -400,6 +420,7 @@ class _SessionGateState extends State<SessionGate> {
       onLogout: widget.onLogout,
       salonId: salonId,
       canManageBranding: canManageBranding,
+      onAdminLogin: widget.onAdminLogin,
     );
   }
 }
