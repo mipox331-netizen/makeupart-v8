@@ -20,7 +20,7 @@ The API runs on port 8000. Health endpoints are:
 - `/health/ready` — database/API readiness for the deployed hosting provider. A temporary third-party storage outage does not restart the API process.
 - `/health/media-ready` — private customer-photo storage readiness for the selected durable backend.
 
-Production uses private `supabase_storage` for server-side salon photos, with the Flutter app also retaining its phone Gallery copies. Encrypted PostgreSQL and media archives are stored separately in Cloudflare R2 and verified by restore drills. `local_only` remains available as a phone-only fallback but does not provide server-side photo recovery. See [Cloudflare R2 backup setup](docs/CLOUDFLARE_R2_BACKUP.md).
+The target production configuration uses private `supabase_storage` for server-side salon photos, with the Flutter app also retaining its phone Gallery copies. Encrypted PostgreSQL and media archives are designed to be stored separately in Cloudflare R2 and verified by restore drills. The deploy workflow switches off `local_only` only after the Supabase bucket and credentials pass preflight. See [Cloudflare R2 backup setup](docs/CLOUDFLARE_R2_BACKUP.md).
 
 ## Flutter development
 From `makeup_art_v8/`:
@@ -72,7 +72,7 @@ Every successfully processed result is copied to the phone's shared Android Medi
 
 ## Photo durability and disaster recovery
 
-The production configuration is `MEDIA_STORAGE_BACKEND=supabase_storage` with a private bucket named `makeupart-media`. The API fails closed when Supabase Storage credentials are absent or when the bucket is public. The backup workflow downloads and checksums that private bucket, creates an AES-256 GPG archive, and uploads it to the private Cloudflare R2 bucket. Database backups follow the same encrypted R2 path. Restore drills download from R2, verify SHA-256, decrypt, and restore into disposable isolated environments; failed uploads cannot be counted as successful restores.
+The planned production configuration is `MEDIA_STORAGE_BACKEND=supabase_storage` with a private bucket named `makeupart-media`. The API fails closed when Supabase Storage credentials are absent or when the bucket is public. The backup workflow downloads and checksums that private bucket, creates an AES-256 GPG archive, and uploads it to the private Cloudflare R2 bucket. Database backups follow the same encrypted R2 path. Restore drills download from R2, verify SHA-256, decrypt, and restore into disposable isolated environments; failed uploads cannot be counted as successful restores.
 
 Phone Gallery copies remain useful as another copy but do not replace cloud recovery. Older photos that were processed while production was in `local_only` mode were not saved on the server and are not retroactively placed in Supabase Storage by this change; existing copies remain on the customer's phone unless explicitly uploaded again. This migration protects media processed after private Supabase Storage is confirmed live.
 
