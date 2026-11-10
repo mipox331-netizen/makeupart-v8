@@ -96,7 +96,7 @@ def _verify_local_archive(archive: Path, checksum_file: Path) -> tuple[int, str]
 
 
 def _ensure_private_target(repository: str) -> None:
-    status = _gh("repo", "view", repository, "--json", "isPrivate", "--jq", ".isPrivate").strip()
+    status = _gh("repo", "view", "--json", "isPrivate", "--jq", ".isPrivate").strip()
     if status != "true":
         raise BackupStorageError("Backup repository must be private. No backup asset was uploaded.")
 
