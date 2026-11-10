@@ -339,7 +339,13 @@ def _process_payload(
 
         similarity = float(base_result["identity_similarity"])
         last_similarity = similarity
-        accepted = identity_guard.validate(similarity, attempt_intensity)[1]
+        # Targeted face edits intentionally change selected pixels/geometry.
+        # Report their actual SSIM-style score, but do not retry them as though
+        # they were unintended skin-smoothing distortion.
+        accepted = (
+            attempt_payload.face_edit != "none"
+            or identity_guard.validate(similarity, attempt_intensity)[1]
+        )
         generated_output = Path(str(base_result.get("output_path", ""))).resolve()
 
         if accepted:
