@@ -123,11 +123,11 @@ def admin_portal_login(
     The shared passphrase is read only from the server environment. A regular
     salon user can never receive admin privileges through this endpoint.
     """
-    expected_passphrase = settings.ADMIN_PORTAL_PASSPHRASE
-    if not expected_passphrase:
+    expected_passphrase = settings.ADMIN_PORTAL_PASSPHRASE.get_secret_value()
+    if not expected_passphrase or len(expected_passphrase.encode('utf-8')) < 12:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="The secure admin portal has not been configured.",
+            detail="The secure admin portal needs a passphrase of at least 12 characters.",
         )
 
     lockout_key = "__makeupart_moog_admin_portal__"
