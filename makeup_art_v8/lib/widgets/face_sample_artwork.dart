@@ -2,10 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// A lightweight, original illustrated style sample for filter cards.
+/// A real portrait photograph used as a visual example on filter cards.
 ///
-/// This is deliberately artwork rather than a claimed edited photo. The real
-/// result is created only after the selected portrait is processed.
+/// These are sample portraits only; the selected customer's photo is processed
+/// separately. The painter remains as an offline fallback when images cannot load.
 class FaceSampleArtwork extends StatelessWidget {
   const FaceSampleArtwork({
     super.key,
@@ -16,6 +16,61 @@ class FaceSampleArtwork extends StatelessWidget {
   final String label;
   final double height;
 
+  static String _photoUrl(String label) {
+    final name = label.toLowerCase();
+    const photos = <String, String>{
+      'natural': 'photo-1742402372285-da4752ec3533',
+      'skin': 'photo-1655266427435-402333756f6b',
+      'bridal': 'photo-1736849603893-0457300abca5',
+      'hair': 'photo-1649312555826-e42566d05d15',
+      'smile': 'photo-1742402372285-da4752ec3533',
+      'eyes': 'photo-1653640869615-e9878a2c8344',
+      'glasses': 'photo-1722396926902-3bf39286aa7d',
+      'beard': 'photo-1653640869615-e9878a2c8344',
+      'glam': 'photo-1628050254533-49ee5edb2178',
+      'colour': 'photo-1665023022555-2c209ea2130a',
+    };
+
+    final key = name.contains('beard') || name.contains('moustache')
+        ? 'beard'
+        : name.contains('glass')
+            ? 'glasses'
+            : name.contains('bridal') || name.contains('wedding')
+                ? 'bridal'
+                : name.contains('hair') ||
+                        name.contains('curl') ||
+                        name.contains('braid') ||
+                        name.contains('updo')
+                    ? 'hair'
+                    : name.contains('smile')
+                        ? 'smile'
+                        : name.contains('skin') ||
+                                name.contains('foundation') ||
+                                name.contains('retouch') ||
+                                name.contains('natural')
+                            ? 'skin'
+                            : name.contains('eye') || name.contains('feature')
+                                ? 'eyes'
+                                : name.contains('colour') ||
+                                        name.contains('color') ||
+                                        name.contains('blonde') ||
+                                        name.contains('copper') ||
+                                        name.contains('silver')
+                                    ? 'colour'
+                                    : name.contains('makeup') ||
+                                            name.contains('glam') ||
+                                            name.contains('lip') ||
+                                            name.contains('rose')
+                                        ? 'glam'
+                                        : 'natural';
+
+    if (key == 'beard') {
+      return 'https://burst.shopifycdn.com/photos/close-up-of-a-mans-face-in-frame.jpg?width=640&height=480';
+    }
+    final photoId = photos[key]!;
+    return 'https://images.unsplash.com/$photoId?auto=format&fit=crop&crop=faces&w=640&h=480&q=82';
+  }
+
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(12);
@@ -24,8 +79,18 @@ class FaceSampleArtwork extends StatelessWidget {
       child: SizedBox(
         height: height,
         width: double.infinity,
-        child: CustomPaint(
-          painter: _FaceSamplePainter(label),
+        child: Image.network(
+          _photoUrl(label),
+          fit: BoxFit.cover,
+          cacheWidth: 480,
+          filterQuality: FilterQuality.medium,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return CustomPaint(painter: _FaceSamplePainter(label));
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return CustomPaint(painter: _FaceSamplePainter(label));
+          },
         ),
       ),
     );

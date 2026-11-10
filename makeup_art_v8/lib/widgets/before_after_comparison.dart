@@ -7,11 +7,15 @@ class BeforeAfterComparison extends StatefulWidget {
     required this.before,
     required this.after,
     this.height = 360,
+    this.beforeLabel = 'BEFORE',
+    this.afterLabel = 'AFTER',
   });
 
   final Widget before;
   final Widget after;
   final double height;
+  final String beforeLabel;
+  final String afterLabel;
 
   @override
   State<BeforeAfterComparison> createState() => _BeforeAfterComparisonState();
@@ -104,16 +108,16 @@ class _BeforeAfterComparisonState extends State<BeforeAfterComparison> {
                       left: 12,
                       top: 12,
                       child: _ComparisonLabel(
-                        text: 'BEFORE',
+                        text: widget.beforeLabel,
                         background: Colors.black.withValues(alpha: 0.66),
                       ),
                     ),
-                    const Positioned(
+                    Positioned(
                       right: 12,
                       top: 12,
                       child: _ComparisonLabel(
-                        text: 'AFTER',
-                        background: Color(0xFF44255C),
+                        text: widget.afterLabel,
+                        background: const Color(0xFF44255C),
                       ),
                     ),
                   ],
