@@ -450,6 +450,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       afterImageFuture = null;
       rawAfterBytes = null;
       displayedAfterBytes = null;
+      faceAppComparisonBytes = null;
       error = null;
     });
     if (nextCustomerId != null) {
@@ -2617,6 +2618,79 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                         'The saved PNG includes the selected photo finish and the salon watermark from the latest processing run.',
                         textAlign: TextAlign.center,
                       ),
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(
+                        key: const ValueKey('compare-with-faceapp-button'),
+                        onPressed: loadingFaceAppComparison || loading
+                            ? null
+                            : _chooseFaceAppComparison,
+                        icon: loadingFaceAppComparison
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.compare_rounded),
+                        label: const Text('Linganisha na FaceApp'),
+                      ),
+                      if (faceAppComparisonBytes != null) ...[
+                        const SizedBox(height: 12),
+                        Card(
+                          key: const ValueKey('faceapp-comparison-panel'),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'MAKEUPART VS FACEAPP',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.1,
+                                        color: Theme.of(context).colorScheme.primary,
+                                      ),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Buruta mstari katikati kuona tofauti. Picha ya FaceApp lazima uwe umeihifadhi kwanza kwenye Gallery.',
+                                ),
+                                const SizedBox(height: 12),
+                                BeforeAfterComparison(
+                                  key: const ValueKey('makeupart-faceapp-slider'),
+                                  height: 260,
+                                  beforeLabel: 'MAKEUPART',
+                                  afterLabel: 'FACEAPP',
+                                  before: Image.memory(
+                                    displayedAfterBytes!,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Center(
+                                      child: Icon(Icons.broken_image_outlined),
+                                    ),
+                                  ),
+                                  after: Image.memory(
+                                    faceAppComparisonBytes!,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Center(
+                                      child: Icon(Icons.broken_image_outlined),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextButton.icon(
+                                  onPressed: loadingFaceAppComparison
+                                      ? null
+                                      : _chooseFaceAppComparison,
+                                  icon: const Icon(Icons.photo_library_outlined),
+                                  label: const Text('Badilisha picha ya FaceApp'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ],
                 ),
