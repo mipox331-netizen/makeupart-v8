@@ -135,3 +135,45 @@ def test_supabase_provider_fails_closed_without_server_secret(monkeypatch):
 
     with pytest.raises(media.GoogleDriveMediaError, match="configuration is incomplete"):
         media.verify_connection()
+
+
+@pytest.mark.parametrize(
+    "unsafe_url",
+    [
+        "https://attacker.example",
+        "https://project.supabase.co.attacker.example",
+        "https://nested.project.supabase.co",
+        "https://user:password@project.supabase.co",
+        "https://project.supabase.co:8443",
+        "https://project.supabase.co/storage/v1",
+        "https://project.supabase.co?redirect=https://attacker.example",
+    ],
+)
+def test_supabase_rejects_noncanonical_project_urls_before_sending_secret(
+    supabase_media, monkeypatch, unsafe_url
+):
+    monkeypatch.setattr(settings, "SUPABASE_URL", unsafe_url)
+
+    def unexpected_request(*_args, **_kwargs):
+        raise AssertionError("Supabase credentials must not be sent to an untrusted URL.")
+
+    monkeypatch.setattr(media.httpx, "request", unexpected_request)
+
+    with pytest.raises(media.GoogleDriveMediaError, match="SUPABASE_URL"):
+        media.verify_connection()
+
+
+def test_supabase_storage_redirects_are_rejected(supabase_media, monkeypatch):
+    def redirect_response(method, url, **kwargs):
+        assert kwargs["follow_redirects"] is False
+        return response(
+            method,
+            url,
+            302,
+            json_body={"location": "https://attacker.example/collect"},
+        )
+
+    monkeypatch.setattr(media.httpx, "request", redirect_response)
+
+    with pytest.raises(media.GoogleDriveMediaError, match="redirects are not permitted"):
+        media.verify_connection()
