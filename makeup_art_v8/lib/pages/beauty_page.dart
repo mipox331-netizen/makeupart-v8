@@ -1193,12 +1193,12 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 92,
+          height: 104,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             itemCount: _faceEditorFolderOrder.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 3),
+            separatorBuilder: (_, __) => const SizedBox(width: 4),
             itemBuilder: (context, index) {
               final folder = _faceEditorFolderOrder[index];
               final status = _filterFolderStatus(folder);
@@ -1227,8 +1227,8 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final portraitHeight = (MediaQuery.sizeOf(context).height * 0.48)
-        .clamp(300.0, 500.0)
+    final portraitHeight = (MediaQuery.sizeOf(context).height * 0.44)
+        .clamp(280.0, 440.0)
         .toDouble();
     final availableMakeupStyles = _availableOptions(
       'available_makeup_styles',
@@ -1262,7 +1262,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       required Widget Function(BuildContext, int) itemBuilder,
     }) {
       return SizedBox(
-        height: 136,
+        height: 148,
         child: SingleChildScrollView(
           key: railKey,
           scrollDirection: Axis.horizontal,
@@ -1271,8 +1271,8 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
               return Padding(
                 padding: const EdgeInsets.only(right: 10),
                 child: SizedBox(
-                  width: 156,
-                  height: 136,
+                  width: 154,
+                  height: 148,
                   child: itemBuilder(context, index),
                 ),
               );
@@ -1288,16 +1288,49 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFE9AFC5), Color(0xFF8E75C5)],
+                ),
+                borderRadius: BorderRadius.circular(13),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFD99AB3).withValues(alpha: .22),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              child: Icon(
-                Icons.auto_awesome_rounded,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-                size: 21,
+              child: Stack(
+                children: [
+                  Center(
+                    child: Text(
+                      'M',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 23,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withValues(alpha: .18),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Icon(Icons.auto_awesome_rounded, size: 10, color: Colors.white),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 10),
@@ -1358,12 +1391,12 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       body: ListView(
         key: const ValueKey('beauty-editor-scroll-view'),
         controller: _editorScrollController,
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 16),
         children: [
           Card(
             key: const ValueKey('portrait-editor-canvas'),
             child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(11),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1768,149 +1801,11 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
               ),
             ),
           ),
-          if (recentImages.isNotEmpty) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Recent AI results',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        Text(
-                          '${recentImages.length}/10',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'The 10 latest results stay in the app. Older results are archived to a salon-specific phone folder when storage is available.',
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 112,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: recentImages.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 10),
-                        itemBuilder: (context, index) {
-                          final file = recentImages[index];
-                          return GestureDetector(
-                            onTap: () => _showRecentImage(file),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
-                              child: SizedBox(
-                                width: 96,
-                                height: 112,
-                                child: Image.file(
-                                  file,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const ColoredBox(
-                                    color: Colors.black26,
-                                    child: Icon(Icons.broken_image_outlined),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-          ],
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    key: const ValueKey('saved-salon-looks-panel'),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const _EditorSectionHeading(
-                          step: '02',
-                          title: 'Saved salon looks',
-                          subtitle: 'Quick-start recipes for this salon on this device.',
-                        ),
-                        const SizedBox(height: 12),
-                        if (loadingSavedLookPresets)
-                          Text(
-                            'Loading saved looks…',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                ),
-                          )
-                        else if (savedLookPresets.isEmpty)
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.bookmark_outline_rounded,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 10),
-                              const Expanded(
-                                child: Text(
-                                  'No saved looks yet. Build a look below and tap “Save this look” to reuse its settings.',
-                                ),
-                              ),
-                            ],
-                          )
-                        else
-                          SizedBox(
-                            height: 52,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: savedLookPresets.length,
-                              separatorBuilder: (_, __) => const SizedBox(width: 8),
-                              itemBuilder: (context, index) {
-                                final preset = savedLookPresets[index];
-                                return InputChip(
-                                  key: ValueKey('salon-look-preset-${preset.id}'),
-                                  avatar: const Icon(Icons.bookmark_rounded, size: 17),
-                                  label: Text(
-                                    '${preset.name} · ${(preset.intensity * 100).round()}%',
-                                  ),
-                                  onPressed: loading || savingLookPreset
-                                      ? null
-                                      : () => _applyLookPreset(preset),
-                                  onDeleted: loading || savingLookPreset
-                                      ? null
-                                      : () => _confirmDeleteLookPreset(preset),
-                                  deleteButtonTooltipMessage: 'Delete ${preset.name}',
-                                );
-                              },
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
                   const SizedBox(height: 20),
                   const _EditorSectionHeading(
                     step: '03',
                     title: 'Choose an editing engine',
-                    subtitle: 'Classic runs locally. Generative edits require provider setup and separate client consent.',
+                    subtitle: 'Classic edits are ready. Generative looks need provider setup and client permission.',
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -1977,7 +1872,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                     const _EditorSectionHeading(
                       step: '04',
                       title: 'Editing tools',
-                      subtitle: 'Choose a tool from the bottom strip to open its controls.',
+                      subtitle: 'Choose a category below to see its previews and controls.',
                     ),
                     const SizedBox(height: 10),
                     const _FolderInformation(
@@ -2479,6 +2374,144 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
               ),
             ),
           ),
+          if (recentImages.isNotEmpty) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Recent AI results',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        Text(
+                          '${recentImages.length}/10',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Your latest 10 edited photos, ready to reopen.',
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 112,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: recentImages.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) {
+                          final file = recentImages[index];
+                          return GestureDetector(
+                            onTap: () => _showRecentImage(file),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: SizedBox(
+                                width: 96,
+                                height: 112,
+                                child: Image.file(
+                                  file,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const ColoredBox(
+                                    color: Colors.black26,
+                                    child: Icon(Icons.broken_image_outlined),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    key: const ValueKey('saved-salon-looks-panel'),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _EditorSectionHeading(
+                          step: '02',
+                          title: 'Saved salon looks',
+                          subtitle: 'Tap a saved look to reuse its settings.',
+                        ),
+                        const SizedBox(height: 12),
+                        if (loadingSavedLookPresets)
+                          Text(
+                            'Loading saved looks…',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                          )
+                        else if (savedLookPresets.isEmpty)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.bookmark_outline_rounded,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'No saved looks yet. Build a look below and tap “Save this look” to reuse its settings.',
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          SizedBox(
+                            height: 52,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: savedLookPresets.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 8),
+                              itemBuilder: (context, index) {
+                                final preset = savedLookPresets[index];
+                                return InputChip(
+                                  key: ValueKey('salon-look-preset-${preset.id}'),
+                                  avatar: const Icon(Icons.bookmark_rounded, size: 17),
+                                  label: Text(
+                                    '${preset.name} · ${(preset.intensity * 100).round()}%',
+                                  ),
+                                  onPressed: loading || savingLookPreset
+                                      ? null
+                                      : () => _applyLookPreset(preset),
+                                  onDeleted: loading || savingLookPreset
+                                      ? null
+                                      : () => _confirmDeleteLookPreset(preset),
+                                  deleteButtonTooltipMessage: 'Delete ${preset.name}',
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
           if (result != null) ...[
             const SizedBox(height: 18),
             Card(
