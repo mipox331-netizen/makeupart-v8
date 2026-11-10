@@ -2703,43 +2703,109 @@ class _FaceEditorToolItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return SizedBox(
-      width: 70,
+      width: 76,
       child: Semantics(
         button: true,
         selected: selected,
         enabled: onTap != null,
-        label: '$title${statusLabel.isEmpty ? '' : ', $statusLabel'}',
+        label: '$title filter preview${statusLabel.isEmpty ? '' : ', $statusLabel'}',
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(13),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 160),
-                    width: 41,
-                    height: 41,
+                    width: 66,
+                    height: 52,
+                    padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       color: selected
                           ? colors.primaryContainer
                           : colors.surfaceContainerHighest,
-                      shape: BoxShape.circle,
-                      border: selected
-                          ? Border.all(color: colors.primary, width: 1.4)
-                          : null,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected ? colors.primary : Colors.transparent,
+                        width: selected ? 1.5 : 0.8,
+                      ),
                     ),
-                    child: Icon(
-                      icon,
-                      size: 19,
-                      color: selected
-                          ? colors.onPrimaryContainer
-                          : ready
-                              ? colors.onSurface
-                              : colors.onSurfaceVariant.withValues(alpha: 0.72),
+                    child: Opacity(
+                      opacity: ready ? 1 : .78,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(9),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            FaceSampleArtwork(label: title, height: 48),
+                            Positioned(
+                              left: 3,
+                              bottom: 3,
+                              child: Container(
+                                width: 18,
+                                height: 18,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: .62),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(icon, size: 11, color: Colors.white),
+                              ),
+                            ),
+                            if (statusLabel.isNotEmpty)
+                              Positioned(
+                                top: 3,
+                                right: 3,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: .72),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: Text(
+                                    statusLabel,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 6.5,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: .2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (selected)
+                              Positioned(
+                                right: 3,
+                                bottom: 3,
+                                child: Container(
+                                  width: 17,
+                                  height: 17,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: colors.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: .8,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.check_rounded,
+                                    size: 11,
+                                    color: colors.onPrimary,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -2747,23 +2813,13 @@ class _FaceEditorToolItem extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 9.5,
                       fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                       color: selected ? colors.primary : colors.onSurface,
                     ),
                   ),
-                  if (statusLabel.isNotEmpty)
-                    Text(
-                      statusLabel,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 7,
-                        letterSpacing: 0.35,
-                        fontWeight: FontWeight.w800,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
                 ],
               ),
             ),
