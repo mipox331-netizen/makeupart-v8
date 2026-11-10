@@ -230,6 +230,11 @@ def _process_payload(
     output_dir: Path,
 ) -> tuple[BeautyProcessResponse, str]:
     if payload.engine == "generative":
+        if payload.face_edit != "none":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Choose either a local face edit or a generative look, not both.",
+            )
         if not payload.external_ai_consent:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -304,6 +309,7 @@ def _process_payload(
             intensity=round(float(payload.intensity), 4),
             processed=True,
             makeup_style=payload.makeup_style,
+            face_edit="none",
             photo_finish=payload.photo_finish,
             engine="generative",
             generative_look=payload.generative_look,
@@ -363,6 +369,7 @@ def _process_payload(
                 intensity=round(attempt_intensity, 4),
                 processed=bool(base_result["processed"]),
                 makeup_style=attempt_payload.makeup_style,
+                face_edit=attempt_payload.face_edit,
                 photo_finish=attempt_payload.photo_finish,
                 brightness=attempt_payload.brightness,
                 contrast=attempt_payload.contrast,
