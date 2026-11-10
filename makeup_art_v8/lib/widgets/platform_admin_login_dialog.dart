@@ -124,7 +124,9 @@ class _PlatformAdminLoginDialogState extends State<PlatformAdminLoginDialog> {
               controller: _password,
               obscureText: !_passwordVisible,
               textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _loading ? null : _submit(),
+              onSubmitted: (_) {
+                if (!_loading) _submit();
+              },
               decoration: InputDecoration(
                 labelText: 'Password',
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
