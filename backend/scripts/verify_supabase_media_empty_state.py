@@ -111,7 +111,7 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
 
     print(
         "Verified empty-state backup: no beauty jobs, result images or salon-logo references "
-        "point to missing Supabase Storage media. No customer image data is missing from the empty Drive store."
+        "point to missing Supabase Storage media. No customer image data is missing from the empty Supabase Storage inventory."
     )
     return 0
 
