@@ -16,7 +16,7 @@ The dashboard continues to use the existing platform-admin APIs for users, salon
 Set these variables in the API host's secure environment (Render Environment page), not in Flutter or Git:
 
 - `PLATFORM_ADMIN_EMAILS`: exactly one active platform-admin account email for this password-only entry.
-- `ADMIN_PORTAL_PASSPHRASE`: a new, unique passphrase with at least 12 UTF-8 characters.
+- `ADMIN_PORTAL_PASSPHRASE`: a new, unique passphrase with at least 12 UTF-8 characters; do not use a password already shared in a chat.
 
 Do not reuse a password that has been pasted into a chat, committed to Git, or used for another account. The repository examples intentionally leave this value empty. When it is empty or shorter than 12 characters, the endpoint returns HTTP 503 and does not issue a session.
 
