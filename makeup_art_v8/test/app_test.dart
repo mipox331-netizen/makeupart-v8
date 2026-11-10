@@ -823,12 +823,7 @@ void main() {
     await tester.tap(back);
     await tester.pumpAndSettle();
     final skinFolder = find.byKey(const ValueKey('filter-folder-Skin'));
-    await tester.scrollUntilVisible(
-      skinFolder,
-      120,
-      scrollable: folderScrollView,
-    );
-    await _pumpEditor(tester);
+    expect(skinFolder, findsOneWidget);
     await tester.tap(skinFolder);
     await tester.pumpAndSettle();
 
@@ -907,15 +902,8 @@ void main() {
       160,
       scrollable: find.byType(Scrollable).first,
     );
-    final presetScrollView = find.descendant(
-      of: savedLooksPanel,
-      matching: find.byType(Scrollable),
-    ).first;
-    await tester.scrollUntilVisible(
-      presetChip,
-      120,
-      scrollable: presetScrollView,
-    );
+    await tester.ensureVisible(presetChip);
+    await _pumpEditor(tester);
     await tester.tap(presetChip);
     await _pumpEditor(tester);
 
