@@ -6,6 +6,8 @@ from typing import Any
 import cv2
 import numpy as np
 
+from app.services.face_effects import FaceEffects
+
 try:
     import mediapipe as mp
 except ImportError:  # pragma: no cover
@@ -436,6 +438,14 @@ class BeautyProvider:
         similarity = IdentityGuard.measure_similarity(image, processed, landmarks[0])
         makeup_style = str(payload.get("makeup_style", "natural"))
         processed = self._apply_makeup(processed, landmarks[0], makeup_style, intensity)
+        # Local face edits are deliberately separate from the smoothing identity
+        # guard: geometry-changing edits should not be scored as preservation errors.
+        processed = FaceEffects.apply(
+            processed,
+            landmarks[0],
+            str(payload.get("face_edit", "none")),
+            intensity,
+        )
 
         output_dir = payload.get("output_dir")
         if output_dir:
