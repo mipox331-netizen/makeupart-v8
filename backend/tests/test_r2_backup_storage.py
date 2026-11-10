@@ -123,3 +123,59 @@ def test_upload_refuses_to_exceed_free_storage_safety_ceiling(fake_r2, tmp_path,
 
     with pytest.raises(storage.BackupStorageError, match="9.5 GB safety ceiling"):
         storage.upload("database", archive, checksum, "12345-a1")
+
+
+def test_r2_client_uses_only_account_scoped_cloudflare_endpoint(monkeypatch):
+    account_id = "a" * 32
+    monkeypatch.setenv("R2_ACCOUNT_ID", account_id)
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "test-access-key")
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "test-secret-key")
+    monkeypatch.delenv("R2_ENDPOINT_URL", raising=False)
+    captured = {}
+
+    def fake_client(service, **kwargs):
+        captured["service"] = service
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(storage.boto3, "client", fake_client)
+
+    storage._client()
+
+    assert captured["service"] == "s3"
+    assert captured["endpoint_url"] == f"https://{account_id}.r2.cloudflarestorage.com"
+
+
+@pytest.mark.parametrize(
+    "unsafe_endpoint",
+    [
+        "https://attacker.example",
+        "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.r2.cloudflarestorage.com.attacker.example",
+        "https://user:password@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.r2.cloudflarestorage.com",
+        "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.r2.cloudflarestorage.com:8443",
+        "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.r2.cloudflarestorage.com/path",
+        "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.r2.cloudflarestorage.com?redirect=1",
+    ],
+)
+def test_r2_client_rejects_untrusted_endpoint_before_using_credentials(monkeypatch, unsafe_endpoint):
+    monkeypatch.setenv("R2_ACCOUNT_ID", "a" * 32)
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "test-access-key")
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "test-secret-key")
+    monkeypatch.setenv("R2_ENDPOINT_URL", unsafe_endpoint)
+
+    def unexpected_client(*_args, **_kwargs):
+        raise AssertionError("R2 credentials must not be sent to an untrusted endpoint.")
+
+    monkeypatch.setattr(storage.boto3, "client", unexpected_client)
+
+    with pytest.raises(storage.BackupStorageError, match="R2_ENDPOINT_URL"):
+        storage._client()
+
+
+def test_r2_client_rejects_malformed_cloudflare_account_id(monkeypatch):
+    monkeypatch.setenv("R2_ACCOUNT_ID", "not-an-account-id")
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "test-access-key")
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "test-secret-key")
+
+    with pytest.raises(storage.BackupStorageError, match="32-character Cloudflare account ID"):
+        storage._client()
