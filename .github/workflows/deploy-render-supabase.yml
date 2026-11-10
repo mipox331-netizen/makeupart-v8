@@ -49,26 +49,46 @@ jobs:
           fi
           python - <<'PY' >> "$GITHUB_ENV"
           import os
+          import re
           from urllib.parse import unquote, urlsplit
           database = urlsplit(os.environ["SUPABASE_DB_URL"].strip())
           project_url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
           if not project_url:
               host = (database.hostname or "").lower()
               project_ref = ""
-              if host.endswith(".supabase.co"):
-                  project_ref = host.removesuffix(".supabase.co")
+              if host.endswith(".supabase.co") and host.count(".") == 2:
+                  candidate = host.removesuffix(".supabase.co")
+                  if re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", candidate):
+                      project_ref = candidate
               elif host.endswith(".pooler.supabase.com") and database.username:
                   username = unquote(database.username)
                   if "." in username:
                       candidate = username.split(".", 1)[1]
-                      if candidate.replace("-", "").isalnum():
+                      if re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", candidate):
                           project_ref = candidate
               if not project_ref:
                   raise SystemExit("Set SUPABASE_URL; its project reference could not be safely derived from SUPABASE_DB_URL.")
               project_url = f"https://{project_ref}.supabase.co"
-          parsed = urlsplit(project_url)
-          if parsed.scheme != "https" or not parsed.hostname or not parsed.hostname.endswith(".supabase.co") or parsed.path:
-              raise SystemExit("SUPABASE_URL must be an HTTPS Supabase project URL.")
+          try:
+              parsed = urlsplit(project_url)
+              host = (parsed.hostname or "").lower()
+              labels = host.split(".")
+              project_ref = labels[0] if len(labels) == 3 and labels[1:] == ["supabase", "co"] else ""
+              port = parsed.port
+          except ValueError:
+              raise SystemExit("SUPABASE_URL is malformed.") from None
+          if (
+              parsed.scheme != "https"
+              or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", project_ref)
+              or parsed.username is not None
+              or parsed.password is not None
+              or port not in (None, 443)
+              or parsed.path
+              or parsed.query
+              or parsed.fragment
+          ):
+              raise SystemExit("SUPABASE_URL must be the canonical HTTPS origin https://<project-ref>.supabase.co.")
+          project_url = f"https://{host}"
           bucket = os.environ.get("SUPABASE_MEDIA_BUCKET", "makeupart-media").strip()
           if not bucket or "/" in bucket:
               raise SystemExit("SUPABASE_MEDIA_BUCKET is invalid.")
@@ -140,6 +160,11 @@ jobs:
           import urllib.parse
           import urllib.error
           storage_root = supabase_url + "/storage/v1"
+          class _NoStorageRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          storage_opener = urllib.request.build_opener(_NoStorageRedirect)
+
           def storage_request(method, path, body=None):
               data = json.dumps(body).encode() if body is not None else None
               req = urllib.request.Request(
@@ -154,7 +179,7 @@ jobs:
                   },
               )
               try:
-                  with urllib.request.urlopen(req, timeout=30) as response:
+                  with storage_opener.open(req, timeout=30) as response:
                       raw = response.read()
                       return response.status, json.loads(raw or b"{}")
               except urllib.error.HTTPError as exc:
