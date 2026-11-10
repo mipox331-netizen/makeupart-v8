@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     REFRESH_SESSION_RETENTION_DAYS: int = 7
     SUBSCRIPTION_TRIAL_DAYS: int = 30
     PLATFORM_ADMIN_EMAILS: str = ""
+    # Optional one-word entry for the hidden MOOG platform-admin portal.
+    # Keep this value in the deployment environment, never in source control.
+    ADMIN_PORTAL_PASSPHRASE: str = ""
     # Optional paid generative engine; intentionally disabled until provisioned.
     OPENAI_API_KEY: str = ""
     OPENAI_IMAGE_MODEL: str = "gpt-image-2.5-sunburst"
