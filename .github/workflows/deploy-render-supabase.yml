@@ -1,4 +1,4 @@
-name: MakeupArt V8 Render PostgreSQL and Local-only Photo Mode
+name: MakeupArt V8 Render PostgreSQL and Private Supabase Photo Storage
 
 on:
   push:
@@ -25,20 +25,57 @@ jobs:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
       RENDER_SERVICE_ID: "srv-dav25so473hc73d7ee0g"
       API_URL: "https://makeupart-api.onrender.com"
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_MEDIA_BUCKET: ${{ secrets.SUPABASE_MEDIA_BUCKET || 'makeupart-media' }}
 
     steps:
       - name: Validate deployment credentials without displaying values
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_MEDIA_BUCKET: ${{ secrets.SUPABASE_MEDIA_BUCKET || 'makeupart-media' }}
         shell: bash
         run: |
           set -euo pipefail
           missing=()
           [[ -n "${RENDER_API_KEY:-}" ]] || missing+=("RENDER_API_KEY or RENDER_API_TOKEN")
           [[ -n "${SUPABASE_DB_URL:-}" ]] || missing+=("SUPABASE_DB_URL or SUPABASE_DB_URL_SECRET")
+          [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SERVICE_ROLE_KEY")
           if (( ${#missing[@]} > 0 )); then
-            echo "::error::Cannot deploy Render recovery. Missing production GitHub environment secrets: ${missing[*]}."
+            echo "::error::Cannot deploy private Supabase Storage. Missing production GitHub environment secrets: ${missing[*]}."
             exit 1
           fi
-          echo "Render API and Supabase PostgreSQL deployment credentials are present."
+          python - <<'PY' >> "$GITHUB_ENV"
+          import os
+          from urllib.parse import unquote, urlsplit
+          database = urlsplit(os.environ["SUPABASE_DB_URL"].strip())
+          project_url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+          if not project_url:
+              host = (database.hostname or "").lower()
+              project_ref = ""
+              if host.endswith(".supabase.co"):
+                  project_ref = host.removesuffix(".supabase.co")
+              elif host.endswith(".pooler.supabase.com") and database.username:
+                  username = unquote(database.username)
+                  if "." in username:
+                      candidate = username.split(".", 1)[1]
+                      if candidate.replace("-", "").isalnum():
+                          project_ref = candidate
+              if not project_ref:
+                  raise SystemExit("Set SUPABASE_URL; its project reference could not be safely derived from SUPABASE_DB_URL.")
+              project_url = f"https://{project_ref}.supabase.co"
+          parsed = urlsplit(project_url)
+          if parsed.scheme != "https" or not parsed.hostname or not parsed.hostname.endswith(".supabase.co") or parsed.path:
+              raise SystemExit("SUPABASE_URL must be an HTTPS Supabase project URL.")
+          bucket = os.environ.get("SUPABASE_MEDIA_BUCKET", "makeupart-media").strip()
+          if not bucket or "/" in bucket:
+              raise SystemExit("SUPABASE_MEDIA_BUCKET is invalid.")
+          print("SUPABASE_URL=" + project_url)
+          print("SUPABASE_MEDIA_BUCKET=" + bucket)
+          PY
+          echo "Render, Supabase PostgreSQL and private-storage credentials are present; values were not printed."
 
       - name: Set up Python 3.12 for database connectivity validation
         uses: actions/setup-python@v5
@@ -77,11 +114,13 @@ jobs:
           print("Supabase PostgreSQL connectivity verified; Render settings were not changed before this check.")
           PY
 
-      - name: Apply PostgreSQL and local-only photo mode to Render
+      - name: Apply PostgreSQL and private Supabase Storage photo mode to Render
         shell: bash
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY || secrets.RENDER_API_TOKEN }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_MEDIA_BUCKET: ${{ secrets.SUPABASE_MEDIA_BUCKET || 'makeupart-media' }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -94,14 +133,61 @@ jobs:
           service_id = os.environ["RENDER_SERVICE_ID"]
           token = os.environ["RENDER_API_KEY"]
           database_url = os.environ["SUPABASE_DB_URL"]
-          # Supabase remains the relational database. The Android client archives
-          # processed photos on the phone; Render's processing files are temporary.
-          # Existing Drive credentials remain untouched but are no longer used here.
+          supabase_url = os.environ["SUPABASE_URL"]
+          service_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          media_bucket = os.environ.get("SUPABASE_MEDIA_BUCKET", "makeupart-media")
+          # Verify/create the private media bucket before changing live Render config.
+          import urllib.parse
+          import urllib.error
+          storage_root = supabase_url + "/storage/v1"
+          def storage_request(method, path, body=None):
+              data = json.dumps(body).encode() if body is not None else None
+              req = urllib.request.Request(
+                  storage_root + path,
+                  data=data,
+                  method=method,
+                  headers={
+                      "apikey": service_key,
+                      "Authorization": "Bearer " + service_key,
+                      "Accept": "application/json",
+                      "Content-Type": "application/json",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      raw = response.read()
+                      return response.status, json.loads(raw or b"{}")
+              except urllib.error.HTTPError as exc:
+                  raw = exc.read()
+                  try:
+                      payload = json.loads(raw or b"{}")
+                  except ValueError:
+                      payload = {}
+                  code = str(payload.get("code") or payload.get("error") or "")
+                  if method == "GET" and (exc.code == 404 or code == "NoSuchBucket"):
+                      return exc.code, payload
+                  raise RuntimeError(f"Supabase Storage preflight returned HTTP {exc.code} (code={code or 'unknown'}).") from None
+          bucket_path = "/bucket/" + urllib.parse.quote(media_bucket, safe="")
+          bucket_status, bucket_info = storage_request("GET", bucket_path)
+          if bucket_status == 404 or bucket_info.get("code") == "NoSuchBucket":
+              storage_request("POST", "/bucket", {
+                  "id": media_bucket,
+                  "name": media_bucket,
+                  "public": False,
+                  "file_size_limit": 50 * 1024 * 1024,
+                  "allowed_mime_types": ["image/jpeg", "image/png", "image/webp", "application/octet-stream"],
+              })
+              bucket_status, bucket_info = storage_request("GET", bucket_path)
+          if bucket_status != 200 or bucket_info.get("public") is not False:
+              raise SystemExit("Supabase media bucket is not confirmed private; Render production settings were not changed.")
           values = {
               "DATABASE_URL": database_url,
               "SUPABASE_DB_URL": database_url,
-              "MEDIA_STORAGE_BACKEND": "local_only",
-              "REQUIRE_DURABLE_MEDIA": "false",
+              "SUPABASE_URL": supabase_url,
+              "SUPABASE_SERVICE_ROLE_KEY": service_key,
+              "SUPABASE_MEDIA_BUCKET": media_bucket,
+              "MEDIA_STORAGE_BACKEND": "supabase_storage",
+              "REQUIRE_DURABLE_MEDIA": "true",
               "ENVIRONMENT": "production",
           }
 
@@ -228,7 +314,7 @@ jobs:
           endpoints = {
               "/health/live": ("alive", None),
               "/health/ready": ("ready", None),
-              "/health/media-ready": ("ready", "local_only"),
+              "/health/media-ready": ("ready", "supabase_storage"),
           }
           for path, (expected, expected_storage) in endpoints.items():
               last_error = "no response"
@@ -254,5 +340,5 @@ jobs:
                       time.sleep(10)
               else:
                   raise SystemExit(f"Production endpoint failed verification: {path} ({last_error}).")
-          print("Render API and Supabase PostgreSQL are live; local_only phone-photo mode is active.")
+          print("Render API, Supabase PostgreSQL and private Supabase Storage are live and verified.")
           PY

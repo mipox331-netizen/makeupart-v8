@@ -2,7 +2,7 @@ name: MakeupArt V8 Encrypted Media Restore Drill
 
 on:
   workflow_run:
-    workflows: ["MakeupArt V8 Encrypted Production Media Backup"]
+    workflows: ["MakeupArt V8 Encrypted Supabase Media Backup to Cloudflare R2"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -23,12 +23,12 @@ concurrency:
 
 jobs:
   restore-drill:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
     steps:
-      - name: Select successful encrypted media backup
+      - name: Select successful Cloudflare R2 media backup
         id: select-backup
         shell: bash
         env:
@@ -52,26 +52,22 @@ jobs:
           for run_id in $candidates; do
             run_status="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.conclusion // empty' 2>/dev/null || true)"
             run_path="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.path // empty' 2>/dev/null || true)"
-            if [[ -n "$EVENT_RUN_ID" ]]; then
-              [[ "$run_status" == "success" || "$run_status" == "failure" ]] || continue
-            else
-              [[ "$run_status" == "success" ]] || continue
-            fi
+            [[ "$run_status" == "success" ]] || continue
             [[ "$run_path" == ".github/workflows/production-media-backup.yml" || "$run_path" == .github/workflows/production-media-backup.yml@* ]] || continue
-            artifact_count="$(gh api "repos/$repo/actions/runs/$run_id/artifacts" --jq "[.artifacts[] | select(.name == \"makeupart-media-backup-$run_id\" and .expired == false)] | length" 2>/dev/null || echo 0)"
-            if [[ "$artifact_count" =~ ^[0-9]+$ ]] && (( artifact_count > 0 )); then
-              selected="$run_id"
-              break
-            fi
+            selected="$run_id"
+            selected_attempt="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.run_attempt // 1' 2>/dev/null || echo 1)"
+            [[ "$selected_attempt" =~ ^[0-9]+$ ]] || continue
+            break
           done
 
           [[ -n "$selected" ]] || {
-            echo "::error::No encrypted media artifact with an unexpired retention period was found for the selected backup run."
+            echo "::error::No successful encrypted media backup run was found."
             exit 1
           }
           echo "run_id=$selected" >> "$GITHUB_OUTPUT"
-          echo "Selected an encrypted media artifact for isolated restore validation. Private paths and customer data are not logged."
-
+          echo "backup_key_id=$selected-a$selected_attempt" >> "$GITHUB_OUTPUT"
+          echo "Selected a successful media backup run; the next step verifies the encrypted archive downloaded from R2."
+          
       - name: Validate backup encryption secret
         shell: bash
         env:
@@ -82,14 +78,26 @@ jobs:
           [[ "${#BACKUP_ENCRYPTION_PASSPHRASE}" -ge 24 ]] || { echo "::error::Backup passphrase must be at least 24 characters."; exit 1; }
           echo "Backup decryption secret validated without exposing its value."
 
-      - name: Download selected encrypted media backup
-        uses: actions/download-artifact@v4
+      - name: Check out restore tooling
+        uses: actions/checkout@v4
+
+      - name: Set up Python for Cloudflare R2 restore
+        uses: actions/setup-python@v5
         with:
-          name: makeupart-media-backup-${{ steps.select-backup.outputs.run_id }}
-          run-id: ${{ steps.select-backup.outputs.run_id }}
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          path: ${{ runner.temp }}/makeupart-media-restore
+          python-version: "3.12"
+
+      - name: Download selected encrypted media backup from Cloudflare R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          BACKUP_RUN_ID: ${{ steps.select-backup.outputs.backup_key_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-input boto3==1.43.127
+          python backend/scripts/r2_backup_storage.py download media "$BACKUP_RUN_ID" "$RUNNER_TEMP/makeupart-media-restore"
 
       - name: Verify checksum, decrypt and restore into isolated temporary directory
         shell: bash

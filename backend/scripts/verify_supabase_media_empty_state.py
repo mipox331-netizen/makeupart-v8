@@ -106,12 +106,12 @@ def verify_empty_media_inventory(manifest_path: Path) -> int:
 
     if int(reference_count or 0) > 0:
         raise MediaInventoryError(
-            "Google Drive contains no media but the database still references customer photos or salon logos; restore the source media before accepting an empty backup."
+            "Supabase Storage contains no media but the database still references customer photos or salon logos; restore the source media before accepting an empty backup."
         )
 
     print(
         "Verified empty-state backup: no beauty jobs, result images or salon-logo references "
-        "point to missing Google Drive media. No customer image data is missing from the empty Drive store."
+        "point to missing Supabase Storage media. No customer image data is missing from the empty Drive store."
     )
     return 0
 
@@ -124,7 +124,7 @@ def main() -> None:
     except MediaInventoryError as exc:
         raise SystemExit(str(exc)) from None
     if count:
-        print(f"Google Drive private media inventory contains {count} object(s); encrypted backup can proceed.")
+        print(f"Supabase Storage private media inventory contains {count} object(s); encrypted backup can proceed.")
 
 
 if __name__ == "__main__":

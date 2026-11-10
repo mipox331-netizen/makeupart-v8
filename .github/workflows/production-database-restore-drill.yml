@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   restore-drill:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     name: Restore encrypted backup into isolated temporary PostgreSQL
     runs-on: ubuntu-latest
     environment: production
@@ -47,11 +47,11 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     steps:
-      - name: Select available backup artifact
+      - name: Select successful Cloudflare R2 database backup
         id: select-backup
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           EVENT_RUN_ID: ${{ github.event.workflow_run.id || '' }}
           REQUESTED_BACKUP_RUN_ID: ${{ inputs.backup_run_id || '' }}
         run: |
@@ -59,16 +59,10 @@ jobs:
           repo="$GITHUB_REPOSITORY"
           requested="$REQUESTED_BACKUP_RUN_ID"
           if [[ -n "$EVENT_RUN_ID" ]]; then
-            [[ "$EVENT_RUN_ID" =~ ^[0-9]+$ ]] || {
-              echo "::error::Invalid workflow run ID."
-              exit 1
-            }
+            [[ "$EVENT_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::Invalid workflow run ID."; exit 1; }
             candidates="$EVENT_RUN_ID"
           elif [[ -n "$requested" ]]; then
-            [[ "$requested" =~ ^[0-9]+$ ]] || {
-              echo "::error::backup_run_id must contain digits only."
-              exit 1
-            }
+            [[ "$requested" =~ ^[0-9]+$ ]] || { echo "::error::backup_run_id must contain digits only."; exit 1; }
             candidates="$requested"
           else
             candidates="$(gh api --paginate "repos/$repo/actions/workflows/production-database-backup.yml/runs?status=success&per_page=25" --jq '.workflow_runs[].id')"
@@ -78,25 +72,21 @@ jobs:
           for run_id in $candidates; do
             run_status="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.conclusion // empty' 2>/dev/null || true)"
             run_path="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.path // empty' 2>/dev/null || true)"
-            if [[ -n "$EVENT_RUN_ID" ]]; then
-              [[ "$run_status" == "success" || "$run_status" == "failure" ]] || continue
-            else
-              [[ "$run_status" == "success" ]] || continue
-            fi
+            [[ "$run_status" == "success" ]] || continue
             [[ "$run_path" == ".github/workflows/production-database-backup.yml" || "$run_path" == .github/workflows/production-database-backup.yml@* ]] || continue
-            artifact_count="$(gh api "repos/$repo/actions/runs/$run_id/artifacts" --jq "[.artifacts[] | select(.name == \"makeupart-db-backup-$run_id\" and .expired == false)] | length" 2>/dev/null || echo 0)"
-            if [[ "$artifact_count" =~ ^[0-9]+$ ]] && (( artifact_count > 0 )); then
-              selected="$run_id"
-              break
-            fi
+            selected="$run_id"
+            selected_attempt="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.run_attempt // 1' 2>/dev/null || echo 1)"
+            [[ "$selected_attempt" =~ ^[0-9]+$ ]] || continue
+            break
           done
 
           [[ -n "$selected" ]] || {
-            echo "::error::No encrypted database artifact with an unexpired retention period was found for the selected backup run."
+            echo "::error::No successful encrypted database backup run was found."
             exit 1
           }
           echo "run_id=$selected" >> "$GITHUB_OUTPUT"
-          echo "Selected an encrypted database artifact for isolated restore validation. Database contents are not exposed."
+          echo "backup_key_id=$selected-a$selected_attempt" >> "$GITHUB_OUTPUT"
+          echo "Selected a completed successful database backup run. The R2 download step will verify the encrypted archive and checksum."
 
       - name: Validate inputs and encryption secret
         shell: bash
@@ -119,14 +109,26 @@ jobs:
           }
           echo "Input validated. Production database credentials are not used by this workflow."
 
-      - name: Download the selected encrypted backup artifact
-        uses: actions/download-artifact@v4
+      - name: Prepare Cloudflare R2 restore client
+        uses: actions/checkout@v4
+
+      - name: Set up Python for Cloudflare R2 restore
+        uses: actions/setup-python@v5
         with:
-          name: makeupart-db-backup-${{ steps.select-backup.outputs.run_id }}
-          run-id: ${{ steps.select-backup.outputs.run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          path: ${{ runner.temp }}/makeupart-restore-drill
+          python-version: "3.12"
+
+      - name: Download encrypted database backup from Cloudflare R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          BACKUP_RUN_ID: ${{ steps.select-backup.outputs.backup_key_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-input boto3==1.43.127
+          python backend/scripts/r2_backup_storage.py download database "$BACKUP_RUN_ID" "$RUNNER_TEMP/makeupart-restore-drill"
 
       - name: Verify checksum and decrypt the archive
         id: decrypt

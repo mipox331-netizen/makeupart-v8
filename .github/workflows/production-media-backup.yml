@@ -1,4 +1,4 @@
-name: MakeupArt V8 Encrypted Google Drive Media Backup
+name: MakeupArt V8 Encrypted Supabase Media Backup to Cloudflare R2
 
 on:
   schedule:
@@ -7,8 +7,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "backend/scripts/google_drive_media_backup.py"
-      - "backend/scripts/google_drive_backup_upload.py"
+      - "backend/scripts/supabase_media_backup.py"
+      - "backend/scripts/r2_backup_storage.py"
       - "backend/scripts/verify_supabase_media_empty_state.py"
       - ".github/workflows/production-media-backup.yml"
       - ".github/workflows/production-media-restore-drill.yml"
@@ -26,21 +26,29 @@ jobs:
     environment: production
     timeout-minutes: 45
     env:
-      GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID || secrets.GDRIVE_CLIENT_ID }}
-      GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET || secrets.GDRIVE_CLIENT_SECRET }}
-      GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN || secrets.GDRIVE_REFRESH_TOKEN }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_MEDIA_BUCKET: ${{ secrets.SUPABASE_MEDIA_BUCKET || 'makeupart-media' }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
       DATABASE_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      R2_BACKUP_RETENTION_DAYS: "14"
     steps:
-      - name: Validate Google Drive and encryption secrets without exposing values
+      - name: Validate Supabase, Cloudflare R2 and encryption secrets without exposing values
         shell: bash
         run: |
           set -euo pipefail
           missing=()
-          [[ -n "${GOOGLE_DRIVE_CLIENT_ID:-}" ]] || missing+=("GOOGLE_DRIVE_CLIENT_ID or GDRIVE_CLIENT_ID")
-          [[ -n "${GOOGLE_DRIVE_CLIENT_SECRET:-}" ]] || missing+=("GOOGLE_DRIVE_CLIENT_SECRET or GDRIVE_CLIENT_SECRET")
-          [[ -n "${GOOGLE_DRIVE_REFRESH_TOKEN:-}" ]] || missing+=("GOOGLE_DRIVE_REFRESH_TOKEN or GDRIVE_REFRESH_TOKEN")
+          [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SERVICE_ROLE_KEY")
           [[ -n "${DATABASE_URL:-}" ]] || missing+=("SUPABASE_DB_URL or DATABASE_URL for empty-inventory safety check")
+          [[ -n "${R2_ACCOUNT_ID:-}" ]] || missing+=("R2_ACCOUNT_ID")
+          [[ -n "${R2_ACCESS_KEY_ID:-}" ]] || missing+=("R2_ACCESS_KEY_ID")
+          [[ -n "${R2_SECRET_ACCESS_KEY:-}" ]] || missing+=("R2_SECRET_ACCESS_KEY")
+          [[ -n "${R2_BUCKET_NAME:-}" ]] || missing+=("R2_BUCKET_NAME")
           [[ -n "${BACKUP_ENCRYPTION_PASSPHRASE:-}" ]] || missing+=("BACKUP_ENCRYPTION_PASSPHRASE")
           if (( ${#missing[@]} > 0 )); then
             echo "::error::Missing production GitHub environment secrets: ${missing[*]}"
@@ -50,7 +58,7 @@ jobs:
             echo "::error::BACKUP_ENCRYPTION_PASSPHRASE must be at least 24 characters."
             exit 1
           }
-          echo "Google Drive OAuth, database reference check and encryption credentials are present."
+          echo "Supabase private-storage, Cloudflare R2 and encryption credentials are present."
 
       - name: Checkout application backup code
         uses: actions/checkout@v4
@@ -61,9 +69,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install backup and database verification dependencies
-        run: python -m pip install --disable-pip-version-check --no-input requests "SQLAlchemy==2.0.54" "psycopg2-binary==2.9.13"
+        run: python -m pip install --disable-pip-version-check --no-input httpx "SQLAlchemy==2.0.54" "psycopg2-binary==2.9.13" boto3==1.43.127
 
-      - name: Download private Google Drive media and verify integrity
+      - name: Back up private Supabase Storage media and verify integrity
         shell: bash
         run: |
           set -euo pipefail
@@ -71,9 +79,9 @@ jobs:
           STAGE="$BACKUP_DIR/stage"
           mkdir -p "$STAGE/media"
           chmod 700 "$BACKUP_DIR" "$STAGE" "$STAGE/media"
-          python backend/scripts/google_drive_media_backup.py "$STAGE/media" "$STAGE/manifest.json"
+          python backend/scripts/supabase_media_backup.py "$STAGE/media" "$STAGE/manifest.json"
 
-      - name: Verify an empty Drive inventory against live database references
+      - name: Verify an empty Supabase Storage inventory against live database references
         shell: bash
         run: |
           set -euo pipefail
@@ -107,8 +115,8 @@ jobs:
 
           root = Path(sys.argv[1]).resolve()
           manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-          if manifest.get("format") != "makeupart-google-drive-media-backup-v1":
-              raise SystemExit("Unknown Google Drive media backup manifest format.")
+          if manifest.get("format") != "makeupart-supabase-storage-media-backup-v1":
+              raise SystemExit("Unknown Supabase Storage media backup manifest format.")
           rows = manifest.get("files", [])
           expected = {row["path"]: row for row in rows}
           if len(expected) != len(rows):
@@ -136,28 +144,17 @@ jobs:
           total = sum(row["size"] for row in actual.values())
           if len(actual) != manifest.get("file_count") or total != manifest.get("total_bytes"):
               raise SystemExit("Media restore verification failed: manifest totals differ.")
-          print(f"Encrypted Google Drive media archive restored in isolation: files={len(actual)}, bytes={total}.")
+          print(f"Encrypted Supabase media archive restored in isolation: files={len(actual)}, bytes={total}.")
           if not actual:
-              print("No media files currently exist in the private Drive root; database references were checked separately.")
+              print("No media files currently exist in the private Supabase bucket; database references were checked separately.")
           PY
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 
-      - name: Store encrypted media backup in private Google Drive
+      - name: Store encrypted media backup in private Cloudflare R2
         shell: bash
         run: |
           set -euo pipefail
-          python backend/scripts/google_drive_backup_upload.py "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg" "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg.sha256" "$GITHUB_RUN_ID-a$GITHUB_RUN_ATTEMPT"
-
-      - name: Upload short-lived restore-drill artifact
-        if: ${{ always() && steps.encrypted_media.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: makeupart-media-backup-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg
-            ${{ runner.temp }}/makeupart-media-backup/*.tar.gz.gpg.sha256
-          if-no-files-found: error
-          retention-days: 14
+          python backend/scripts/r2_backup_storage.py upload media "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg" "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg.sha256" "$GITHUB_RUN_ID-a$GITHUB_RUN_ATTEMPT"
 
       - name: Remove decrypted media and temporary secrets
         if: always()

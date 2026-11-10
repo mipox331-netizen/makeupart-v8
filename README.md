@@ -20,7 +20,7 @@ The API runs on port 8000. Health endpoints are:
 - `/health/ready` — database/API readiness for the deployed hosting provider. A temporary third-party storage outage does not restart the API process.
 - `/health/media-ready` — private customer-photo storage readiness for the selected durable backend.
 
-Production can use `MEDIA_STORAGE_BACKEND=local_only` for the $0 phone-archive mode. The API processes each upload using temporary server files; the Flutter app downloads the result and saves it to app history and Android Gallery. In this mode there is no server-side customer-photo backup or restore. Select `google_drive`, `modal_volume` or private `supabase_storage` only when off-device media durability is required. APK publication checks that the configured mode is explicitly reported by `/health/media-ready`.
+The target production configuration uses private `supabase_storage` for server-side salon photos, with the Flutter app also retaining its phone Gallery copies. Encrypted PostgreSQL and media archives are designed to be stored separately in Cloudflare R2 and verified by restore drills. The deploy workflow switches off `local_only` only after the Supabase bucket and credentials pass preflight. See [Cloudflare R2 backup setup](docs/CLOUDFLARE_R2_BACKUP.md).
 
 ## Flutter development
 From `makeup_art_v8/`:
@@ -68,17 +68,13 @@ The checked-in Docker Compose + Caddy stack remains available as a self-hosted d
 
 ## On-device photo history
 
-Every successfully processed result is automatically copied to the phone's shared Android MediaStore folder `Pictures/MakeupArtV8`, using a stable salon-scoped filename so retries update the same backup instead of creating duplicates. The ten latest images also remain in private in-app history. When the salon workspace opens or returns to the foreground, MakeupArt quietly retries any pending Gallery copies without blocking the editor or showing a backup screen. Older private copies are removed only after Android confirms that the Gallery copy was published; failed saves stay in app storage for retry. Settings includes **Backup Now** to copy any remaining locally retained results again without deleting the originals.
-
-These are **on-device photo copies**: MakeupArt does not upload this local backup to Google Drive or another cloud service. Android shared-media files remain on the device after MakeupArt is uninstalled. They do not protect against a lost, stolen, damaged, or factory-reset phone; keep a separate copy on another device when off-device disaster recovery is required. The phone's own Gallery/Photos app may separately sync its Pictures folders if its own backup setting is enabled. This local result archive is not proof of server-side customer-media recovery.
+Every successfully processed result is copied to the phone's shared Android MediaStore folder `Pictures/MakeupArtV8`, using a stable salon-scoped filename so retries update the same copy instead of creating duplicates. The ten latest images also remain in private in-app history. When the salon workspace opens or returns to the foreground, MakeupArt quietly retries pending Gallery copies. For server-side recovery, the production API stores media objects in a private Supabase Storage bucket; a separate encrypted inventory archive is uploaded to Cloudflare R2. The two cloud copies serve different purposes: Supabase is the app's live object store and R2 is the off-site encrypted backup.
 
 ## Photo durability and disaster recovery
 
-The selected production mode is `MEDIA_STORAGE_BACKEND=local_only`. Processed photos are returned to the Android client, which keeps the latest ten results in private app history and copies results to `Pictures/MakeupArtV8` in the phone Gallery. Google Drive OAuth credentials are not needed for ordinary app photo processing and are deliberately not changed by the local-only deployment.
+The planned production configuration is `MEDIA_STORAGE_BACKEND=supabase_storage` with a private bucket named `makeupart-media`. The API fails closed when Supabase Storage credentials are absent or when the bucket is public. The backup workflow downloads and checksums that private bucket, creates an AES-256 GPG archive, and uploads it to the private Cloudflare R2 bucket. Database backups follow the same encrypted R2 path. Restore drills download from R2, verify SHA-256, decrypt, and restore into disposable isolated environments; failed uploads cannot be counted as successful restores.
 
-This is **device-local photo protection, not off-device disaster recovery**. A lost, stolen, damaged or factory-reset phone can still take the Gallery copies with it. The server uses temporary working files for the synchronous upload/process/download request; server-side job image URLs are not a permanent archive and may stop resolving after a Render restart or deploy. Customer-facing photo history must therefore use the app's local archive in this mode.
-
-The encrypted PostgreSQL backup workflow remains separate from photo storage. Its Google Drive off-site upload can still fail with `invalid_grant`; a successful dump or restore drill does not prove that customer photos are backed up. The local-only choice intentionally does not claim a server-side customer-media backup or restore.
+Phone Gallery copies remain useful as another copy but do not replace cloud recovery. Older photos that were processed while production was in `local_only` mode were not saved on the server and are not retroactively placed in Supabase Storage by this change; existing copies remain on the customer's phone unless explicitly uploaded again. This migration protects media processed after private Supabase Storage is confirmed live.
 
 ## Licensing and AI capabilities
 
