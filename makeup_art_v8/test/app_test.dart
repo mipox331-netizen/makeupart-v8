@@ -823,6 +823,8 @@ void main() {
     await tester.tap(back);
     await tester.pumpAndSettle();
     final skinFolder = find.byKey(const ValueKey('filter-folder-Skin'));
+    await tester.ensureVisible(skinFolder);
+    await _pumpEditor(tester);
     expect(skinFolder, findsOneWidget);
     await tester.tap(skinFolder);
     await tester.pumpAndSettle();
