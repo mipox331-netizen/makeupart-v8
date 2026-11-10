@@ -106,7 +106,11 @@ def test_admin_portal_login_issues_admin_session_for_single_allowlisted_admin(cl
 
     assert register(client, email="owner@salon.com").status_code == 201
     monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
-    monkeypatch.setattr(settings, "ADMIN_PORTAL_PASSPHRASE", SecretStr("test-only-admin-portal-passphrase"))
+    monkeypatch.setattr(
+        settings,
+        "ADMIN_PORTAL_PASSPHRASE",
+        SecretStr("test-only-admin-portal-passphrase"),
+    )
 
     response = client.post(
         f"{API}/auth/admin-portal/login",
@@ -155,6 +159,21 @@ def test_admin_portal_login_is_disabled_without_server_secret(client, monkeypatc
     response = client.post(
         f"{API}/auth/admin-portal/login",
         json={"passphrase": "test-only-admin-portal-passphrase"},
+    )
+    assert response.status_code == 503
+
+
+def test_admin_portal_login_rejects_a_short_server_passphrase(client, monkeypatch):
+    from pydantic import SecretStr
+    from app.core.config import settings
+
+    assert register(client, email="owner@salon.com").status_code == 201
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "owner@salon.com")
+    monkeypatch.setattr(settings, "ADMIN_PORTAL_PASSPHRASE", SecretStr("short-value"))
+
+    response = client.post(
+        f"{API}/auth/admin-portal/login",
+        json={"passphrase": "short-value"},
     )
     assert response.status_code == 503
 
