@@ -11,6 +11,7 @@ import '../services/recent_image_store.dart';
 import '../services/salon_look_preset_store.dart';
 import '../widgets/before_after_comparison.dart';
 import '../widgets/developer_branding.dart';
+import '../widgets/platform_admin_login_dialog.dart';
 import '../widgets/face_sample_artwork.dart';
 import 'settings_page.dart';
 
@@ -21,6 +22,7 @@ class BeautyPage extends StatefulWidget {
     required this.onLogout,
     required this.salonId,
     this.canManageBranding = false,
+    this.onAdminLogin,
     this.lookPresetStore,
   });
 
@@ -28,6 +30,7 @@ class BeautyPage extends StatefulWidget {
   final VoidCallback onLogout;
   final String salonId;
   final bool canManageBranding;
+  final VoidCallback? onAdminLogin;
   final SalonLookPresetStore? lookPresetStore;
 
   @override
@@ -2587,7 +2590,15 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
             ),
           ],
           const SizedBox(height: 22),
-          const DeveloperBranding(compact: true, centered: true),
+          DeveloperBranding(
+            compact: true,
+            centered: true,
+            onTap: () => PlatformAdminLoginDialog.show(
+              context,
+              api: widget.api,
+              onAuthenticated: widget.onAdminLogin ?? () {},
+            ),
+          ),
           const SizedBox(height: 16),
         ],
       ),
