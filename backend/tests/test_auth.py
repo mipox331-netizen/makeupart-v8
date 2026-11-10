@@ -110,6 +110,75 @@ def test_login_success(client):
     assert body["refresh_token"]
 
 
+
+def test_platform_admin_alias_login_uses_server_side_hash_and_admin_allowlist(
+    client, monkeypatch
+):
+    from app.core.config import settings
+    from app.core.security import hash_admin_password
+
+    assert register(client, email="dashboard-owner@salon.com").status_code == 201
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "dashboard-owner@salon.com")
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_LOGIN_USERNAME", "MR AI")
+    monkeypatch.setattr(
+        settings,
+        "PLATFORM_ADMIN_PASSWORD_HASH",
+        hash_admin_password("test-admin-password"),
+    )
+
+    response = client.post(
+        f"{API}/auth/admin-login",
+        json={"username": "mr ai", "password": "test-admin-password"},
+    )
+    assert response.status_code == 200
+    tokens = response.json()
+    assert tokens["access_token"]
+    profile = client.get(
+        f"{API}/auth/me",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert profile.status_code == 200
+    assert profile.json()["is_platform_admin"] is True
+
+
+def test_platform_admin_alias_login_rejects_wrong_username_or_password(
+    client, monkeypatch
+):
+    from app.core.config import settings
+    from app.core.security import hash_admin_password
+
+    assert register(client, email="dashboard-owner@salon.com").status_code == 201
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_EMAILS", "dashboard-owner@salon.com")
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_LOGIN_USERNAME", "MR AI")
+    monkeypatch.setattr(
+        settings,
+        "PLATFORM_ADMIN_PASSWORD_HASH",
+        hash_admin_password("test-admin-password"),
+    )
+
+    wrong_username = client.post(
+        f"{API}/auth/admin-login",
+        json={"username": "another-user", "password": "test-admin-password"},
+    )
+    wrong_password = client.post(
+        f"{API}/auth/admin-login",
+        json={"username": "MR AI", "password": "wrong-password"},
+    )
+    assert wrong_username.status_code == 401
+    assert wrong_password.status_code == 401
+
+
+def test_platform_admin_alias_login_is_disabled_without_server_hash(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "PLATFORM_ADMIN_PASSWORD_HASH", "")
+    response = client.post(
+        f"{API}/auth/admin-login",
+        json={"username": "MR AI", "password": "any-password"},
+    )
+    assert response.status_code == 503
+
+
 def test_login_wrong_password(client):
     register(client)
     assert login(client, "owner@salon.com", "wrong-password").status_code == 401
