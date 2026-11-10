@@ -61,15 +61,24 @@ class _FaceSamplePainter extends CustomPainter {
     ];
     final backdrop = backdrops[seed % backdrops.length];
     final skin = skinTones[(seed ~/ 3) % skinTones.length];
-    final hair = name.contains('silver')
-        ? const Color(0xFFBFC6D2)
-        : name.contains('blonde')
-            ? const Color(0xFFB98C48)
-            : name.contains('copper')
-                ? const Color(0xFF9B4F35)
-                : name.contains('black')
-                    ? const Color(0xFF241D26)
-                    : const Color(0xFF38262A);
+    const hairColorSamples = <Color>[
+      Color(0xFF241D26),
+      Color(0xFFB98C48),
+      Color(0xFF9B4F35),
+      Color(0xFFBFC6D2),
+      Color(0xFF6E3D32),
+    ];
+    final hair = name.contains('hair color')
+        ? hairColorSamples[seed % hairColorSamples.length]
+        : name.contains('silver')
+            ? const Color(0xFFBFC6D2)
+            : name.contains('blonde')
+                ? const Color(0xFFB98C48)
+                : name.contains('copper')
+                    ? const Color(0xFF9B4F35)
+                    : name.contains('black')
+                        ? const Color(0xFF241D26)
+                        : const Color(0xFF38262A);
     final lip = name.contains('natural') || name.contains('skin')
         ? const Color(0xFFB66D72)
         : name.contains('bridal') || name.contains('rose')
@@ -152,6 +161,14 @@ class _FaceSamplePainter extends CustomPainter {
       Paint()..color = skin,
     );
 
+    if (name.contains('updo')) {
+      canvas.drawCircle(
+        Offset(cx, faceTop + faceHeight * .015),
+        faceWidth * .25,
+        Paint()..color = hair,
+      );
+    }
+
     final hairShape = Path()
       ..moveTo(cx - faceWidth * .52, faceTop + faceHeight * .34)
       ..cubicTo(
@@ -186,6 +203,51 @@ class _FaceSamplePainter extends CustomPainter {
       )
       ..close();
     canvas.drawPath(hairShape, Paint()..color = hair);
+
+    if (name.contains('curl')) {
+      for (final side in const [-1.0, 1.0]) {
+        for (var index = 0; index < 4; index++) {
+          final curlCenter = Offset(
+            cx + side * faceWidth * .55,
+            faceTop + faceHeight * (.35 + index * .14),
+          );
+          canvas.drawCircle(
+            curlCenter,
+            faceWidth * .105,
+            Paint()..color = hair,
+          );
+        }
+      }
+    }
+
+    if (name.contains('braid')) {
+      final braidPaint = Paint()
+        ..color = hair.withValues(alpha: .96)
+        ..strokeWidth = math.max(1.4, size.height * .035).toDouble()
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+      for (final side in const [-1.0, 1.0]) {
+        final braid = Path()
+          ..moveTo(cx + side * faceWidth * .52, faceTop + faceHeight * .30)
+          ..quadraticBezierTo(
+            cx + side * faceWidth * .72,
+            faceTop + faceHeight * .58,
+            cx + side * faceWidth * .49,
+            faceTop + faceHeight * .91,
+          );
+        canvas.drawPath(braid, braidPaint);
+        for (var index = 0; index < 4; index++) {
+          canvas.drawCircle(
+            Offset(
+              cx + side * faceWidth * (.58 + (index.isEven ? .035 : -.035)),
+              faceTop + faceHeight * (.39 + index * .13),
+            ),
+            faceWidth * .07,
+            Paint()..color = hair,
+          );
+        }
+      }
+    }
 
     final earPaint = Paint()..color = skin;
     canvas.drawOval(
@@ -302,7 +364,7 @@ class _FaceSamplePainter extends CustomPainter {
         ..style = PaintingStyle.stroke,
     );
 
-    final mouthY = faceTop + faceHeight * .755;
+    final mouthY = faceTop + faceHeight * (name.contains('smile') ? .745 : .755);
     final mouth = Path()
       ..moveTo(cx - faceWidth * .19, mouthY)
       ..quadraticBezierTo(
