@@ -432,7 +432,7 @@ jobs:
             -alias "$ANDROID_KEY_ALIAS" \
             -file "$RUNNER_TEMP/expected-release-cert.der" >/dev/null
           expected_cert_sha="$(sha256sum "$RUNNER_TEMP/expected-release-cert.der" | cut -d' ' -f1)"
-          actual_cert_sha="$(printf '%s\n' "$signing_report" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+          actual_cert_sha="$(printf '%s\n' "$signing_report" | sed -nE 's/.*certificate SHA-256 digest: ([0-9A-Fa-f:]+).*/\1/p' | head -n 1 | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
           if [[ -z "$actual_cert_sha" || "$actual_cert_sha" != "$expected_cert_sha" ]]; then
             echo "::error::APK signing certificate does not match the configured persistent upload keystore."
             echo "::error::Expected certificate SHA-256: $expected_cert_sha"
