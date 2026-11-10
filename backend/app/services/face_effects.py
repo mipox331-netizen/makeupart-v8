@@ -109,9 +109,10 @@ class FaceEffects:
         return points
 
     @staticmethod
-    def _face_geometry(points: np.ndarray) -> tuple[int, int, int, int, int, int]:
-        height = int(np.max(points[:, 1])) + 1
-        width = int(np.max(points[:, 0])) + 1
+    def _face_geometry(
+        points: np.ndarray, image_shape: tuple[int, ...]
+    ) -> tuple[int, int, int, int, int, int]:
+        height, width = image_shape[:2]
         hull = cv2.convexHull(points)
         x, y, w, h = cv2.boundingRect(hull)
         if w < 24 or h < 24:
@@ -133,7 +134,7 @@ class FaceEffects:
     def _recolor_hair(
         cls, image: np.ndarray, points: np.ndarray, edit: str, intensity: float
     ) -> np.ndarray:
-        x, y, w, h, width, height = cls._face_geometry(points)
+        x, y, w, h, width, height = cls._face_geometry(points, image.shape)
         # MediaPipe does not provide hair segmentation. Restrict recoloring to
         # the head cap outside the face hull and reject likely skin pixels.
         center = (x + w // 2, max(0, y + int(h * 0.02)))
@@ -367,18 +368,14 @@ class FaceEffects:
         height, width = image.shape[:2]
         styled = image.astype(np.float32)
         cheek_mask = np.zeros((height, width), dtype=np.uint8)
-        x, y, w, h, _, _ = cls._face_geometry(points)
+        x, y, w, h, _, _ = cls._face_geometry(points, image.shape)
         axes = (max(3, int(w * 0.095)), max(2, int(h * 0.032)))
         cy = y + int(h * 0.63)
         cv2.ellipse(cheek_mask, (x + int(w * 0.32), cy), axes, -8, 0, 360, 255, -1)
         cv2.ellipse(cheek_mask, (x + int(w * 0.68), cy), axes, 8, 0, 360, 255, -1)
-        cheek_mask = cv2.bitwise_and(
-            cheek_mask,
-            cv2.bitwise_and(
-                np.zeros((height, width), dtype=np.uint8) + 255,
-                cv2.bitwise_not(np.zeros((height, width), dtype=np.uint8)),
-            ),
-        )
+        face_mask = np.zeros((height, width), dtype=np.uint8)
+        cv2.fillConvexPoly(face_mask, cv2.convexHull(points), 255)
+        cheek_mask = cv2.bitwise_and(cheek_mask, face_mask)
         cheek_mask = cv2.GaussianBlur(cheek_mask, (0, 0), sigmaX=max(1.0, width / 55.0))
         cheek_alpha = (cheek_mask.astype(np.float32) / 255.0 * 0.11 * intensity)[..., None]
         blush = np.asarray((142, 92, 210), dtype=np.float32).reshape(1, 1, 3)
