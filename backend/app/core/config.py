@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List
 
-from pydantic import model_validator
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     PLATFORM_ADMIN_EMAILS: str = ""
     # Optional one-word entry for the hidden MOOG platform-admin portal.
     # Keep this value in the deployment environment, never in source control.
-    ADMIN_PORTAL_PASSPHRASE: str = ""
+    ADMIN_PORTAL_PASSPHRASE: SecretStr = SecretStr("")
     # Optional paid generative engine; intentionally disabled until provisioned.
     OPENAI_API_KEY: str = ""
     OPENAI_IMAGE_MODEL: str = "gpt-image-2.5-sunburst"
