@@ -115,9 +115,11 @@ jobs:
             wait_for_gate "python-security-audit.yml" "Python Dependency Security Audit"
             wait_for_gate "third-party-license-inventory.yml" "Third-party License Inventory"
           fi
-          if [[ "$backend_changed" == "true" ]]; then
-            wait_for_gate "deploy-render-supabase.yml" "MakeupArt V8 Render Production Deploy"
-          fi
+          # Render already auto-deploys commits from main. Do not gate APK
+          # creation on the separate credential/configuration workflow: that
+          # workflow can fail before touching Render even when the exact source
+          # commit is already live. The build job below verifies the deployed
+          # commit plus live, ready and media-ready endpoints directly.
 
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "backend_changed=$backend_changed" >> "$GITHUB_OUTPUT"
