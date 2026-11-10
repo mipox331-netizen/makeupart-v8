@@ -853,9 +853,11 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
             selectedMakeupStyle != 'skin_only';
         selectedEngine = 'classic';
         selectedMakeupStyle = 'skin_only';
+        selectedFaceEffect = 'none';
         externalAiConsentConfirmed = false;
         if (changed) _clearProcessedResult();
       } else if (folder == 'Makeup') {
+        selectedFaceEffect = 'none';
         if (selectedEngine == 'generative') {
           if (_hairLookKeys.contains(selectedGenerativeLook) ||
               selectedGenerativeLook == 'foundation') {
@@ -888,8 +890,12 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       } else if (_faceEditOptions.containsKey(folder)) {
         final options = _faceEditOptions[folder]!;
         final changed = selectedEngine != 'classic' ||
-            selectedFaceEffect != options.first;
+            selectedFaceEffect != options.first ||
+            selectedMakeupStyle != 'natural' ||
+            selectedLook != 'Natural Finish';
         selectedEngine = 'classic';
+        selectedMakeupStyle = 'natural';
+        selectedLook = 'Natural Finish';
         selectedFaceEffect = options.first;
         externalAiConsentConfirmed = false;
         if (changed) _clearProcessedResult();
