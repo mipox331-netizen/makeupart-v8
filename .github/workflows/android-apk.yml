@@ -177,11 +177,15 @@ jobs:
           pubspec_version="$(sed -nE "s/^version:[[:space:]]*['\\"]?([^'\\"]+)['\\"]?.*$/\\1/p" pubspec.yaml | head -n 1)"
           pubspec_name="${pubspec_version%%+*}"
           pubspec_code="${pubspec_version##*+}"
-          if [[ ! "$pubspec_name" =~ ^8[.]0[.]([0-9]+)$ || ! "$pubspec_code" =~ ^[0-9]+$ ]]; then
-            echo "::error::pubspec.yaml must declare a version in 8.0.N+N format before a release."
+          if [[ ! "$pubspec_name" =~ ^8[.]0[.]([0-9]+)$ ]]; then
+            echo "::error::pubspec.yaml version name must use 8.0.N format before a release."
             exit 1
           fi
           pubspec_name_number="${BASH_REMATCH[1]}"
+          if [[ ! "$pubspec_code" =~ ^[0-9]+$ ]]; then
+            echo "::error::pubspec.yaml version code must be numeric before a release."
+            exit 1
+          fi
           version_floor="$latest_number"
           (( 10#$pubspec_name_number > 10#$version_floor )) && version_floor="$pubspec_name_number"
           (( 10#$pubspec_code > 10#$version_floor )) && version_floor="$pubspec_code"
