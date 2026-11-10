@@ -121,7 +121,8 @@ def upload(category: str, archive: Path, checksum_file: Path, run_id: str) -> tu
     if retention_days < 1 or retention_days > 90:
         raise BackupStorageError("R2_BACKUP_RETENTION_DAYS must be between 1 and 90.")
 
-    _prune_expired(client, bucket, category, retention_days)
+    for backup_category in sorted(ALLOWED_CATEGORIES):
+        _prune_expired(client, bucket, backup_category, retention_days)
     _ensure_free_quota(client, bucket, archive_size + sidecar_size)
 
     base = f"{PREFIX}/{category}/{run_id}/"
