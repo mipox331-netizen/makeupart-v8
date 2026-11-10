@@ -16,6 +16,14 @@ GenerativeLook = Literal[
     "cat_eye", "eyeshadow", "eyeliner", "lipstick", "blush", "foundation",
     "editorial", "sleek_hair", "soft_curls", "braided_style", "elegant_updo",
 ]
+FaceEdit = Literal[
+    "none",
+    "hair_black", "hair_brown", "hair_auburn", "hair_blonde",
+    "soft_smile", "stubble", "short_beard", "full_beard", "mustache",
+    "glasses_round", "glasses_square", "glasses_aviator",
+    "slim_face", "v_shape", "age_mature", "youthful_finish",
+    "masculine_presentation", "feminine_presentation",
+]
 
 
 class BeautyProcessRequest(BaseModel):
@@ -23,6 +31,7 @@ class BeautyProcessRequest(BaseModel):
     intensity: float = Field(default=0.7, ge=0.0, le=1.0)
     consent_confirmed: bool = False
     makeup_style: MakeupStyle = "natural"
+    face_edit: FaceEdit = "none"
     photo_finish: PhotoFinish = "Natural Finish"
     engine: BeautyEngine = "classic"
     generative_look: GenerativeLook = "full_glam"
@@ -42,6 +51,7 @@ class BeautyProcessResponse(BaseModel):
     intensity: float
     processed: bool
     makeup_style: MakeupStyle = "natural"
+    face_edit: FaceEdit = "none"
     photo_finish: PhotoFinish = "Natural Finish"
     engine: BeautyEngine = "classic"
     generative_look: GenerativeLook | None = None
