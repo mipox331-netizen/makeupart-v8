@@ -135,7 +135,8 @@ def upload(category: str, archive: Path, checksum_file: Path, run_id: str) -> st
     _ensure_private_target(repository)
 
     retention_days = int(os.environ.get("BACKUP_RETENTION_DAYS", "14"))
-    removed = _prune_expired(category, retention_days)
+    if retention_days < 1 or retention_days > 90:
+        raise BackupStorageError("BACKUP_RETENTION_DAYS must be between 1 and 90.")
     tag = f"makeupart-{category}-{run_id}"
     title = f"MakeupArt encrypted {category} backup"
     notes = (
@@ -170,6 +171,9 @@ def upload(category: str, archive: Path, checksum_file: Path, run_id: str) -> st
     except Exception:
         raise BackupStorageError("GitHub Release upload verification failed.") from None
 
+    # Prune only after the new release has been downloaded and verified so a
+    # failed upload never deletes the last known-good backup.
+    removed = _prune_expired(category, retention_days)
     print(
         f"Encrypted {category} backup uploaded to a private GitHub repository and verified: "
         f"bytes={archive_size}, expired_releases_removed={removed}, retention_days={retention_days}."
@@ -179,7 +183,8 @@ def upload(category: str, archive: Path, checksum_file: Path, run_id: str) -> st
 
 def download(category: str, run_id: str, destination: Path) -> Path:
     _validate_category_run(category, run_id)
-    _backup_repository()
+    repository = _backup_repository()
+    _ensure_private_target(repository)
     tag = f"makeupart-{category}-{run_id}"
     destination.mkdir(parents=True, exist_ok=True)
     _gh("release", "download", tag, "--dir", str(destination))
