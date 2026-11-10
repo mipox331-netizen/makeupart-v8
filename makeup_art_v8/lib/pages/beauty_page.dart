@@ -1146,6 +1146,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
         folder: folder,
         engine: selectedEngine,
         makeupStyle: selectedMakeupStyle,
+        faceEdit: selectedFaceEffect,
         generativeLook: selectedGenerativeLook,
         photoFinish: selectedLook,
         intensity: intensity,
@@ -1221,6 +1222,9 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       selectedMakeupStyle = _makeupStyles.containsKey(preset.makeupStyle)
           ? preset.makeupStyle
           : 'natural';
+      selectedFaceEffect = _faceEditNames.containsKey(preset.faceEdit)
+          ? preset.faceEdit
+          : 'none';
       selectedGenerativeLook = _generativeLooks.containsKey(preset.generativeLook)
           ? preset.generativeLook
           : 'full_glam';
