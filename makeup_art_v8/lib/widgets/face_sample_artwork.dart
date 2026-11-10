@@ -2,10 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// A lightweight, original illustrated style sample for filter cards.
+/// A real portrait photograph used as a visual example on filter cards.
 ///
-/// This is deliberately artwork rather than a claimed edited photo. The real
-/// result is created only after the selected portrait is processed.
+/// These are sample portraits only; the selected customer's photo is processed
+/// separately. The painter remains as an offline fallback when images cannot load.
 class FaceSampleArtwork extends StatelessWidget {
   const FaceSampleArtwork({
     super.key,
@@ -64,6 +64,9 @@ class FaceSampleArtwork extends StatelessWidget {
                                         ? 'glam'
                                         : 'natural';
 
+    if (key == 'beard') {
+      return 'https://burst.shopifycdn.com/photos/close-up-of-a-mans-face-in-frame.jpg?width=640&height=480';
+    }
     final photoId = photos[key]!;
     return 'https://images.unsplash.com/$photoId?auto=format&fit=crop&crop=faces&w=640&h=480&q=82';
   }
