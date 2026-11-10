@@ -1193,7 +1193,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 104,
+          height: 112,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -2718,7 +2718,7 @@ class _FaceEditorToolItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return SizedBox(
-      width: 76,
+      width: 84,
       child: Semantics(
         button: true,
         selected: selected,
@@ -2736,8 +2736,8 @@ class _FaceEditorToolItem extends StatelessWidget {
                 children: [
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 160),
-                    width: 66,
-                    height: 52,
+                    width: 74,
+                    height: 58,
                     padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       color: selected
