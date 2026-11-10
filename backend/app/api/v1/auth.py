@@ -17,7 +17,13 @@ from app.crud.user import authenticate_user, create_owner_user, get_user, get_us
 from app.db.session import get_db
 from app.models.refresh_session import RefreshSession
 from app.models.user import User
-from app.schemas.auth import AdminPortalLoginRequest, RefreshRequest, RegisterRequest, RegisterResponse, Token
+from app.schemas.auth import (
+    AdminPortalLoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    RegisterResponse,
+    Token,
+)
 from app.schemas.salon import SalonCreate, SalonOut
 from app.schemas.user import UserOut
 from app.services.login_rate_limit import clear_login_failures, is_login_locked, record_login_failure
