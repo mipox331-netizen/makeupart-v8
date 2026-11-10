@@ -971,11 +971,16 @@ void main() {
     await tester.tap(sizesFolder);
     await tester.pumpAndSettle();
 
-    expect(find.text('Coming soon'), findsOneWidget);
+    expect(find.text('Choose a sizes effect'), findsOneWidget);
     expect(
-      find.textContaining('image-processing effect is not implemented yet'),
+      find.byKey(const ValueKey('face-edit-options-Sizes')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('face-edit-option-slim_face')),
+      findsOneWidget,
+    );
+    expect(find.text('Coming soon'), findsNothing);
 
     final creatorCredit = find.text('MOOG 343');
     await tester.scrollUntilVisible(
