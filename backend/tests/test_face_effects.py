@@ -1,8 +1,10 @@
 from types import SimpleNamespace
 
+import cv2
 import numpy as np
 import pytest
 
+from app.services.beauty import BeautyProvider
 from app.services.face_effects import FACE_EDIT_OPTIONS, FaceEffects
 
 
@@ -117,6 +119,44 @@ def test_none_and_zero_intensity_are_pixel_identical():
 
     assert np.array_equal(FaceEffects.apply(source, landmarks, "none", 0.9), source)
     assert np.array_equal(FaceEffects.apply(source, landmarks, "soft_smile", 0.0), source)
+
+
+
+
+def test_beauty_provider_reports_similarity_after_local_face_edit(monkeypatch, tmp_path):
+    class FakeFaceMesh:
+        def process(self, image):
+            return SimpleNamespace(multi_face_landmarks=[_landmarks()])
+
+    fake_mesh = FakeFaceMesh()
+    monkeypatch.setattr(
+        BeautyProvider,
+        "_face_mesh_available",
+        classmethod(lambda cls: True),
+    )
+    monkeypatch.setattr(
+        BeautyProvider,
+        "_get_face_mesh",
+        classmethod(lambda cls: fake_mesh),
+    )
+
+    image_path = tmp_path / "source.png"
+    assert cv2.imwrite(str(image_path), _portrait())
+
+    result = BeautyProvider().process(
+        str(image_path),
+        {
+            "face_edit": "soft_smile",
+            "intensity": 0.85,
+            "output_dir": str(tmp_path / "processed"),
+        },
+    )
+
+    output = cv2.imread(result["output_path"])
+    assert output is not None
+    assert output.shape == (256, 256, 3)
+    assert not np.array_equal(output, cv2.imread(str(image_path)))
+    assert 0.0 <= result["identity_similarity"] < 1.0
 
 
 def test_unknown_face_edit_is_rejected():
