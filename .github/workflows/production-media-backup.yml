@@ -1,4 +1,4 @@
-name: MakeupArt V8 Encrypted Supabase Media Backup to Cloudflare R2
+name: MakeupArt V8 Encrypted Supabase Media Backup to private GitHub Releases
 
 on:
   schedule:
@@ -8,7 +8,7 @@ on:
     branches: [main]
     paths:
       - "backend/scripts/supabase_media_backup.py"
-      - "backend/scripts/r2_backup_storage.py"
+      - "backend/scripts/github_release_backup.py"
       - "backend/scripts/verify_supabase_media_empty_state.py"
       - ".github/workflows/production-media-backup.yml"
       - ".github/workflows/production-media-restore-drill.yml"
@@ -32,23 +32,20 @@ jobs:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
       DATABASE_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DB_URL_SECRET || secrets.DATABASE_URL }}
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-      R2_BACKUP_RETENTION_DAYS: "14"
+      BACKUP_REPOSITORY: ${{ secrets.BACKUP_REPOSITORY }}
+      BACKUP_REPOSITORY_TOKEN: ${{ secrets.BACKUP_REPOSITORY_TOKEN }}
+      BACKUP_RETENTION_DAYS: "14"
     steps:
-      - name: Validate Supabase, Cloudflare R2 and encryption secrets without exposing values
+      - name: Validate Supabase, private GitHub Releases and encryption secrets without exposing values
         shell: bash
         run: |
           set -euo pipefail
           missing=()
           [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SERVICE_ROLE_KEY")
           [[ -n "${DATABASE_URL:-}" ]] || missing+=("SUPABASE_DB_URL or DATABASE_URL for empty-inventory safety check")
-          [[ -n "${R2_ACCOUNT_ID:-}" ]] || missing+=("R2_ACCOUNT_ID")
-          [[ -n "${R2_ACCESS_KEY_ID:-}" ]] || missing+=("R2_ACCESS_KEY_ID")
-          [[ -n "${R2_SECRET_ACCESS_KEY:-}" ]] || missing+=("R2_SECRET_ACCESS_KEY")
-          [[ -n "${R2_BUCKET_NAME:-}" ]] || missing+=("R2_BUCKET_NAME")
+          [[ -n "${BACKUP_REPOSITORY:-}" ]] || missing+=("BACKUP_REPOSITORY")
+          [[ -n "${BACKUP_REPOSITORY_TOKEN:-}" ]] || missing+=("BACKUP_REPOSITORY_TOKEN")
+          [[ "${BACKUP_REPOSITORY:-}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || missing+=("valid BACKUP_REPOSITORY owner/name")
           [[ -n "${BACKUP_ENCRYPTION_PASSPHRASE:-}" ]] || missing+=("BACKUP_ENCRYPTION_PASSPHRASE")
           if (( ${#missing[@]} > 0 )); then
             echo "::error::Missing production GitHub environment secrets: ${missing[*]}"
@@ -58,7 +55,7 @@ jobs:
             echo "::error::BACKUP_ENCRYPTION_PASSPHRASE must be at least 24 characters."
             exit 1
           }
-          echo "Supabase private-storage, Cloudflare R2 and encryption credentials are present."
+          echo "Supabase private-storage, private GitHub Releases and encryption credentials are present."
 
       - name: Checkout application backup code
         uses: actions/checkout@v4
@@ -69,7 +66,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install backup and database verification dependencies
-        run: python -m pip install --disable-pip-version-check --no-input httpx "SQLAlchemy==2.0.54" "psycopg2-binary==2.9.13" boto3==1.43.127
+        run: python -m pip install --disable-pip-version-check --no-input httpx "SQLAlchemy==2.0.54" "psycopg2-binary==2.9.13"
 
       - name: Back up private Supabase Storage media and verify integrity
         shell: bash
@@ -150,11 +147,15 @@ jobs:
           PY
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 
-      - name: Store encrypted media backup in private Cloudflare R2
+      - name: Store encrypted media backup in the private backup repository
+        env:
+          GH_TOKEN: ${{ secrets.BACKUP_REPOSITORY_TOKEN }}
+          BACKUP_REPOSITORY: ${{ secrets.BACKUP_REPOSITORY }}
+          BACKUP_RETENTION_DAYS: "14"
         shell: bash
         run: |
           set -euo pipefail
-          python backend/scripts/r2_backup_storage.py upload media "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg" "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg.sha256" "$GITHUB_RUN_ID-a$GITHUB_RUN_ATTEMPT"
+          python backend/scripts/github_release_backup.py upload media "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg" "$RUNNER_TEMP/makeupart-media-backup/makeupart-media.tar.gz.gpg.sha256" "$GITHUB_RUN_ID-a$GITHUB_RUN_ATTEMPT"
 
       - name: Remove decrypted media and temporary secrets
         if: always()
