@@ -12,6 +12,7 @@ import '../services/salon_look_preset_store.dart';
 import '../widgets/before_after_comparison.dart';
 import '../widgets/developer_branding.dart';
 import '../widgets/face_sample_artwork.dart';
+import 'admin_portal_login_page.dart';
 import 'settings_page.dart';
 
 class BeautyPage extends StatefulWidget {
@@ -22,6 +23,7 @@ class BeautyPage extends StatefulWidget {
     required this.salonId,
     this.canManageBranding = false,
     this.lookPresetStore,
+    this.onAdminPortalAuthenticated,
   });
 
   final ApiClient api;
@@ -29,6 +31,7 @@ class BeautyPage extends StatefulWidget {
   final String salonId;
   final bool canManageBranding;
   final SalonLookPresetStore? lookPresetStore;
+  final VoidCallback? onAdminPortalAuthenticated;
 
   @override
   State<BeautyPage> createState() => _BeautyPageState();
@@ -279,6 +282,20 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _editorScrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openMrAiDashboard() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AdminPortalLoginPage(
+          api: widget.api,
+          onLoggedIn: () {
+            widget.onAdminPortalAuthenticated?.call();
+            Navigator.of(context).pop();
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -2587,7 +2604,11 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
             ),
           ],
           const SizedBox(height: 22),
-          const DeveloperBranding(compact: true, centered: true),
+          DeveloperBranding(
+            compact: true,
+            centered: true,
+            onTap: widget.onAdminPortalAuthenticated == null ? null : _openMrAiDashboard,
+          ),
           const SizedBox(height: 16),
         ],
       ),
