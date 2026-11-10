@@ -1194,31 +1194,36 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
         top: false,
         child: SizedBox(
           height: 104,
-          child: ListView.separated(
+          child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            itemCount: _faceEditorFolderOrder.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 4),
-            itemBuilder: (context, index) {
-              final folder = _faceEditorFolderOrder[index];
-              final status = _filterFolderStatus(folder);
-              final ready = status == 'AVAILABLE' || status == 'GENERATIVE AI';
-              final statusLabel = switch (status) {
-                'PRO REQUIRED' => 'PRO',
-                'AI NOT READY' => 'SETUP',
-                'COMING SOON' => 'SOON',
-                _ => '',
-              };
-              return _FaceEditorToolItem(
-                key: ValueKey('filter-folder-$folder'),
-                title: folder,
-                icon: _faceFilterFolderIcons[folder] ?? Icons.face_retouching_natural,
-                selected: _selectedFilterFolder == folder,
-                ready: ready,
-                statusLabel: statusLabel,
-                onTap: loading ? null : () => _openFilterFolder(folder),
-              );
-            },
+            child: Row(
+              children: List<Widget>.generate(_faceEditorFolderOrder.length, (index) {
+                final folder = _faceEditorFolderOrder[index];
+                final status = _filterFolderStatus(folder);
+                final ready = status == 'AVAILABLE' || status == 'GENERATIVE AI';
+                final statusLabel = switch (status) {
+                  'PRO REQUIRED' => 'PRO',
+                  'AI NOT READY' => 'SETUP',
+                  'COMING SOON' => 'SOON',
+                  _ => '',
+                };
+                return Padding(
+                  padding: EdgeInsets.only(
+                    right: index == _faceEditorFolderOrder.length - 1 ? 0 : 4,
+                  ),
+                  child: _FaceEditorToolItem(
+                    key: ValueKey('filter-folder-$folder'),
+                    title: folder,
+                    icon: _faceFilterFolderIcons[folder] ?? Icons.face_retouching_natural,
+                    selected: _selectedFilterFolder == folder,
+                    ready: ready,
+                    statusLabel: statusLabel,
+                    onTap: loading ? null : () => _openFilterFolder(folder),
+                  ),
+                );
+              }),
+            ),
           ),
         ),
       ),
