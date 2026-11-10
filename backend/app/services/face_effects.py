@@ -146,8 +146,14 @@ class FaceEffects:
         candidate = cv2.bitwise_and(head_mask, cv2.bitwise_not(face_mask))
 
         ycrcb = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
-        _, cr, cb = cv2.split(ycrcb)
-        skin = ((cr >= 125) & (cr <= 195) & (cb >= 65) & (cb <= 145)).astype(np.uint8) * 255
+        y_channel, cr, cb = cv2.split(ycrcb)
+        skin = (
+            (y_channel > 45)
+            & (cr >= 125)
+            & (cr <= 195)
+            & (cb >= 65)
+            & (cb <= 145)
+        ).astype(np.uint8) * 255
         candidate = cv2.bitwise_and(candidate, cv2.bitwise_not(skin))
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         candidate = cv2.bitwise_and(candidate, (gray < 238).astype(np.uint8) * 255)
