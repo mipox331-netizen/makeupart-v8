@@ -408,7 +408,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              FaceSampleArtwork(label: 'Soft Glam', height: 150),
+                              const FaceSampleArtwork(label: 'Soft Glam', height: 150),
                               DecoratedBox(
                                 decoration: BoxDecoration(
                                   color: Colors.black.withValues(alpha: .30),
@@ -571,7 +571,7 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              FaceSampleArtwork(label: 'Bridal Rose', height: 180),
+                              const FaceSampleArtwork(label: 'Bridal Rose', height: 180),
                               const DecoratedBox(
                                 decoration: BoxDecoration(
                                   color: Color(0x220B0910),
