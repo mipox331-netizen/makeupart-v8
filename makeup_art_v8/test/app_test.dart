@@ -732,15 +732,23 @@ void main() {
     expect(find.text('Beards'), findsOneWidget);
     expect(find.text('Makeup'), findsOneWidget);
     expect(find.text('Age'), findsOneWidget);
-    expect(find.text('Gender'), findsOneWidget);
-    final glassesFolder = find.byKey(const ValueKey('filter-folder-Glasses'));
-    // Scroll the actual horizontal ListView until its lazily-built final item
-    // exists. Dragging the parent container is not guaranteed to reach the
-    // ListView's max extent on every CI viewport/device-pixel configuration.
+    final genderFolder = find.byKey(const ValueKey('filter-folder-Gender'));
     final folderScrollView = find.descendant(
       of: foldersToolbar,
       matching: find.byType(Scrollable),
     ).first;
+    await tester.scrollUntilVisible(
+      genderFolder,
+      120,
+      scrollable: folderScrollView,
+    );
+    await _pumpEditor(tester);
+    expect(find.text('Gender'), findsOneWidget);
+
+    final glassesFolder = find.byKey(const ValueKey('filter-folder-Glasses'));
+    // Scroll the actual horizontal ListView until its lazily-built final item
+    // exists. Dragging the parent container is not guaranteed to reach the
+    // ListView's max extent on every CI viewport/device-pixel configuration.
     await tester.scrollUntilVisible(
       glassesFolder,
       160,
@@ -893,7 +901,6 @@ void main() {
     await _pumpEditor(tester);
 
     final presetChip = find.byKey(ValueKey('salon-look-preset-${saved.id}'));
-    await _pumpUntilFound(tester, presetChip);
     final savedLooksPanel = find.byKey(const ValueKey('saved-salon-looks-panel'));
     await tester.scrollUntilVisible(
       savedLooksPanel,
