@@ -32,8 +32,10 @@ from app.schemas.beauty import (
     PhotoFinish,
     BeautyEngine,
     GenerativeLook,
+    FaceEdit,
 )
 from app.services.beauty import BeautyProvider, IdentityGuard
+from app.services.face_effects import FACE_EDIT_OPTIONS
 from app.services import google_drive_media
 from app.services.google_drive_media import GoogleDriveMediaError
 from app.services.generative_makeup import GenerativeMakeupProvider
@@ -402,6 +404,8 @@ def beauty_capabilities(
         "generative_provider": "OpenAI" if ready else None,
         "generative_model": settings.OPENAI_IMAGE_MODEL if ready else None,
         "supported_generative_looks": sorted(GenerativeMakeupProvider.allowed_looks),
+        "classic_face_edits_available": True,
+        "supported_face_edits": sorted(FACE_EDIT_OPTIONS - {"none"}),
         "third_party_processing_requires_consent": True,
     }
 
@@ -483,6 +487,7 @@ def process_beauty_upload(
     file: UploadFile = File(...),
     intensity: float = Query(default=0.7, ge=0.0, le=1.0),
     makeup_style: MakeupStyle = Query(default="natural"),
+    face_edit: FaceEdit = Query(default="none"),
     photo_finish: PhotoFinish = Query(default="Natural Finish"),
     engine: BeautyEngine = Query(default="classic"),
     generative_look: GenerativeLook = Query(default="full_glam"),
@@ -562,6 +567,7 @@ def process_beauty_upload(
             intensity=intensity,
             consent_confirmed=True,
             makeup_style=makeup_style,
+            face_edit=face_edit,
             photo_finish=photo_finish,
             engine=engine,
             generative_look=generative_look,
