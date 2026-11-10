@@ -2553,9 +2553,11 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                     Text(
                       '${selectedEngine == 'generative'
                           ? 'Generative treatment strength'
-                          : (_selectedFilterFolder == 'Makeup'
-                              ? 'Skin polish & makeup strength'
-                              : 'Skin polish strength')} ${(intensity * 100).round()}%',
+                          : (_faceEditOptions.containsKey(_selectedFilterFolder)
+                              ? 'Face effect strength'
+                              : (_selectedFilterFolder == 'Makeup'
+                                  ? 'Skin polish & makeup strength'
+                                  : 'Skin polish strength'))} ${(intensity * 100).round()}%',
                     ),
                     Slider(
                       value: intensity,
