@@ -2912,14 +2912,14 @@ class _BeautyOptionTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  height: 66,
+                  height: 76,
                   width: double.infinity,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
                       FaceSampleArtwork(
                         label: title,
-                        height: 66,
+                        height: 76,
                       ),
                       Positioned(
                         left: 5,
