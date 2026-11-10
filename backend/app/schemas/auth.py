@@ -30,5 +30,16 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class AdminPortalLoginRequest(BaseModel):
+    passphrase: str = Field(min_length=1, max_length=128)
+
+    @field_validator("passphrase")
+    @classmethod
+    def reject_blank_passphrase(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Passphrase cannot be blank.")
+        return value
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
