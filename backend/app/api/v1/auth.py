@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -10,13 +11,19 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, is_platform_admin
 from app.core.config import settings
-from app.core.security import TOKEN_TYPE_REFRESH, create_access_token, create_refresh_token, decode_token
+from app.core.security import (
+    TOKEN_TYPE_REFRESH,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    verify_admin_password,
+)
 from app.crud.salon import create_salon
 from app.crud.user import authenticate_user, create_owner_user, get_user, get_user_by_email
 from app.db.session import get_db
 from app.models.refresh_session import RefreshSession
 from app.models.user import User
-from app.schemas.auth import RefreshRequest, RegisterRequest, RegisterResponse, Token
+from app.schemas.auth import AdminLoginRequest, RefreshRequest, RegisterRequest, RegisterResponse, Token
 from app.schemas.salon import SalonCreate, SalonOut
 from app.schemas.user import UserOut
 from app.services.login_rate_limit import clear_login_failures, is_login_locked, record_login_failure
@@ -108,6 +115,65 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
     clear_login_failures(db, normalized_email)
     tokens = _issue_tokens(user, db)
+    db.commit()
+    return tokens
+
+
+@router.post("/admin-login", response_model=Token)
+def platform_admin_login(
+    login_in: AdminLoginRequest,
+    db: Session = Depends(get_db),
+) -> Token:
+    configured_username = settings.PLATFORM_ADMIN_LOGIN_USERNAME.strip()
+    configured_hash = settings.PLATFORM_ADMIN_PASSWORD_HASH.strip()
+    if not configured_username or not configured_hash:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Platform admin dashboard access is not configured.",
+        )
+
+    supplied_username = login_in.username.strip()
+    lockout_key = "platform-admin:" + supplied_username.casefold()
+    if is_login_locked(db, lockout_key):
+        retry_after = settings.LOGIN_LOCKOUT_MINUTES * 60
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed dashboard login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    username_valid = hmac.compare_digest(
+        supplied_username.casefold(),
+        configured_username.casefold(),
+    )
+    password_valid = verify_admin_password(login_in.password, configured_hash)
+    if not (username_valid and password_valid):
+        record_login_failure(db, lockout_key)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect dashboard username or password.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    admin_user = None
+    for email in sorted(settings.platform_admin_emails):
+        candidate = get_user_by_email(db, email)
+        if candidate is not None and is_platform_admin(candidate):
+            admin_user = candidate
+            break
+    if admin_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No platform admin account is provisioned.",
+        )
+    if not admin_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin account is inactive.",
+        )
+
+    clear_login_failures(db, lockout_key)
+    tokens = _issue_tokens(admin_user, db)
     db.commit()
     return tokens
 
