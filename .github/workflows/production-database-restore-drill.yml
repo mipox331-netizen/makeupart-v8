@@ -75,6 +75,8 @@ jobs:
             [[ "$run_status" == "success" ]] || continue
             [[ "$run_path" == ".github/workflows/production-database-backup.yml" || "$run_path" == .github/workflows/production-database-backup.yml@* ]] || continue
             selected="$run_id"
+            selected_attempt="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.run_attempt // 1' 2>/dev/null || echo 1)"
+            [[ "$selected_attempt" =~ ^[0-9]+$ ]] || continue
             break
           done
 
@@ -83,6 +85,7 @@ jobs:
             exit 1
           }
           echo "run_id=$selected" >> "$GITHUB_OUTPUT"
+          echo "backup_key_id=$selected-a$selected_attempt" >> "$GITHUB_OUTPUT"
           echo "Selected a completed successful database backup run. The R2 download step will verify the encrypted archive and checksum."
 
       - name: Validate inputs and encryption secret
@@ -120,7 +123,7 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          BACKUP_RUN_ID: ${{ steps.select-backup.outputs.run_id }}-a1
+          BACKUP_RUN_ID: ${{ steps.select-backup.outputs.backup_key_id }}
         shell: bash
         run: |
           set -euo pipefail
