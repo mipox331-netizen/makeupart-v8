@@ -1801,6 +1801,12 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
               ),
             ),
           ),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                   const SizedBox(height: 20),
                   const _EditorSectionHeading(
                     step: '03',
@@ -2512,6 +2518,10 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                       ],
                     ),
                   ),
+                ],
+              ),
+            ),
+          ),
           if (result != null) ...[
             const SizedBox(height: 18),
             Card(
