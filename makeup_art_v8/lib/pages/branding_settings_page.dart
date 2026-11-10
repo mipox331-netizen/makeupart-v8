@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
+import '../widgets/face_sample_artwork.dart';
 
 class BrandingSettingsPage extends StatefulWidget {
   const BrandingSettingsPage({super.key, required this.api});
@@ -404,27 +405,63 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                               color: theme.colorScheme.outlineVariant,
                             ),
                           ),
-                          child: _logoBytes == null
-                              ? const Column(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              const FaceSampleArtwork(label: 'Soft Glam', height: 150),
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: .30),
+                                ),
+                              ),
+                              if (_logoBytes == null)
+                                const Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.add_photo_alternate_outlined,
-                                        size: 38),
-                                    SizedBox(height: 8),
-                                    Text('No logo uploaded'),
+                                    Icon(
+                                      Icons.add_photo_alternate_outlined,
+                                      size: 34,
+                                      color: Colors.white,
+                                    ),
+                                    SizedBox(height: 7),
+                                    Text(
+                                      'No logo uploaded',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                   ],
                                 )
-                              : Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: Image.memory(
-                                    _logoBytes!,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) => const Icon(
-                                      Icons.broken_image_outlined,
-                                      size: 40,
+                              else
+                                Center(
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 220,
+                                      maxHeight: 118,
+                                    ),
+                                    margin: const EdgeInsets.all(12),
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: .48),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: .35),
+                                      ),
+                                    ),
+                                    child: Image.memory(
+                                      _logoBytes!,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.broken_image_outlined,
+                                        size: 40,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
                                 ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Row(
@@ -524,28 +561,20 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                         Container(
                           height: 180,
                           width: double.infinity,
+                          clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(18),
                             border: Border.all(
                               color: theme.colorScheme.outlineVariant,
                             ),
-                            gradient: const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Color(0xFF34253E),
-                                Color(0xFF20283A),
-                                Color(0xFF10131D),
-                              ],
-                            ),
                           ),
                           child: Stack(
+                            fit: StackFit.expand,
                             children: [
-                              const Center(
-                                child: Icon(
-                                  Icons.face_retouching_natural_rounded,
-                                  size: 78,
-                                  color: Color(0x33FFFFFF),
+                              const FaceSampleArtwork(label: 'Bridal Rose', height: 180),
+                              const DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Color(0x220B0910),
                                 ),
                               ),
                               Positioned(
@@ -553,74 +582,99 @@ class _BrandingSettingsPageState extends State<BrandingSettingsPage> {
                                 bottom: _position.startsWith('bottom') ? 10 : null,
                                 left: _position.endsWith('left') ? 10 : null,
                                 right: _position.endsWith('right') ? 10 : null,
-                                child: Opacity(
-                                  opacity: _opacity,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: .72),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        if (_contentMode != 'text' && _logoBytes != null) ...[
-                                          Image.memory(
-                                            _logoBytes!,
-                                            width: _size * 2.2,
-                                            height: _size * 1.7,
-                                            fit: BoxFit.contain,
-                                          ),
-                                          const SizedBox(width: 8),
-                                        ],
-                                        if (_contentMode != 'logo')
-                                          Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              _watermarkText.text.trim().isEmpty
-                                                  ? (_salonName.text.trim().isEmpty ? 'Your Salon' : _salonName.text.trim())
-                                                  : _watermarkText.text.trim(),
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: (_size / 1.6)
-                                                    .clamp(9.0, 17.0)
-                                                    .toDouble(),
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 220),
+                                  child: Opacity(
+                                    opacity: _opacity,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: .76),
+                                        borderRadius: BorderRadius.circular(11),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(alpha: .16),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (_contentMode != 'text' && _logoBytes != null) ...[
+                                            SizedBox(
+                                              width: (_size * 1.35).clamp(26.0, 66.0).toDouble(),
+                                              height: (_size * 1.05).clamp(20.0, 48.0).toDouble(),
+                                              child: FittedBox(
+                                                fit: BoxFit.contain,
+                                                child: Image.memory(
+                                                  _logoBytes!,
+                                                  errorBuilder: (_, __, ___) => const Icon(
+                                                    Icons.broken_image_outlined,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
                                               ),
                                             ),
-                                            if (_contentMode != 'logo' && _showPhone && _phone.text.trim().isNotEmpty)
-                                              Text(
-                                                _phone.text.trim(),
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
-                                                ),
-                                              ),
-                                            if (_contentMode != 'logo' && _showInstagram && _instagram.text.trim().isNotEmpty)
-                                              Text(
-                                                _instagram.text.trim().startsWith('@')
-                                                    ? _instagram.text.trim()
-                                                    : '@${_instagram.text.trim()}',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
-                                                ),
-                                              ),
-                                            if (_contentMode != 'logo' && _showTikTok && _tiktok.text.trim().isNotEmpty)
-                                              Text(
-                                                _tiktok.text.trim().startsWith('@')
-                                                    ? _tiktok.text.trim()
-                                                    : '@${_tiktok.text.trim()}',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
-                                                ),
-                                              ),
+                                            const SizedBox(width: 8),
                                           ],
-                                        ),
-                                      ],
+                                          if (_contentMode != 'logo')
+                                            SizedBox(
+                                              width: 130,
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    _watermarkText.text.trim().isEmpty
+                                                        ? (_salonName.text.trim().isEmpty ? 'Your Salon' : _salonName.text.trim())
+                                                        : _watermarkText.text.trim(),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight: FontWeight.w800,
+                                                      fontSize: (_size / 1.6)
+                                                          .clamp(9.0, 17.0)
+                                                          .toDouble(),
+                                                    ),
+                                                  ),
+                                                  if (_showPhone && _phone.text.trim().isNotEmpty)
+                                                    Text(
+                                                      _phone.text.trim(),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 9,
+                                                      ),
+                                                    ),
+                                                  if (_showInstagram && _instagram.text.trim().isNotEmpty)
+                                                    Text(
+                                                      _instagram.text.trim().startsWith('@')
+                                                          ? _instagram.text.trim()
+                                                          : '@${_instagram.text.trim()}',
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 9,
+                                                      ),
+                                                    ),
+                                                  if (_showTikTok && _tiktok.text.trim().isNotEmpty)
+                                                    Text(
+                                                      _tiktok.text.trim().startsWith('@')
+                                                          ? _tiktok.text.trim()
+                                                          : '@${_tiktok.text.trim()}',
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 9,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),

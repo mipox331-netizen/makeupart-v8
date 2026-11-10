@@ -702,6 +702,13 @@ void main() {
 
     final foldersToolbar = find.byKey(const ValueKey('face-filter-folders-grid'));
     expect(foldersToolbar, findsOneWidget);
+    expect(
+      find.descendant(
+        of: foldersToolbar,
+        matching: find.byType(FaceSampleArtwork),
+      ),
+      findsAtLeastNWidgets(1),
+    );
 
     // Keep the editor portrait-first: the photo canvas and capture actions are
     // visible before the client, preset and filter controls.
@@ -725,15 +732,23 @@ void main() {
     expect(find.text('Beards'), findsOneWidget);
     expect(find.text('Makeup'), findsOneWidget);
     expect(find.text('Age'), findsOneWidget);
-    expect(find.text('Gender'), findsOneWidget);
-    final glassesFolder = find.byKey(const ValueKey('filter-folder-Glasses'));
-    // Scroll the actual horizontal ListView until its lazily-built final item
-    // exists. Dragging the parent container is not guaranteed to reach the
-    // ListView's max extent on every CI viewport/device-pixel configuration.
+    final genderFolder = find.byKey(const ValueKey('filter-folder-Gender'));
     final folderScrollView = find.descendant(
       of: foldersToolbar,
       matching: find.byType(Scrollable),
     ).first;
+    await tester.scrollUntilVisible(
+      genderFolder,
+      120,
+      scrollable: folderScrollView,
+    );
+    await _pumpEditor(tester);
+    expect(find.text('Gender'), findsOneWidget);
+
+    final glassesFolder = find.byKey(const ValueKey('filter-folder-Glasses'));
+    // Scroll the actual horizontal ListView until its lazily-built final item
+    // exists. Dragging the parent container is not guaranteed to reach the
+    // ListView's max extent on every CI viewport/device-pixel configuration.
     await tester.scrollUntilVisible(
       glassesFolder,
       160,
@@ -755,7 +770,13 @@ void main() {
     await tester.tap(impressionFolder);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('photo-finishes-grid')), findsOneWidget);
-    expect(find.byType(FaceSampleArtwork), findsNWidgets(5));
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('photo-finishes-grid')),
+        matching: find.byType(FaceSampleArtwork),
+      ),
+      findsNWidgets(5),
+    );
     expect(find.byKey(const ValueKey('photo-finish-0')), findsOneWidget);
     expect(find.textContaining('Skin polish strength'), findsOneWidget);
 
@@ -802,12 +823,9 @@ void main() {
     await tester.tap(back);
     await tester.pumpAndSettle();
     final skinFolder = find.byKey(const ValueKey('filter-folder-Skin'));
-    await tester.scrollUntilVisible(
-      skinFolder,
-      120,
-      scrollable: folderScrollView,
-    );
+    await tester.ensureVisible(skinFolder);
     await _pumpEditor(tester);
+    expect(skinFolder, findsOneWidget);
     await tester.tap(skinFolder);
     await tester.pumpAndSettle();
 
@@ -880,22 +898,14 @@ void main() {
     await _pumpEditor(tester);
 
     final presetChip = find.byKey(ValueKey('salon-look-preset-${saved.id}'));
-    await _pumpUntilFound(tester, presetChip);
     final savedLooksPanel = find.byKey(const ValueKey('saved-salon-looks-panel'));
     await tester.scrollUntilVisible(
       savedLooksPanel,
       160,
       scrollable: find.byType(Scrollable).first,
     );
-    final presetScrollView = find.descendant(
-      of: savedLooksPanel,
-      matching: find.byType(Scrollable),
-    ).first;
-    await tester.scrollUntilVisible(
-      presetChip,
-      120,
-      scrollable: presetScrollView,
-    );
+    await tester.ensureVisible(presetChip);
+    await _pumpEditor(tester);
     await tester.tap(presetChip);
     await _pumpEditor(tester);
 
