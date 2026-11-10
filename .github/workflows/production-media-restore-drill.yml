@@ -2,7 +2,7 @@ name: MakeupArt V8 Encrypted Media Restore Drill
 
 on:
   workflow_run:
-    workflows: ["MakeupArt V8 Encrypted Production Media Backup"]
+    workflows: ["MakeupArt V8 Encrypted Google Drive Media Backup"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   restore-drill:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
@@ -52,11 +52,8 @@ jobs:
           for run_id in $candidates; do
             run_status="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.conclusion // empty' 2>/dev/null || true)"
             run_path="$(gh api "repos/$repo/actions/runs/$run_id" --jq '.path // empty' 2>/dev/null || true)"
-            if [[ -n "$EVENT_RUN_ID" ]]; then
-              [[ "$run_status" == "success" || "$run_status" == "failure" ]] || continue
-            else
-              [[ "$run_status" == "success" ]] || continue
-            fi
+            # A local Actions artifact from a failed upload is not a verified Drive backup.
+            [[ "$run_status" == "success" ]] || continue
             [[ "$run_path" == ".github/workflows/production-media-backup.yml" || "$run_path" == .github/workflows/production-media-backup.yml@* ]] || continue
             artifact_count="$(gh api "repos/$repo/actions/runs/$run_id/artifacts" --jq "[.artifacts[] | select(.name == \"makeupart-media-backup-$run_id\" and .expired == false)] | length" 2>/dev/null || echo 0)"
             if [[ "$artifact_count" =~ ^[0-9]+$ ]] && (( artifact_count > 0 )); then
