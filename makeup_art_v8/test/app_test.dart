@@ -476,19 +476,21 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: Center(
-            child: DeveloperBranding(
-              centered: true,
-              onTap: () {
-                Navigator.of(tester.element(find.text('MOOG 343'))).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => AdminPortalLoginPage(
-                      api: api,
-                      onLoggedIn: () {},
+          body: Builder(
+            builder: (context) => Center(
+              child: DeveloperBranding(
+                centered: true,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => AdminPortalLoginPage(
+                        api: api,
+                        onLoggedIn: () {},
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ),
