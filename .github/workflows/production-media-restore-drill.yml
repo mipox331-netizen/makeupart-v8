@@ -81,6 +81,11 @@ jobs:
       - name: Check out restore tooling
         uses: actions/checkout@v4
 
+      - name: Set up Python for Cloudflare R2 restore
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Download selected encrypted media backup from Cloudflare R2
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
