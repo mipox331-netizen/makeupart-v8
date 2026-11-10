@@ -178,3 +178,72 @@ def test_backup_derives_supabase_project_url_from_pooler_username(monkeypatch, t
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["file_count"] == 0
     assert manifest["total_bytes"] == 0
+
+
+@pytest.mark.parametrize(
+    "unsafe_url",
+    [
+        "http://project.supabase.co",
+        "https://attacker.example",
+        "https://project.supabase.co.attacker.example",
+        "https://nested.project.supabase.co",
+        "https://user:password@project.supabase.co",
+        "https://project.supabase.co:8443",
+        "https://project.supabase.co/storage/v1",
+        "https://project.supabase.co?x=1",
+    ],
+)
+def test_backup_rejects_noncanonical_supabase_origins(monkeypatch, tmp_path, unsafe_url):
+    configure(monkeypatch, tmp_path)
+    monkeypatch.setenv("SUPABASE_URL", unsafe_url)
+
+    def unexpected_request(*_args, **_kwargs):
+        raise AssertionError("Supabase service-role credentials must not be sent.")
+
+    monkeypatch.setattr(httpx.Client, "request", unexpected_request)
+
+    with pytest.raises(backup.BackupError, match="SUPABASE_URL"):
+        backup.backup_media(tmp_path / "media", tmp_path / "manifest.json")
+
+
+def test_backup_client_disables_redirect_following(monkeypatch, tmp_path):
+    destination, manifest_path = configure(monkeypatch, tmp_path)
+
+    def fake_request(self, method, url, headers=None, **kwargs):
+        assert self.follow_redirects is False
+        if method == "GET":
+            return make_response(200, payload={"id": "makeupart-media", "public": False})
+        if method == "POST":
+            return make_response(200, payload=[])
+        raise AssertionError(f"Unexpected request: {method} {url}")
+
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
+
+    assert backup.backup_media(destination, manifest_path) == (0, 0)
+
+
+def test_backup_rejects_http_redirect_response_without_following(monkeypatch):
+    request = httpx.Request("GET", "https://project.supabase.co/storage/v1/bucket/makeupart-media")
+    redirect = httpx.Response(
+        302,
+        request=request,
+        headers={"location": "https://attacker.example/collect"},
+    )
+
+    class RedirectingSession:
+        def request(self, *_args, **_kwargs):
+            return redirect
+
+    with pytest.raises(backup.BackupError, match="redirects are not permitted"):
+        backup._safe_request(
+            RedirectingSession(),
+            "GET",
+            str(request.url),
+            headers={"Authorization": "Bearer not-a-real-secret"},
+        )
+
+
+def test_backup_request_type_hints_resolve_without_missing_imports():
+    from typing import get_type_hints
+
+    assert get_type_hints(backup._safe_request)["return"] is httpx.Response

@@ -5,7 +5,8 @@ import json
 import os
 import sys
 from pathlib import Path, PurePosixPath
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
+import re
 
 import httpx
 
@@ -18,6 +19,31 @@ class BackupError(RuntimeError):
     pass
 
 
+def _validate_supabase_project_url(value: str) -> str:
+    """Accept only the canonical HTTPS origin for one Supabase project."""
+    try:
+        parsed = urlsplit(value.strip().rstrip("/"))
+        host = (parsed.hostname or "").lower()
+        labels = host.split(".")
+        port = parsed.port
+    except ValueError as exc:
+        raise BackupError("SUPABASE_URL is malformed.") from exc
+
+    project_ref = labels[0] if len(labels) == 3 and labels[1:] == ["supabase", "co"] else ""
+    if (
+        parsed.scheme != "https"
+        or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", project_ref)
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in (None, 443)
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise BackupError("SUPABASE_URL must be the canonical HTTPS origin https://<project-ref>.supabase.co.")
+    return f"https://{host}"
+
+
 def _safe_request(
     session: httpx.Client,
     method: str,
@@ -26,7 +52,7 @@ def _safe_request(
     headers: dict[str, str],
     timeout: tuple[int, int] = (10, 60),
     **kwargs,
-) -> requests.Response:
+) -> httpx.Response:
     try:
         response = session.request(
             method,
@@ -37,6 +63,8 @@ def _safe_request(
         )
     except httpx.HTTPError as exc:
         raise BackupError("Supabase Storage request could not be completed.") from exc
+    if 300 <= response.status_code < 400:
+        raise BackupError("Supabase Storage redirects are not permitted for credential-bearing requests.")
     provider_code = "unknown"
     provider_message = "no structured error details"
     if response.status_code >= 400:
@@ -94,11 +122,13 @@ def backup_media(destination: Path, manifest_path: Path) -> tuple[int, int]:
         parsed_database = urlsplit(database_url)
         host = (parsed_database.hostname or "").lower()
         project_ref = ""
-        if host.endswith(".supabase.co"):
-            project_ref = host.removesuffix(".supabase.co")
+        if host.endswith(".supabase.co") and host.count(".") == 2:
+            candidate = host.removesuffix(".supabase.co")
+            if re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", candidate):
+                project_ref = candidate
         elif parsed_database.username and "." in unquote(parsed_database.username):
             candidate = unquote(parsed_database.username).split(".", 1)[1]
-            if candidate.replace("-", "").isalnum():
+            if re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", candidate):
                 project_ref = candidate
         if project_ref:
             supabase_url = f"https://{project_ref}.supabase.co"
@@ -108,8 +138,7 @@ def backup_media(destination: Path, manifest_path: Path) -> tuple[int, int]:
             "Supabase private-media backup configuration is incomplete; "
             "set SUPABASE_URL or a project-qualified SUPABASE_DB_URL."
         )
-    if not supabase_url.startswith("https://"):
-        raise BackupError("SUPABASE_URL must use HTTPS.")
+    supabase_url = _validate_supabase_project_url(supabase_url)
 
     api = supabase_url + "/storage/v1"
     headers = {
@@ -117,7 +146,8 @@ def backup_media(destination: Path, manifest_path: Path) -> tuple[int, int]:
         "Authorization": "Bearer " + service_key,
         "Accept": "application/json",
     }
-    session = httpx.Client(follow_redirects=True)
+    # Service-role credentials must never be forwarded through HTTP redirects.
+    session = httpx.Client(follow_redirects=False)
 
     # Ensure the source is the intended private bucket. Never back up a bucket
     # whose metadata says public=true.

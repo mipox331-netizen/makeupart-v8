@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import mimetypes
 import os
+import re
 import threading
 import time
 import uuid
@@ -74,10 +75,29 @@ def _supabase_storage_credentials() -> tuple[str, str, str] | None:
         return None
     if not base_url or not service_key or not bucket or "/" in bucket:
         raise GoogleDriveMediaError("Private Supabase Storage configuration is incomplete.")
-    parsed = urlsplit(base_url)
-    if parsed.scheme != "https" or not parsed.hostname or parsed.path not in ("", "/"):
-        raise GoogleDriveMediaError("SUPABASE_URL must be an HTTPS project URL.")
-    return base_url, service_key, bucket
+    try:
+        parsed = urlsplit(base_url)
+        host = (parsed.hostname or "").lower()
+        labels = host.split(".")
+        port = parsed.port
+    except ValueError as exc:
+        raise GoogleDriveMediaError("SUPABASE_URL is malformed.") from exc
+
+    project_ref = labels[0] if len(labels) == 3 and labels[1:] == ["supabase", "co"] else ""
+    if (
+        parsed.scheme != "https"
+        or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", project_ref)
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in (None, 443)
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise GoogleDriveMediaError(
+            "SUPABASE_URL must be the canonical HTTPS origin https://<project-ref>.supabase.co."
+        )
+    return f"https://{host}", service_key, bucket
 
 
 def _supabase_storage_request(
@@ -102,11 +122,13 @@ def _supabase_storage_request(
             f"{base_url}/storage/v1{path}",
             headers=headers,
             timeout=timeout,
-            follow_redirects=True,
+            follow_redirects=False,
             **kwargs,
         )
     except httpx.HTTPError as exc:
         raise GoogleDriveMediaError("Private Supabase Storage could not be reached.") from exc
+    if 300 <= response.status_code < 400:
+        raise GoogleDriveMediaError("Private Supabase Storage redirects are not permitted.")
     if response.status_code >= 400:
         provider_code = "unknown"
         try:

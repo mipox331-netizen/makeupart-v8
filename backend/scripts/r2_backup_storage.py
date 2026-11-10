@@ -6,6 +6,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import boto3
 from botocore.config import Config
@@ -33,12 +34,32 @@ def _bucket() -> str:
 
 def _client():
     account_id = _required_env("R2_ACCOUNT_ID")
-    endpoint = os.environ.get(
-        "R2_ENDPOINT_URL",
-        f"https://{account_id}.r2.cloudflarestorage.com",
-    ).strip()
-    if not endpoint.startswith("https://"):
-        raise BackupStorageError("R2_ENDPOINT_URL must use HTTPS.")
+    if not re.fullmatch(r"[a-f0-9]{32}", account_id, flags=re.IGNORECASE):
+        raise BackupStorageError("R2_ACCOUNT_ID must be a 32-character Cloudflare account ID.")
+
+    expected_host = f"{account_id.lower()}.r2.cloudflarestorage.com"
+    configured_endpoint = os.environ.get("R2_ENDPOINT_URL", "").strip()
+    if configured_endpoint:
+        try:
+            parsed = urlsplit(configured_endpoint)
+            port = parsed.port
+        except ValueError as exc:
+            raise BackupStorageError("R2_ENDPOINT_URL is malformed.") from exc
+        if (
+            parsed.scheme != "https"
+            or (parsed.hostname or "").lower() != expected_host
+            or parsed.username is not None
+            or parsed.password is not None
+            or port not in (None, 443)
+            or parsed.path not in ("", "/")
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise BackupStorageError(
+                "R2_ENDPOINT_URL must match the configured Cloudflare account's HTTPS R2 endpoint."
+            )
+
+    endpoint = f"https://{expected_host}"
     return boto3.client(
         "s3",
         endpoint_url=endpoint,
