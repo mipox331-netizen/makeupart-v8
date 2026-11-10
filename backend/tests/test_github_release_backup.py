@@ -1,5 +1,4 @@
 import hashlib
-import json
 from pathlib import Path
 
 import pytest
@@ -60,13 +59,6 @@ def test_download_rejects_bad_checksum_and_removes_archive(tmp_path, monkeypatch
     monkeypatch.setenv("GH_TOKEN", "test-token")
     monkeypatch.setenv("GITHUB_REPOSITORY", "owner/app")
 
-    def fake_gh(*args):
-        # Simulate gh release download: archive and checksum already exist in destination.
-        assert args[0:3] == ("release", "download", "makeupart-media-12345-a1")
-        assert Path(args[4]).name == "ignored"
-        return ""
-
-    monkeypatch.setattr(backup, "_gh", fake_gh)
     destination = tmp_path / "restore"
     destination.mkdir()
     # _gh receives --dir <destination>; create the files when download is invoked.
