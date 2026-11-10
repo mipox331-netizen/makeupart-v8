@@ -65,11 +65,15 @@ def test_download_rejects_bad_checksum_and_removes_archive(tmp_path, monkeypatch
     original = backup._gh
 
     def fake_download(*args):
-        dest = Path(args[args.index("--dir") + 1])
-        dest.mkdir(parents=True, exist_ok=True)
-        (dest / archive.name).write_bytes(archive.read_bytes())
-        Path(dest / (archive.name + ".sha256")).write_text(checksum.read_text())
-        return ""
+        if args[:2] == ("repo", "view"):
+            return "true"
+        if args[:2] == ("release", "download"):
+            dest = Path(args[args.index("--dir") + 1])
+            dest.mkdir(parents=True, exist_ok=True)
+            (dest / archive.name).write_bytes(archive.read_bytes())
+            Path(dest / (archive.name + ".sha256")).write_text(checksum.read_text())
+            return ""
+        raise AssertionError(f"Unexpected GitHub CLI arguments: {args!r}")
 
     monkeypatch.setattr(backup, "_gh", fake_download)
     with pytest.raises(backup.BackupStorageError, match="does not match"):
