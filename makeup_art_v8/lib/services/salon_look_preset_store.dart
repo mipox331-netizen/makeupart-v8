@@ -25,6 +25,7 @@ class SalonLookPreset {
     required this.folder,
     required this.engine,
     required this.makeupStyle,
+    this.faceEdit = 'none',
     required this.generativeLook,
     required this.photoFinish,
     required this.intensity,
@@ -41,6 +42,7 @@ class SalonLookPreset {
   final String folder;
   final String engine;
   final String makeupStyle;
+  final String faceEdit;
   final String generativeLook;
   final String photoFinish;
   final double intensity;
@@ -57,6 +59,7 @@ class SalonLookPreset {
         'folder': folder,
         'engine': engine,
         'makeup_style': makeupStyle,
+        'face_edit': faceEdit,
         'generative_look': generativeLook,
         'photo_finish': photoFinish,
         'intensity': intensity,
@@ -82,6 +85,8 @@ class SalonLookPreset {
     final folder = requiredString('folder');
     final engine = requiredString('engine');
     final makeupStyle = requiredString('makeup_style');
+    final faceEditValue = json['face_edit'] ?? 'none';
+    final faceEdit = faceEditValue is String ? faceEditValue : '';
     final generativeLook = requiredString('generative_look');
     final photoFinish = requiredString('photo_finish');
     final intensityValue = json['intensity'];
@@ -95,6 +100,7 @@ class SalonLookPreset {
     if (name.length > SalonLookPresetStore.maxNameLength ||
         !SalonLookPresetStore.supportedFolders.contains(folder) ||
         !const {'classic', 'generative'}.contains(engine) ||
+        !SalonLookPresetStore.supportedFaceEdits.contains(faceEdit) ||
         intensityValue is! num ||
         !intensityValue.toDouble().isFinite ||
         intensityValue < 0 ||
@@ -124,6 +130,7 @@ class SalonLookPreset {
       folder: folder,
       engine: engine,
       makeupStyle: makeupStyle,
+      faceEdit: faceEdit,
       generativeLook: generativeLook,
       photoFinish: photoFinish,
       intensity: intensityValue.toDouble(),
@@ -150,6 +157,22 @@ class SalonLookPresetStore {
     'Skin',
     'Makeup',
     'Hairstyles',
+    'Sizes',
+    'Hair Colors',
+    'Smiles',
+    'Features',
+    'Beards',
+    'Age',
+    'Gender',
+    'Glasses',
+  };
+  static const supportedFaceEdits = <String>{
+    'none',
+    'hair_black', 'hair_brown', 'hair_auburn', 'hair_blonde',
+    'soft_smile', 'stubble', 'short_beard', 'full_beard', 'mustache',
+    'glasses_round', 'glasses_square', 'glasses_aviator',
+    'slim_face', 'v_shape', 'age_mature', 'youthful_finish',
+    'masculine_presentation', 'feminine_presentation',
   };
 
   final Directory? rootOverride;
@@ -230,6 +253,7 @@ class SalonLookPresetStore {
     required String folder,
     required String engine,
     required String makeupStyle,
+    String faceEdit = 'none',
     required String generativeLook,
     required String photoFinish,
     required double intensity,
@@ -268,6 +292,7 @@ class SalonLookPresetStore {
       throw ArgumentError('Sharpness must be between 0 and 1.');
     }
     if (makeupStyle.trim().isEmpty ||
+        !supportedFaceEdits.contains(faceEdit) ||
         generativeLook.trim().isEmpty ||
         photoFinish.trim().isEmpty) {
       throw ArgumentError('Preset settings cannot be empty.');
@@ -290,6 +315,7 @@ class SalonLookPresetStore {
       folder: folder,
       engine: engine,
       makeupStyle: makeupStyle,
+      faceEdit: faceEdit,
       generativeLook: generativeLook,
       photoFinish: photoFinish,
       intensity: intensity,
