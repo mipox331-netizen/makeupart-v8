@@ -2,7 +2,7 @@ name: MakeupArt V8 Encrypted Media Restore Drill
 
 on:
   workflow_run:
-    workflows: ["MakeupArt V8 Encrypted Supabase Media Backup to Cloudflare R2"]
+    workflows: ["MakeupArt V8 Encrypted Supabase Media Backup to private GitHub Releases"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
     environment: production
     timeout-minutes: 25
     steps:
-      - name: Select successful Cloudflare R2 media backup
+      - name: Select successful private GitHub Releases media backup
         id: select-backup
         shell: bash
         env:
@@ -66,7 +66,7 @@ jobs:
           }
           echo "run_id=$selected" >> "$GITHUB_OUTPUT"
           echo "backup_key_id=$selected-a$selected_attempt" >> "$GITHUB_OUTPUT"
-          echo "Selected a successful media backup run; the next step verifies the encrypted archive downloaded from R2."
+          echo "Selected a successful media backup run; the next step verifies the encrypted archive downloaded from the private backup repository."
           
       - name: Validate backup encryption secret
         shell: bash
@@ -81,23 +81,15 @@ jobs:
       - name: Check out restore tooling
         uses: actions/checkout@v4
 
-      - name: Set up Python for Cloudflare R2 restore
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Download selected encrypted media backup from Cloudflare R2
+      - name: Download selected encrypted media backup from the private backup repository
         env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          GH_TOKEN: ${{ secrets.BACKUP_REPOSITORY_TOKEN }}
+          BACKUP_REPOSITORY: ${{ secrets.BACKUP_REPOSITORY }}
           BACKUP_RUN_ID: ${{ steps.select-backup.outputs.backup_key_id }}
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check --no-input boto3==1.43.127
-          python backend/scripts/r2_backup_storage.py download media "$BACKUP_RUN_ID" "$RUNNER_TEMP/makeupart-media-restore"
+          python backend/scripts/github_release_backup.py download media "$BACKUP_RUN_ID" "$RUNNER_TEMP/makeupart-media-restore"
 
       - name: Verify checksum, decrypt and restore into isolated temporary directory
         shell: bash
