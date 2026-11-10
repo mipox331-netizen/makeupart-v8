@@ -130,8 +130,8 @@ def _prune_expired(category: str, retention_days: int) -> int:
 
 def upload(category: str, archive: Path, checksum_file: Path, run_id: str) -> str:
     _validate_category_run(category, run_id)
-    repository = _backup_repository()
     archive_size, archive_sha = _verify_local_archive(archive, checksum_file)
+    repository = _backup_repository()
     _ensure_private_target(repository)
 
     retention_days = int(os.environ.get("BACKUP_RETENTION_DAYS", "14"))
