@@ -243,6 +243,8 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
   Future<Uint8List>? afterImageFuture;
   Uint8List? rawAfterBytes;
   Uint8List? displayedAfterBytes;
+  Uint8List? faceAppComparisonBytes;
+  bool loadingFaceAppComparison = false;
   String selectedLook = 'Natural Finish';
   String selectedMakeupStyle = 'natural';
   String? _selectedFilterFolder;
@@ -462,6 +464,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       afterImageFuture = null;
       rawAfterBytes = null;
       displayedAfterBytes = null;
+      faceAppComparisonBytes = null;
       error = null;
     });
     if (nextCustomerId != null) {
@@ -598,6 +601,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
         afterImageFuture = null;
         rawAfterBytes = null;
         displayedAfterBytes = null;
+        faceAppComparisonBytes = null;
         error = null;
       });
     } catch (_) {
@@ -621,6 +625,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
         afterImageFuture = null;
         rawAfterBytes = null;
         displayedAfterBytes = null;
+        faceAppComparisonBytes = null;
         error = null;
       });
     } catch (_) {
@@ -706,6 +711,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
     afterImageFuture = null;
     rawAfterBytes = null;
     displayedAfterBytes = null;
+    faceAppComparisonBytes = null;
     error = null;
   }
 
@@ -835,8 +841,37 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       afterImageFuture = null;
       rawAfterBytes = null;
       displayedAfterBytes = null;
+      faceAppComparisonBytes = null;
       error = null;
     });
+  }
+
+  Future<void> _chooseFaceAppComparison() async {
+    if (displayedAfterBytes == null || loadingFaceAppComparison) return;
+    setState(() => loadingFaceAppComparison = true);
+    try {
+      final image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 95,
+      );
+      if (image == null) return;
+      final bytes = await image.readAsBytes();
+      if (bytes.isEmpty) {
+        throw const FormatException('Selected FaceApp image is empty.');
+      }
+      if (!mounted) return;
+      setState(() => faceAppComparisonBytes = bytes);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Haikuweza kusoma picha ya FaceApp kutoka Gallery.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => loadingFaceAppComparison = false);
+    }
   }
 
   Future<void> _saveResultToGallery() async {
@@ -1210,7 +1245,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 104,
+          height: 112,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -2597,6 +2632,79 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                         'The saved PNG includes the selected photo finish and the salon watermark from the latest processing run.',
                         textAlign: TextAlign.center,
                       ),
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(
+                        key: const ValueKey('compare-with-faceapp-button'),
+                        onPressed: loadingFaceAppComparison || loading
+                            ? null
+                            : _chooseFaceAppComparison,
+                        icon: loadingFaceAppComparison
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.compare_rounded),
+                        label: const Text('Linganisha na FaceApp'),
+                      ),
+                      if (faceAppComparisonBytes != null) ...[
+                        const SizedBox(height: 12),
+                        Card(
+                          key: const ValueKey('faceapp-comparison-panel'),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'MAKEUPART VS FACEAPP',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.1,
+                                        color: Theme.of(context).colorScheme.primary,
+                                      ),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Buruta mstari katikati kuona tofauti. Hifadhi kwanza matokeo ya FaceApp kwenye Gallery.',
+                                ),
+                                const SizedBox(height: 12),
+                                BeforeAfterComparison(
+                                  key: const ValueKey('makeupart-faceapp-slider'),
+                                  height: 260,
+                                  beforeLabel: 'MAKEUPART',
+                                  afterLabel: 'FACEAPP',
+                                  before: Image.memory(
+                                    displayedAfterBytes!,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Center(
+                                      child: Icon(Icons.broken_image_outlined),
+                                    ),
+                                  ),
+                                  after: Image.memory(
+                                    faceAppComparisonBytes!,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Center(
+                                      child: Icon(Icons.broken_image_outlined),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextButton.icon(
+                                  onPressed: loadingFaceAppComparison
+                                      ? null
+                                      : _chooseFaceAppComparison,
+                                  icon: const Icon(Icons.photo_library_outlined),
+                                  label: const Text('Badilisha picha ya FaceApp'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ],
                 ),
@@ -2739,7 +2847,7 @@ class _FaceEditorToolItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return SizedBox(
-      width: 76,
+      width: 84,
       child: Semantics(
         button: true,
         selected: selected,
@@ -2757,8 +2865,8 @@ class _FaceEditorToolItem extends StatelessWidget {
                 children: [
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 160),
-                    width: 66,
-                    height: 52,
+                    width: 74,
+                    height: 58,
                     padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       color: selected
