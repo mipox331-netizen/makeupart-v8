@@ -6,6 +6,8 @@ from typing import Any
 import cv2
 import numpy as np
 
+from app.services.face_effects import FaceEffects
+
 try:
     import mediapipe as mp
 except ImportError:  # pragma: no cover
@@ -429,13 +431,37 @@ class BeautyProvider:
         skin_matcher = SkinToneMatcher()
         tone = skin_matcher.detect(image, landmarks[0])
         intensity = float(payload.get("intensity", 0.7))
-        processed = self._enhance_skin(image, landmarks[0], intensity)
-        # Measure structural preservation before cosmetic color overlays; the
-        # metric is not biometric identity recognition and should not reject a
-        # deliberate lip/cheek color change as if it distorted facial geometry.
-        similarity = IdentityGuard.measure_similarity(image, processed, landmarks[0])
+        face_edit = str(payload.get("face_edit", "none"))
         makeup_style = str(payload.get("makeup_style", "natural"))
-        processed = self._apply_makeup(processed, landmarks[0], makeup_style, intensity)
+
+        if face_edit == "none":
+            processed = self._enhance_skin(image, landmarks[0], intensity)
+            # Measure structural preservation before cosmetic color overlays;
+            # the metric is not biometric identity recognition and should not
+            # reject a deliberate lip/cheek color change as facial distortion.
+            similarity = IdentityGuard.measure_similarity(
+                image, processed, landmarks[0]
+            )
+            processed = self._apply_makeup(
+                processed, landmarks[0], makeup_style, intensity
+            )
+        else:
+            # A targeted face edit must not silently add the default natural
+            # makeup and skin polish to hair, glasses, beard or geometry edits.
+            # Score the unmodified source at this stage; the specific edit runs
+            # after this provider in the API pipeline.
+            processed = image.copy()
+            similarity = IdentityGuard.measure_similarity(
+                image, processed, landmarks[0]
+            )
+        # Local face edits are deliberately separate from the smoothing identity
+        # guard: geometry-changing edits should not be scored as preservation errors.
+        processed = FaceEffects.apply(
+            processed,
+            landmarks[0],
+            str(payload.get("face_edit", "none")),
+            intensity,
+        )
 
         output_dir = payload.get("output_dir")
         if output_dir:

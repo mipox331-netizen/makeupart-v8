@@ -77,11 +77,31 @@ void main() {
       'intensity': 0.5,
       'updated_at': DateTime.utc(2026, 1, 1).toIso8601String(),
     });
+    expect(legacy.faceEdit, 'none');
     expect(legacy.brightness, 0.0);
     expect(legacy.contrast, 1.0);
     expect(legacy.saturation, 1.0);
     expect(legacy.warmth, 0.0);
     expect(legacy.sharpness, 0.0);
+  });
+
+  test('persists local face edits and accepts every implemented folder', () async {
+    final store = SalonLookPresetStore(rootOverride: root, scope: 'salon-face-edits');
+    final saved = await store.save(
+      name: 'Round Glasses',
+      folder: 'Glasses',
+      engine: 'classic',
+      makeupStyle: 'natural',
+      faceEdit: 'glasses_round',
+      generativeLook: 'natural',
+      photoFinish: 'Natural Finish',
+      intensity: 0.72,
+    );
+
+    final loaded = (await store.list()).single;
+    expect(loaded.id, saved.id);
+    expect(loaded.folder, 'Glasses');
+    expect(loaded.faceEdit, 'glasses_round');
   });
 
   test('salon scopes cannot collide after path normalization', () async {
@@ -166,7 +186,7 @@ void main() {
     }
 
     await expectLater(saveWith(name: '  '), throwsArgumentError);
-    await expectLater(saveWith(folder: 'Glasses'), throwsArgumentError);
+    await expectLater(saveWith(folder: 'Not a real folder'), throwsArgumentError);
     await expectLater(saveWith(intensity: 1.5), throwsArgumentError);
     expect(await store.list(), isEmpty);
   });

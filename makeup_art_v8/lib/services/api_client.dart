@@ -421,6 +421,7 @@ class ApiClient {
     bool consentConfirmed = false,
     String? customerId,
     required String makeupStyle,
+    String faceEdit = 'none',
     String photoFinish = 'Natural Finish',
     String engine = "classic",
     String generativeLook = "full_glam",
@@ -439,6 +440,7 @@ class ApiClient {
       queryParameters: {
         'intensity': intensity,
         'makeup_style': makeupStyle,
+        'face_edit': faceEdit,
         'photo_finish': photoFinish,
         'engine': engine,
         'generative_look': generativeLook,

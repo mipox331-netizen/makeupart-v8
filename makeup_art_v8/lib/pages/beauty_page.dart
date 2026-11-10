@@ -74,8 +74,8 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
     'skin_only': 'Skin Polish Only',
   };
 
-  // Ordered like a familiar face-editor tool strip. Unimplemented tools stay
-  // visible but clearly report their status instead of pretending to work.
+  // Folder order mirrors a familiar face editor. Local folders use real
+  // MediaPipe/OpenCV operations; hairstyles remain provider-gated.
   static const _faceEditorFolderOrder = <String>[
     'Impression',
     'Skin',
@@ -109,16 +109,90 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
   static const _faceFilterFolderDescriptions = <String, String>{
     'Impression': 'Warm tones and photo finishes',
     'Skin': 'Smooth and balance the portrait',
-    'Sizes': 'Facial proportions and shape',
-    'Hairstyles': 'Try a different hair style',
-    'Hair Colors': 'Preview a new hair color',
-    'Smiles': 'Change the expression',
-    'Features': 'Refine individual facial details',
-    'Beards': 'Try facial-hair styles',
+    'Sizes': 'Subtle face-shape refinements',
+    'Hairstyles': 'Try a different hairstyle with generative AI',
+    'Hair Colors': 'Preview hair color locally',
+    'Smiles': 'Lift the smile naturally',
+    'Features': 'Refine facial proportions',
+    'Beards': 'Preview facial-hair styles',
     'Makeup': 'Eyes, lips, cheeks and complete looks',
-    'Age': 'Explore age-style transformations',
-    'Gender': 'Explore presentation styles',
+    'Age': 'Youthful skin or a mature wrinkle finish',
+    'Gender': 'Feminine or masculine presentation styles',
     'Glasses': 'Try different frame styles',
+  };
+
+  static const _faceEditOptions = <String, List<String>>{
+    'Hair Colors': ['hair_black', 'hair_brown', 'hair_auburn', 'hair_blonde'],
+    'Smiles': ['soft_smile'],
+    'Sizes': ['slim_face', 'v_shape'],
+    'Features': ['slim_face', 'v_shape'],
+    'Beards': ['stubble', 'short_beard', 'full_beard', 'mustache'],
+    'Age': ['youthful_finish', 'age_mature'],
+    'Gender': ['feminine_presentation', 'masculine_presentation'],
+    'Glasses': ['glasses_round', 'glasses_square', 'glasses_aviator'],
+  };
+
+  static const _faceEditNames = <String, String>{
+    'hair_black': 'Natural Black',
+    'hair_brown': 'Chocolate Brown',
+    'hair_auburn': 'Auburn',
+    'hair_blonde': 'Golden Blonde',
+    'soft_smile': 'Soft Smile',
+    'slim_face': 'Slim Face',
+    'v_shape': 'V-Shape',
+    'stubble': 'Light Stubble',
+    'short_beard': 'Short Beard',
+    'full_beard': 'Full Beard',
+    'mustache': 'Mustache',
+    'youthful_finish': 'Youthful Finish',
+    'age_mature': 'Mature Finish',
+    'feminine_presentation': 'Feminine Style',
+    'masculine_presentation': 'Masculine Style',
+    'glasses_round': 'Round Frames',
+    'glasses_square': 'Square Frames',
+    'glasses_aviator': 'Aviator Frames',
+  };
+
+  static const _faceEditDescriptions = <String, String>{
+    'hair_black': 'Darken visible hair to a natural black tone',
+    'hair_brown': 'Add a chocolate-brown hair tint',
+    'hair_auburn': 'Add a warm auburn hair tint',
+    'hair_blonde': 'Preview a golden-blonde hair tone',
+    'soft_smile': 'Gently lift the mouth corners',
+    'slim_face': 'Apply a subtle cheek-slimming warp',
+    'v_shape': 'Refine the lower-face contour',
+    'stubble': 'Add a light beard shadow',
+    'short_beard': 'Preview a short beard',
+    'full_beard': 'Preview a fuller beard overlay',
+    'mustache': 'Add a subtle mustache overlay',
+    'youthful_finish': 'Smooth facial texture while preserving detail',
+    'age_mature': 'Add a subtle fine-line mature finish',
+    'feminine_presentation': 'Apply soft blush and lip styling',
+    'masculine_presentation': 'Apply a light beard and brow styling',
+    'glasses_round': 'Round optical frames',
+    'glasses_square': 'Square optical frames',
+    'glasses_aviator': 'Aviator-style frames',
+  };
+
+  static const _faceEditIcons = <String, IconData>{
+    'hair_black': Icons.palette_outlined,
+    'hair_brown': Icons.palette_outlined,
+    'hair_auburn': Icons.palette_outlined,
+    'hair_blonde': Icons.palette_outlined,
+    'soft_smile': Icons.sentiment_satisfied_alt_rounded,
+    'slim_face': Icons.face_retouching_natural_rounded,
+    'v_shape': Icons.face_retouching_natural_rounded,
+    'stubble': Icons.face_rounded,
+    'short_beard': Icons.face_rounded,
+    'full_beard': Icons.face_rounded,
+    'mustache': Icons.face_rounded,
+    'youthful_finish': Icons.spa_outlined,
+    'age_mature': Icons.hourglass_empty_rounded,
+    'feminine_presentation': Icons.auto_awesome_rounded,
+    'masculine_presentation': Icons.person_outline_rounded,
+    'glasses_round': Icons.visibility_outlined,
+    'glasses_square': Icons.visibility_outlined,
+    'glasses_aviator': Icons.visibility_outlined,
   };
 
   static const _hairLookKeys = <String>{
@@ -247,6 +321,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
   bool loadingFaceAppComparison = false;
   String selectedLook = 'Natural Finish';
   String selectedMakeupStyle = 'natural';
+  String selectedFaceEffect = 'none';
   String? _selectedFilterFolder;
   final GlobalKey _filterToolsAnchorKey = GlobalKey();
   String _selectedClassicCategory = 'Looks';
@@ -658,6 +733,9 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
         consentConfirmed: consentConfirmed,
         customerId: customerId,
         makeupStyle: selectedMakeupStyle,
+        faceEdit: _faceEditOptions.containsKey(_selectedFilterFolder)
+            ? selectedFaceEffect
+            : 'none',
         photoFinish: selectedLook,
         engine: selectedEngine,
         generativeLook: selectedGenerativeLook,
@@ -720,6 +798,14 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       case 'Impression':
       case 'Skin':
       case 'Makeup':
+      case 'Sizes':
+      case 'Hair Colors':
+      case 'Smiles':
+      case 'Features':
+      case 'Beards':
+      case 'Age':
+      case 'Gender':
+      case 'Glasses':
         return 'AVAILABLE';
       case 'Hairstyles':
         if (loadingCapabilities || loadingSubscription) return 'CHECKING';
@@ -732,7 +818,20 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
   }
 
   bool _canProcessSelectedFolder() {
-    const supportedFolders = {'Impression', 'Skin', 'Makeup', 'Hairstyles'};
+    const supportedFolders = {
+      'Impression',
+      'Skin',
+      'Makeup',
+      'Hairstyles',
+      'Sizes',
+      'Hair Colors',
+      'Smiles',
+      'Features',
+      'Beards',
+      'Age',
+      'Gender',
+      'Glasses',
+    };
     if (!supportedFolders.contains(_selectedFilterFolder)) return false;
     if (_selectedFilterFolder == 'Hairstyles') {
       return generativeAvailable && selectedEngine == 'generative';
@@ -754,9 +853,11 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
             selectedMakeupStyle != 'skin_only';
         selectedEngine = 'classic';
         selectedMakeupStyle = 'skin_only';
+        selectedFaceEffect = 'none';
         externalAiConsentConfirmed = false;
         if (changed) _clearProcessedResult();
       } else if (folder == 'Makeup') {
+        selectedFaceEffect = 'none';
         if (selectedEngine == 'generative') {
           if (_hairLookKeys.contains(selectedGenerativeLook) ||
               selectedGenerativeLook == 'foundation') {
@@ -772,10 +873,12 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
           selectedMakeupStyle = 'natural';
           _clearProcessedResult();
         }
-      } else if (folder == 'Hairstyles' && generativeAvailable) {
+      } else if (folder == 'Hairstyles') {
         final changed = selectedEngine != 'generative' ||
-            !_hairLookKeys.contains(selectedGenerativeLook);
+            !_hairLookKeys.contains(selectedGenerativeLook) ||
+            selectedFaceEffect != 'none';
         selectedEngine = 'generative';
+        selectedFaceEffect = 'none';
         if (!_hairLookKeys.contains(selectedGenerativeLook)) {
           selectedGenerativeLook = 'soft_curls';
         }
@@ -784,6 +887,21 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
           externalAiConsentConfirmed = false;
           _clearProcessedResult();
         }
+      } else if (_faceEditOptions.containsKey(folder)) {
+        final options = _faceEditOptions[folder]!;
+        final changed = selectedEngine != 'classic' ||
+            selectedFaceEffect != options.first ||
+            selectedMakeupStyle != 'natural' ||
+            selectedLook != 'Natural Finish';
+        selectedEngine = 'classic';
+        selectedMakeupStyle = 'natural';
+        selectedLook = 'Natural Finish';
+        selectedFaceEffect = options.first;
+        externalAiConsentConfirmed = false;
+        if (changed) _clearProcessedResult();
+      } else {
+        selectedEngine = 'classic';
+        selectedFaceEffect = 'none';
       }
     });
 
@@ -933,6 +1051,15 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
         return 'Skin Polish';
       case 'Hairstyles':
         return _generativeLooks[selectedGenerativeLook] ?? 'Salon Hair';
+      case 'Hair Colors':
+      case 'Smiles':
+      case 'Sizes':
+      case 'Features':
+      case 'Beards':
+      case 'Age':
+      case 'Gender':
+      case 'Glasses':
+        return _faceEditNames[selectedFaceEffect] ?? 'Face Edit';
       case 'Makeup':
         return selectedEngine == 'generative'
             ? (_generativeLooks[selectedGenerativeLook] ?? 'AI Makeup')
@@ -1025,6 +1152,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
         folder: folder,
         engine: selectedEngine,
         makeupStyle: selectedMakeupStyle,
+        faceEdit: selectedFaceEffect,
         generativeLook: selectedGenerativeLook,
         photoFinish: selectedLook,
         intensity: intensity,
@@ -1100,6 +1228,9 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
       selectedMakeupStyle = _makeupStyles.containsKey(preset.makeupStyle)
           ? preset.makeupStyle
           : 'natural';
+      selectedFaceEffect = _faceEditNames.containsKey(preset.faceEdit)
+          ? preset.faceEdit
+          : 'none';
       selectedGenerativeLook = _generativeLooks.containsKey(preset.generativeLook)
           ? preset.generativeLook
           : 'full_glam';
@@ -2351,6 +2482,48 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                           ),
                         ),
                       ],
+                    ] else if (_faceEditOptions.containsKey(_selectedFilterFolder)) ...[
+                      Text(
+                        'Choose a ${_selectedFilterFolder!.toLowerCase()} effect',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      buildOptionRail(
+                        railKey: ValueKey('face-edit-options-${_selectedFilterFolder!}'),
+                        itemCount: _faceEditOptions[_selectedFilterFolder!]!.length,
+                        itemBuilder: (context, index) {
+                          final edit = _faceEditOptions[_selectedFilterFolder!]![index];
+                          return _BeautyOptionTile(
+                            key: ValueKey('face-edit-option-$edit'),
+                            title: _faceEditNames[edit]!,
+                            description: _faceEditDescriptions[edit]!,
+                            icon: _faceEditIcons[edit]!,
+                            selected: selectedFaceEffect == edit,
+                            onTap: loading
+                                ? null
+                                : () => setState(() {
+                                      selectedFaceEffect = edit;
+                                      selectedEngine = 'classic';
+                                      _clearProcessedResult();
+                                    }),
+                          );
+                        },
+                      ),
+                      if (_selectedFilterFolder == 'Age' ||
+                          _selectedFilterFolder == 'Gender' ||
+                          _selectedFilterFolder == 'Hair Colors') ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _selectedFilterFolder == 'Age'
+                              ? 'These are local cosmetic age-style effects, not a generative age transformation.'
+                              : _selectedFilterFolder == 'Gender'
+                                  ? 'These are presentation styles only; they do not determine or change a person’s gender identity.'
+                                  : 'Hair color is a local preview. Results depend on visible hair and lighting.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
                     ] else ...[
                       _FolderInformation(
                         icon: _faceFilterFolderIcons[_selectedFilterFolder!]!,
@@ -2380,9 +2553,11 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                     Text(
                       '${selectedEngine == 'generative'
                           ? 'Generative treatment strength'
-                          : (_selectedFilterFolder == 'Makeup'
-                              ? 'Skin polish & makeup strength'
-                              : 'Skin polish strength')} ${(intensity * 100).round()}%',
+                          : (_faceEditOptions.containsKey(_selectedFilterFolder)
+                              ? 'Face effect strength'
+                              : (_selectedFilterFolder == 'Makeup'
+                                  ? 'Skin polish & makeup strength'
+                                  : 'Skin polish strength'))} ${(intensity * 100).round()}%',
                     ),
                     Slider(
                       value: intensity,

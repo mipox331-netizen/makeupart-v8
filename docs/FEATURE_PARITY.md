@@ -1,6 +1,6 @@
 # MakeupArt V8 — Face Editor Feature Parity
 
-**Review date:** 2 November 2026  
+**Review date:** 10 November 2026  
 **Scope:** Current repository source on `fix/production-api-config-and-storage-gates`. This is a source-code capability review, not a claim that every feature has passed a physical-device test or is live in production.
 
 ## Reference benchmark
@@ -34,13 +34,13 @@ References:
 | Reusable salon look presets | Implemented | Up to 24 device-local recipes; this branch also stores the five manual adjustment values and reads old presets with safe defaults. |
 | Client profiles and consent | Implemented | Per-salon client profiles and stored consent; processing requires fresh operator confirmation for the selected photo. |
 | Hairstyle try-on | Conditional / not release-verified | Requires a configured external generative-image provider, an eligible plan and separate external-processing consent. It is not available as an offline Classic feature. |
-| Hair color | Not implemented | No verified local hair segmentation/recoloring processor. |
-| Age transformation | Not implemented | No age-generation model is included in the Classic engine. |
-| Gender/presentation transformation | Not implemented | No transformation model is included. |
-| Facial reshaping / sizes | Not implemented | The identity-preservation score is not a face-shape editing tool. |
-| Smile editing | Not implemented | No expression transformation is included. |
-| Beard / mustache generation | Not implemented | No beard segmentation or synthesis processor is included. |
-| Glasses try-on | Not implemented | No glasses asset fitting/occlusion pipeline is included. |
+| Hair color preview | Implemented as a local approximation | Face-mesh-bounded head-cap recoloring for black, brown, auburn and blonde. It is not semantic hair segmentation; edge quality depends on lighting, hair visibility and background. |
+| Age-style effects | Implemented as local cosmetic finishes | Youthful Finish uses face-region bilateral smoothing; Mature Finish adds fine-line overlays. Neither generates a different biological age. |
+| Gender presentation | Implemented as presentation presets | Feminine Style adds local blush/lip styling; Masculine Style adds stubble/brow styling. These presets do not infer or change gender identity. |
+| Facial reshaping / sizes | Implemented as subtle 2-D mesh warps | Slim Face and V-Shape locally warp the lower-face region. These are bounded 2-D previews, not 3-D or generative anatomy edits. |
+| Smile editing | Implemented as a local mouth-corner warp | Soft Smile applies a bounded landmark-guided remap; it cannot synthesize teeth or a new expression. |
+| Beard / mustache | Implemented as local overlays | Stubble, short/full beard and mustache are landmark-bounded overlays, not hair-by-hair generation. |
+| Glasses try-on | Implemented as vector frame overlays | Round, square and aviator frames follow eye landmarks. Lens/temple occlusion is approximate, not a full 3-D try-on pipeline. |
 | Multi-select filter stacking | Not implemented as a user workflow | Filters are selected as one recipe per processing run. |
 | Favorite filters / favorite gallery | Not implemented in current main flow | Local salon presets are not the same as filter favorites. |
 | Live camera makeup preview | Not implemented | Camera capture is supported, but the camera feed is not overlaid with live face makeup. |
@@ -49,13 +49,13 @@ References:
 
 ## Product decision
 
-MakeupArt V8 currently has a credible **salon makeup and photo-finishing workflow**, not full FaceApp feature parity. Its strengths are salon-scoped client handling, consent checks, makeup tools, watermarking, before/after review, export, recent local history and reusable salon recipes.
+MakeupArt V8 now has a broader **salon makeup and local portrait-effects workflow**, but it is still not full FaceApp feature parity. The newly added hair-color, smile, beard, glasses, face-shape and age/presentation effects are deterministic 2-D edits; they must not be marketed as generative transformations. Its strengths remain salon-scoped client handling, consent checks, makeup tools, watermarking, before/after review, export, recent local history and reusable salon recipes.
 
 The most useful next feature phases are:
 
-1. Add a true filter-favorites and multi-select/stacking workflow with repeatable undo/reset behavior.
-2. Implement hair segmentation and recoloring with measurable edge-quality tests.
-3. Add a hairstyle/image-generation provider only after provider availability, price limits, privacy disclosure and external consent are production-verified.
-4. Build face reshaping, age, smile, beard and glasses as separate, tested processors; do not expose them as working tools until each produces a real image change and passes regressions.
+1. Improve hair segmentation and recoloring with a dedicated segmentation model and edge-quality tests; the current head-cap recolor is an approximation.
+2. Replace vector glasses, beard and smile overlays with segmentation/3-D fitting where production quality requires it.
+3. Add a hairstyle and true age/presentation generation provider only after provider availability, price limits, privacy disclosure and external consent are production-verified.
+4. Add filter favorites and multi-select/stacking with repeatable undo/reset behavior.
 
 **Release rule:** a filter is marked available only when its processor exists, changes the intended pixels, has automated tests, respects salon isolation/consent/plan rules, and is verified in the production build. A roadmap folder must never be presented as a working edit.
