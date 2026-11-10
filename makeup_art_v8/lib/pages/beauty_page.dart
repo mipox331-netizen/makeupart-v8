@@ -238,6 +238,12 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
   SalonLookPresetStore get _lookPresetStore =>
       widget.lookPresetStore ?? SalonLookPresetStore(scope: widget.salonId);
 
+  ImageProvider<Object>? get _selectedPortraitPreview {
+    final path = selected?.path;
+    if (path == null || path.isEmpty) return null;
+    return FileImage(File(path));
+  }
+
   XFile? selected;
   Map<String, dynamic>? result;
   Future<Uint8List>? afterImageFuture;
@@ -1257,6 +1263,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                     selected: _selectedFilterFolder == folder,
                     ready: ready,
                     statusLabel: statusLabel,
+                    previewImage: _selectedPortraitPreview,
                     onTap: loading ? null : () => _openFilterFolder(folder),
                   ),
                 );
@@ -2003,6 +2010,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                             title: look,
                             description: _photoFinishDescriptions[look]!,
                             icon: _photoFinishIcons[look]!,
+                            previewImage: _selectedPortraitPreview,
                             selected: selectedLook == look,
                             lockedLabel: entitled ? null : requiredPlan.toUpperCase(),
                             onTap: loading
@@ -2110,6 +2118,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                         title: _makeupStyles['skin_only']!,
                         description: _makeupStyleDescriptions['skin_only']!,
                         icon: _makeupStyleIcons['skin_only']!,
+                        previewImage: _selectedPortraitPreview,
                         selected: selectedMakeupStyle == 'skin_only',
                         lockedLabel: availableMakeupStyles.contains('skin_only')
                             ? null
@@ -2183,6 +2192,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                                   title: _generativeLooks[lookKey]!,
                                   description: _generativeLookDescriptions[lookKey]!,
                                   icon: _generativeLookIcons[lookKey]!,
+                                  previewImage: _selectedPortraitPreview,
                                   selected: selectedGenerativeLook == lookKey,
                                   onTap: loading
                                       ? null
@@ -2258,6 +2268,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                               title: style,
                               description: _makeupStyleDescriptions[styleKey]!,
                               icon: _makeupStyleIcons[styleKey]!,
+                              previewImage: _selectedPortraitPreview,
                               selected: selectedMakeupStyle == styleKey,
                               lockedLabel: entitled ? null : requiredPlan.toUpperCase(),
                               onTap: loading
@@ -2307,6 +2318,7 @@ class _BeautyPageState extends State<BeautyPage> with WidgetsBindingObserver {
                               title: _generativeLooks[lookKey]!,
                               description: _generativeLookDescriptions[lookKey]!,
                               icon: _generativeLookIcons[lookKey]!,
+                              previewImage: _selectedPortraitPreview,
                               selected: selectedGenerativeLook == lookKey,
                               onTap: loading
                                   ? null
@@ -2824,6 +2836,7 @@ class _FaceEditorToolItem extends StatelessWidget {
     required this.ready,
     required this.statusLabel,
     required this.onTap,
+    this.previewImage,
   });
 
   final String title;
@@ -2832,6 +2845,7 @@ class _FaceEditorToolItem extends StatelessWidget {
   final bool ready;
   final String statusLabel;
   final VoidCallback? onTap;
+  final ImageProvider<Object>? previewImage;
 
   @override
   Widget build(BuildContext context) {
@@ -2875,7 +2889,15 @@ class _FaceEditorToolItem extends StatelessWidget {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            FaceSampleArtwork(label: title, height: 48),
+                            if (previewImage == null)
+                              FaceSampleArtwork(label: title, height: 48)
+                            else
+                              Image(
+                                image: previewImage!,
+                                fit: BoxFit.cover,
+                                alignment: Alignment.center,
+                                filterQuality: FilterQuality.medium,
+                              ),
                             Positioned(
                               left: 3,
                               bottom: 3,
@@ -3006,6 +3028,7 @@ class _BeautyOptionTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.lockedLabel,
+    this.previewImage,
   });
 
   final String title;
@@ -3014,6 +3037,27 @@ class _BeautyOptionTile extends StatelessWidget {
   final bool selected;
   final String? lockedLabel;
   final VoidCallback? onTap;
+  final ImageProvider<Object>? previewImage;
+
+  Color get _thumbnailTint {
+    final name = title.toLowerCase();
+    if (name.contains('warm') || name.contains('golden') || name.contains('copper')) {
+      return const Color(0xFFE9A15A).withValues(alpha: .24);
+    }
+    if (name.contains('bridal') || name.contains('rose') || name.contains('blush')) {
+      return const Color(0xFFE78BAF).withValues(alpha: .22);
+    }
+    if (name.contains('smok') || name.contains('editorial') || name.contains('evening')) {
+      return const Color(0xFF69517F).withValues(alpha: .25);
+    }
+    if (name.contains('skin') || name.contains('natural') || name.contains('foundation')) {
+      return const Color(0xFFF0D8C8).withValues(alpha: .16);
+    }
+    if (name.contains('hair') || name.contains('curl') || name.contains('braid')) {
+      return const Color(0xFFB98C48).withValues(alpha: .18);
+    }
+    return Colors.transparent;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3051,10 +3095,22 @@ class _BeautyOptionTile extends StatelessWidget {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      FaceSampleArtwork(
-                        label: title,
-                        height: 76,
-                      ),
+                      if (previewImage == null)
+                        FaceSampleArtwork(label: title, height: 76)
+                      else
+                        Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image(
+                              image: previewImage!,
+                              fit: BoxFit.cover,
+                              alignment: Alignment.center,
+                              filterQuality: FilterQuality.medium,
+                            ),
+                            if (_thumbnailTint != Colors.transparent)
+                              ColoredBox(color: _thumbnailTint),
+                          ],
+                        ),
                       Positioned(
                         left: 5,
                         bottom: 5,
