@@ -91,9 +91,8 @@ def _portrait():
     hair = ((xx - 128) / 82) ** 2 + ((yy - 44) / 50) ** 2 <= 1
     image[hair] = (22, 22, 22)
     # Keep facial detail visible to the local remapping/smoothing operations.
-    image[105:220, 85:171] += (
-        (xx[105:220, 85:171] % 7)[:, :, None] * np.array([1, 2, 3], dtype=np.uint8)
-    )
+    texture = (xx[105:220, 85:171] % 7).astype(np.uint8)[:, :, None]
+    image[105:220, 85:171] += texture * np.array([1, 2, 3], dtype=np.uint8)
     return image
 
 
