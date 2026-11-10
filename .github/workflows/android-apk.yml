@@ -439,15 +439,18 @@ jobs:
           from pathlib import Path
 
           report = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
-          report = re.sub(r"\x1b\\[[0-?]*[ -/]*[@-~]", "", report)
-          match = re.search(
-              r"certificate\\s+SHA-256\\s+digest\\s*:\\s*([0-9A-Fa-f:]{64,95})",
-              report,
-              flags=re.IGNORECASE,
-          )
-          if match is None:
+          marker = "certificate SHA-256 digest:"
+          for line in report.splitlines():
+              lowered = line.lower()
+              marker_index = lowered.find(marker)
+              if marker_index < 0:
+                  continue
+              digest = line[marker_index + len(marker):].strip().replace(":", "").lower()
+              if re.fullmatch(r"[0-9a-f]{64}", digest):
+                  print(digest)
+                  break
+          else:
               raise SystemExit("Could not read the APK signer certificate SHA-256 from apksigner output.")
-          print(match.group(1).replace(":", "").lower())
           PY
           )"
           if [[ -z "$actual_cert_sha" || "$actual_cert_sha" != "$expected_cert_sha" ]]; then
